@@ -16,7 +16,7 @@
     "test:wasm": "bash scripts/test-wasm.sh"
   },
   "dependencies": {
-    "framer-motion": "11.18.2",
+    "framer-motion": "14.14.0",
     "gray-matter": "4.0.3",
     "katex": "0.16.22",
     "lucide-react": "0.468.0",
