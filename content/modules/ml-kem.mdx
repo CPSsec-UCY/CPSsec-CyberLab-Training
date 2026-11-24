@@ -583,6 +583,12 @@ Monitor aggregate decapsulation time and failure-related handshake outcomes with
 - [ ] Exact binaries pass taint, assembly and statistical timing review.
 - [ ] Hybrid handshake sizes, HSM buffers and firmware memory have measured headroom.
 
+## Run it in a terminal
+
+Generate an ML-KEM-768 keypair, encapsulate, decapsulate and compare the shared secrets. Then tamper with one ciphertext byte and observe implicit rejection rather than an error.
+
+<TerminalLab slug="ml-kem" />
+
 ## Key takeaways
 
 - ML-KEM is a Module-LWE KEM wrapped by the FO transform.

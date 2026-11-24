@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getAllModules, getCurriculumStats } from "@/lib/modules";
 import { CITATIONS } from "@/lib/citations";
+import { TERMINAL_SUMMARIES } from "@/lib/terminals";
 import { TRACKS } from "@/lib/tracks";
 import { HeroVisual } from "@/components/home/HeroVisual";
 import { TrackCard } from "@/components/home/TrackCard";
@@ -98,7 +99,7 @@ export default function HomePage() {
             <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-4">
               {[
                 { value: String(stats.modules), label: "courses" },
-                { value: String(stats.tracks), label: "tracks" },
+                { value: String(TERMINAL_SUMMARIES.length), label: "command labs" },
                 { value: String(CITATIONS.length), label: "sources" },
                 { value: "4", label: "depth lenses" },
               ].map((item) => (

@@ -4,11 +4,12 @@ import { ArrowRight, FileCode2, ShieldCheck, Sigma, Wrench } from "lucide-react"
 import { LabWorkbench } from "@/components/lab/LabWorkbench";
 import { Cite } from "@/components/citations/Cite";
 import { LabCatalog } from "@/components/labs/LabCatalog";
+import { CommandLabCatalog } from "@/components/labs/CommandLabCatalog";
 
 export const metadata: Metadata = {
   title: "Interactive labs",
   description:
-    "Explore 32 interactive workbenches across red team, AppSec, identity, cloud, malware, DFIR, SOC, privacy, protocols and post-quantum cryptography.",
+    "Explore 32 interactive workbenches and 26 guided command terminals across red team, AppSec, identity, cloud, malware, DFIR, SOC, privacy, protocols and post-quantum cryptography.",
 };
 
 export default function LabPage() {
@@ -25,9 +26,11 @@ export default function LabPage() {
             deterministic self-test on load, and exposes every intermediate array. The catalogue below
             adds safe simulations for red-team ranges, web exploitation, cloud attack paths, malware
             reverse engineering, rootkits, DFIR timelines, threat hunting, identity flows and more.
+            Every course also includes a guided terminal that practises the real tool invocations.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <a href="#command-labs" className="btn-ghost">Command terminals</a>
           <Link href="/learn/symmetric-crypto/" className="btn-ghost">AEAD lab</Link>
           <Link href="/learn/federated-learning/" className="btn-ghost">Federated lab</Link>
           <Link href="/learn/soc-operations/" className="btn-ghost">SOC triage</Link>
@@ -39,6 +42,8 @@ export default function LabPage() {
       </div>
 
       <LabCatalog />
+
+      <CommandLabCatalog />
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-line bg-white p-5">

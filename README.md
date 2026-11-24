@@ -63,7 +63,7 @@ lenses; CI fails if one is missing.
 | 25 | [SLH-DSA: signatures from hash functions alone](content/modules/slh-dsa.mdx) | Post-Quantum Cryptography |
 | 26 | [Side channels and constant-time implementation](content/modules/side-channel.mdx) | Systems & Hardware |
 
-The platform also includes a searchable glossary, a citation registry with BibTeX export, and 32 standalone workbenches spanning red team, web exploitation, malware reverse engineering, rootkits, DFIR, threat hunting, cloud, supply chain, privacy, protocols and PQC.
+The platform also includes a searchable glossary, a citation registry with BibTeX export, 32 standalone workbenches spanning red team, web exploitation, malware reverse engineering, rootkits, DFIR, threat hunting, cloud, supply chain, privacy, protocols and PQC, and 26 guided command terminals that let learners practise the real tool workflows inside each course.
 
 ## Architecture
 
@@ -92,7 +92,28 @@ flowchart LR
 - **Labs:** Rust compiled to `wasm32-unknown-unknown` with a hand-written C ABI plus browser-native labs
   for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs. A TypeScript
   fallback runs when Wasm is unavailable.
+- **Command labs:** every module embeds `<TerminalLab>` with a module-specific command deck, task
+  checklist, hints and simulated output. Commands mirror real tools but nothing executes and no network
+  request is made. Scripts live in `lib/terminals/`; the validator fails if a module or script is missing.
 - **Progress:** localStorage only. Nothing is transmitted.
+
+## Command labs
+
+Each course ends with a **Run it in a terminal** section. The terminal is a local simulation, not a
+sandbox: it teaches the invocation, the expected evidence and the failure mode without touching your
+machine. Pick a command from the deck or type it yourself, complete the task checklist, then read the
+takeaway. The full index is on the [interactive labs page](app/lab/page.tsx) under “Command labs”.
+
+Examples of what the terminals cover:
+
+| Course | You run | You learn to read |
+| --- | --- | --- |
+| ML-KEM | `openssl genpkey`, `pkeyutl -encap`, `pkeyutl -decap` | key/ciphertext sizes, implicit rejection |
+| TLS & PKI | `openssl s_client`, `openssl verify` | hybrid group negotiation, chain validation |
+| DPI | `tshark`, `zeek`, `capinfos` | flows, SNI, the encrypted payload boundary |
+| DFIR | `dc3dd`, `vol.py`, `log2timeline.py` | acquisition hashes, memory context, UTC timelines |
+| SOC | `sigma convert`, `jq`, precision/recall | conversion limits, alert quality, suppressions |
+| Side channels | `perf stat`, `taskset`, `valgrind` | timing distributions, cache attribution |
 
 ## Quick start
 
@@ -130,6 +151,7 @@ NEXT_PUBLIC_BASE_PATH=/CPSsec-CyberLab-Training npm run build
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run test:tables` | Inspect the static export for wrapped, keyboard-accessible tables |
 | `npm run test:animations` | Verify exported process diagrams include accessible playback controls |
+| `npm run test:terminals` | Verify every module exports a terminal with a rendered command deck |
 | `npm run build` | Validate, statically export, then run rendering and animation regression checks |
 | `npm run build:wasm` | Compile the Rust lab to `public/wasm/pqc_lab.wasm` |
 | `npm run test:wasm` | Rust unit tests (NTT round-trip and multiplication) |
@@ -142,7 +164,7 @@ app/                    Next.js routes (home, curriculum, learn, lab, glossary, 
 components/
   citations/            citation provider, inline <Cite>, drawer, registry
   depth/                four-lens provider, switcher and section wrapper
-  lab/                  Wasm-backed NTT and compression workbenches
+  lab/                  Wasm-backed NTT and compression workbenches plus the module terminal lab
   learning/             knowledge checks and local progress
   modules/              module cards, header, navigation
   visualizers/          protocol and maths animations
@@ -152,6 +174,7 @@ content/
   glossary.json         cross-linked glossary
   modules/*.mdx         the curriculum
 lib/                    module/citation/glossary loaders and Wasm engine wrapper
+  terminals/            per-course command scripts for <TerminalLab>
 wasm/pqc-lab/           Rust crate and tests
 scripts/                content validation, link checking, Wasm build
 .github/workflows/      CI, Pages deploy, scheduled link check
@@ -189,7 +212,7 @@ template.
 
 - **Phase 1 — Foundation & citation engine:** complete.
 - **Phase 2 — Core concept modules:** twenty-six courses across fourteen tracks and all four lenses, complete.
-- **Phase 3 — Animations & labs:** 32 standalone workbenches plus a Rust→Wasm NTT/compression bench, covering red team, AppSec, IAM, cloud, malware, DFIR, SOC, privacy, protocols and PQC, complete.
+- **Phase 3 — Animations & labs:** 32 standalone workbenches plus a Rust→Wasm NTT/compression bench, covering red team, AppSec, IAM, cloud, malware, DFIR, SOC, privacy, protocols and PQC, and 26 guided command terminals embedded in the courses, complete.
 - **Phase 4 — Learning features & community:** roadmap, progress, glossary cross-links, knowledge checks,
   contributor templates; ongoing expansion and review.
 

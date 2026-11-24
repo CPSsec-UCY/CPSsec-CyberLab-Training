@@ -173,6 +173,31 @@ if (Array.isArray(citations)) {
   errors.push("content/citations.json must be a JSON array");
 }
 
+const terminalsDir = path.join(root, "lib", "terminals");
+const terminalSlugs = new Set();
+const terminalFiles = fs.existsSync(terminalsDir)
+  ? fs.readdirSync(terminalsDir).filter((file) => file.endsWith(".ts") && !["index.ts", "types.ts"].includes(file))
+  : [];
+
+if (terminalFiles.length === 0) {
+  errors.push("lib/terminals: no terminal script files found");
+}
+for (const file of terminalFiles) {
+  const source = fs.readFileSync(path.join(terminalsDir, file), "utf8");
+  const slugs = [...source.matchAll(/\bslug:\s*["']([a-z0-9-]+)["']/g)].map((match) => match[1]);
+  if (slugs.length === 0) {
+    errors.push(`lib/terminals/${file}: no terminal scripts with a slug found`);
+  }
+  for (const id of slugs) {
+    if (terminalSlugs.has(id)) errors.push(`lib/terminals/${file}: duplicate terminal slug "${id}"`);
+    terminalSlugs.add(id);
+  }
+  const commandCount = (source.match(/\bcommand:\s*["']/g) ?? []).length;
+  if (commandCount < 5) {
+    errors.push(`lib/terminals/${file}: expected at least five terminal commands across its scripts, found ${commandCount}`);
+  }
+}
+
 const glossary = readJson(glossaryFile);
 const glossaryIds = new Set();
 if (Array.isArray(glossary)) {
@@ -354,6 +379,21 @@ for (const file of moduleFiles) {
   if (workshopCount < 1) {
     errors.push(`${relative}: no <GuidedWorkshop> applied exercise found`);
   }
+  const terminalTags = [...parsedFile.content.matchAll(/<TerminalLab\s+[^>]*\bslug=["']([^"']+)["']/g)].map((match) => match[1]);
+  if (terminalTags.length === 0) {
+    errors.push(`${relative}: no <TerminalLab> command lab found`);
+  }
+  for (const id of terminalTags) {
+    if (id !== data.slug) {
+      errors.push(`${relative}: <TerminalLab slug="${id}"> must match the module slug "${data.slug}"`);
+    }
+    if (!terminalSlugs.has(id)) {
+      errors.push(`${relative}: no script registered for terminal "${id}" in lib/terminals`);
+    }
+  }
+  if (terminalTags.length > 1) {
+    warnings.push(`${relative}: ${terminalTags.length} <TerminalLab> instances found; one per module is the convention`);
+  }
   if (!parsedFile.content.includes("## Key takeaways")) {
     errors.push(`${relative}: missing a Key takeaways recap section`);
   }
@@ -377,6 +417,12 @@ for (const file of moduleFiles) {
 for (const id of citationIds) {
   if (!usedCitations.has(id) && moduleFiles.length > 0) {
     warnings.push(`citation "${id}" is not cited by any module`);
+  }
+}
+
+for (const id of terminalSlugs) {
+  if (!moduleSlugs.has(id)) {
+    errors.push(`lib/terminals: terminal script "${id}" has no matching module`);
   }
 }
 
@@ -408,6 +454,7 @@ if (errors.length > 0) {
 console.log(`Content validation passed.`);
 console.log(`  modules:   ${total}`);
 console.log(`  citations: ${citationIds.size} (${usedCitations.size} cited inline)`);
+console.log(`  terminals: ${terminalSlugs.size}`);
 console.log(`  glossary:  ${glossaryIds.size}`);
 if (warnings.length > 0) {
   console.log(`  warnings:  ${warnings.length}`);

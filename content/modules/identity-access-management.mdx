@@ -434,6 +434,12 @@ Meridian Health uses a workforce identity provider for staff, passkeys for patie
 - [ ] Negative tests cover wrong issuer, audience, nonce, algorithm, key, lifetime, replay and object ownership.
 - [ ] Rollback preserves authentication and does not restore disabled signature or authorisation checks.
 
+## Run it in a terminal
+
+Walk an authorization-code exchange with PKCE: generate the verifier, compute the S256 challenge, redeem the code and inspect the token. Then test audience enforcement and refresh-token reuse.
+
+<TerminalLab slug="identity-access-management" />
+
 ## Key takeaways
 
 - Authentication, delegated authorization, federated identity and resource authorization are separate decisions.

@@ -506,6 +506,12 @@ A regional bank will offer X25519MLKEM768 at its public API edge. Most clients a
 - [ ] Negative tests cover unknown groups, bad signatures, expired and missing certificates.
 - [ ] Rollback preserves security and does not open a downgrade window.
 
+## Run it in a terminal
+
+Open a TLS 1.3 connection with a hybrid group, read the certificate chain and verify it against a pinned root. Compare key-exchange sizes and certificate algorithms as two separate migrations.
+
+<TerminalLab slug="tls-pki" />
+
 ## Key takeaways
 
 - TLS performs key exchange and authentication; PQC changes both sizes and algorithms.

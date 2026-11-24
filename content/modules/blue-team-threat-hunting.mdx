@@ -195,12 +195,12 @@ When a benign explanation is found, prefer a narrow, owned exclusion over disabl
 
 <Figure caption="Choose a toy hypothesis, select telemetry, run the query, tune the threshold, map ATT&CK and justify a response. The command panel is read-only reference material.">
   <iframe
-    src="../visualizer-embed/blue-team-hunt/"
+    src="../../visualizer-embed/blue-team-hunt/"
     title="Interactive threat-hunting and detection workbench"
     className="h-[2800px] w-full rounded-xl border border-line bg-white"
     loading="lazy"
   />
-  <a href="../visualizer-embed/blue-team-hunt/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-bold text-brand-700 hover:underline">
+  <a href="../../visualizer-embed/blue-team-hunt/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-bold text-brand-700 hover:underline">
     Open the threat-hunting lab full screen
   </a>
 </Figure>
@@ -580,6 +580,12 @@ On Monday, the SOC notices a modest increase in successful finance-account sign-
 - [ ] Automation is scoped, idempotent, rate-limited and monitored.
 - [ ] Negative results state coverage and limitations rather than claiming absence.
 - [ ] Every outcome becomes an owned detection, instrumentation action or retirement decision.
+
+## Run it in a terminal
+
+Turn a written hunt hypothesis into a KQL query, inspect matches against benign look-alikes and calculate precision and recall. Finish by recording coverage gaps and an owned follow-up.
+
+<TerminalLab slug="blue-team-threat-hunting" />
 
 ## Key takeaways
 

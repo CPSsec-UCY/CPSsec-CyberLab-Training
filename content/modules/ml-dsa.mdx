@@ -503,6 +503,12 @@ On deployment day, pin the library, compiler and hardware feature set. Review th
 - [ ] Signing and verification have independent known-answer and negative tests.
 - [ ] Telemetry excludes nonces, secret vectors and rejected candidates.
 
+## Run it in a terminal
+
+Generate an ML-DSA-65 keypair, sign a manifest and verify it. Change one byte, watch verification fail and measure the certificate-chain growth before planning a migration.
+
+<TerminalLab slug="ml-dsa" />
+
 ## Key takeaways
 
 - ML-DSA is a Fiat–Shamir-with-aborts lattice signature scheme.

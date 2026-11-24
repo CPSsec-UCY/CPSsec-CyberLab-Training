@@ -12,6 +12,7 @@ instead of opening a public issue.
 - **Correction:** fix a claim, improve an explanation, or add a precise locator.
 - **Citation:** add a primary source or repair a broken/incorrect reference.
 - **Visualiser:** improve an existing animation or add a new one with an accessible fallback.
+- **Terminal lab:** extend a course's command deck with a realistic workflow, task or failure path.
 - **Wasm lab:** extend the Rust engine, add tests, or improve the TypeScript fallback.
 - **Site/accessibility:** keyboard navigation, screen-reader labels, reduced-motion behaviour, layout.
 
@@ -136,7 +137,40 @@ the validator warns if it is not.
 
 Add new components to `components/mdx/index.tsx` so MDX can use them.
 
-### 5. Knowledge checks
+### 5. Terminal labs
+
+Every module must include a command lab before `## Key takeaways`:
+
+```mdx
+## Run it in a terminal
+
+<One or two sentences naming the tools and what the learner will observe.>
+
+<TerminalLab slug="example-module" />
+```
+
+The slug must match the module. The script lives in one of the track files under
+`lib/terminals/` (`foundations.ts`, `operations.ts`, `pqc.ts`, and so on) and is keyed by the same
+slug. A script provides:
+
+- `title`, `environment`, `prompt`, `intro`, `tools` and a closing `takeaway`;
+- `tasks`: the checklist that measures completion, each pointing at one or more command ids;
+- `commands`: five or more realistic invocations, each with `summary`, `hint`, `output` and an
+  optional `note`. Outputs are teaching fixtures, never live data.
+
+Rules for terminal content:
+
+- Commands must be the real tool shape for the stated version and environment. If a flag or
+  subcommand is not real, use a clearly labelled toy CLI instead of an almost-real command.
+- State the safe scope in `safety` for anything that scans, acquires, decrypts or modifies state.
+- Simulated output must not claim a real result. Use `tone: "warn"` or `tone: "err"` for failure
+  paths and explain the consequence in `note`.
+- The deck must be usable with the keyboard. Running, inserting and copying a command are separate
+  actions; nothing is executed.
+- `npm run validate` fails when a module has no `<TerminalLab>`, when the slug is wrong, when the
+  script is missing or when a track file has fewer than five commands.
+
+### 6. Knowledge checks
 
 Use the existing component:
 
@@ -205,7 +239,9 @@ A change is ready when:
 2. The citation exists, is the right version, and the locator supports the sentence.
 3. The abstraction level matches the lens.
 4. The interaction is usable without a mouse and does not trap focus.
-5. CI is green and the preview build renders the module.
+5. The terminal commands are realistic for the stated tools, safe to teach, and paired with
+   interpretable output and failure paths.
+6. CI is green and the preview build renders the module.
 
 Cryptographic claims should be reviewed by someone with domain expertise. Note the reviewer in the PR
 description if the change affects security statements.

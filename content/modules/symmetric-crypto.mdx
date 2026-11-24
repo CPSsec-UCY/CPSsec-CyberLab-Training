@@ -457,6 +457,12 @@ The collision model and GCM usage limits come from NIST’s security considerati
 />
 
 
+## Run it in a terminal
+
+Encrypt a record, flip a ciphertext byte and add a separate MAC. The simulated OpenSSL session shows why CBC alone cannot tell you whether a record was accepted deliberately.
+
+<TerminalLab slug="symmetric-crypto" />
+
 ## Key takeaways
 
 - AEAD gives confidentiality and integrity, but not nonce-reuse protection.

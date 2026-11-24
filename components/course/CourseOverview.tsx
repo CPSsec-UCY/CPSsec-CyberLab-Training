@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, CheckCircle2, Clock, ListChecks, Target } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock, ListChecks, Target, TerminalSquare } from "lucide-react";
 import type { Module } from "@/lib/types";
 import { LENSES } from "@/lib/lenses";
 
@@ -24,6 +24,9 @@ export function CourseOverview({ module }: { module: Module }) {
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="chip"><Clock className="h-3.5 w-3.5" /> {module.readingTime} min guided study</span>
               <span className="chip"><BookOpen className="h-3.5 w-3.5" /> full guide by default</span>
+              <Link href={`#terminal-${module.slug}`} className="chip border-brand-200 bg-brand-50 text-brand-700 hover:border-brand-300">
+                <TerminalSquare className="h-3.5 w-3.5" /> guided terminal
+              </Link>
             </div>
           </div>
 

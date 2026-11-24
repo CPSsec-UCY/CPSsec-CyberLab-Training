@@ -468,6 +468,12 @@ Argon2id parameter selection and password-storage practice follow the cited RFC 
 />
 
 
+## Run it in a terminal
+
+Hash the same payment with a one-digit change, authenticate a message with HMAC and derive two purpose-bound keys with HKDF. Watch the `info` label change the output.
+
+<TerminalLab slug="hashing-mac-kdf" />
+
 ## Key takeaways
 
 - Hashes detect change; MACs authenticate; KDFs derive keys; password hashes resist guessing.

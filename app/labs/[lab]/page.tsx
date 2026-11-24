@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FlaskConical } from "lucide-react";
+import { ArrowLeft, FlaskConical, TerminalSquare } from "lucide-react";
 import { getLab, LABS } from "@/lib/labs";
 import { getModule } from "@/lib/modules";
 import { ModuleReferences } from "@/components/citations/ModuleReferences";
@@ -20,7 +20,8 @@ export default async function LabPage({ params }: { params: { lab: string } }) {
   const lab = getLab(params.lab);
   if (!lab) notFound();
   const Lab = await lab.load();
-  const supportingModule = getModule(lab.course.split("/").filter(Boolean)[1] ?? "");
+  const courseSlug = lab.course.split("/").filter(Boolean)[1] ?? "";
+  const supportingModule = getModule(courseSlug);
 
   return (
     <div className="container-page py-8 sm:py-12">
@@ -42,6 +43,14 @@ export default async function LabPage({ params }: { params: { lab: string } }) {
           <Link href={lab.course} className="mt-4 inline-flex text-[11px] font-semibold text-brand-700 hover:underline">
             Read the supporting course →
           </Link>
+          {courseSlug ? (
+            <Link
+              href={`${lab.course}#terminal-${courseSlug}`}
+              className="ml-4 mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 hover:underline"
+            >
+              <TerminalSquare className="h-3.5 w-3.5" /> Practise the commands in the course terminal →
+            </Link>
+          ) : null}
         </header>
         <Lab />
         {supportingModule ? (

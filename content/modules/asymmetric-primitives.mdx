@@ -439,6 +439,12 @@ Protocols must define how the ciphertext and shared secret are carried, how iden
 The sizes used in the workshop follow the standardised ML-KEM-768 and ML-DSA-65 parameter sets, and the KEM-plus-AEAD pattern follows HPKE. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="Table 2" /> <Cite id="rfc9180" locator="§4–5" />
 
 
+## Run it in a terminal
+
+Practise the three operations the module separates: generate a keypair, derive a shared secret and verify a signature. The terminal uses OpenSSL's real command shapes and marks where a KEM stops and a signature begins.
+
+<TerminalLab slug="asymmetric-primitives" />
+
 ## Key takeaways
 
 - PKE, KEM and signatures solve different problems; APIs encode different failure modes.
