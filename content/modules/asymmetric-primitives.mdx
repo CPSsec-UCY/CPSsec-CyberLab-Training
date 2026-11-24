@@ -1,0 +1,184 @@
+---
+slug: asymmetric-primitives
+title: "Public-key primitives: PKE, KEM, signatures and security notions"
+subtitle: "The interfaces and attacker games that every post-quantum scheme must satisfy — before a single parameter is chosen."
+track: "Foundations"
+order: 2
+difficulty: "Intermediate"
+readingTime: 17
+summary: "Learn the difference between encryption and encapsulation, why IND-CCA2 is the relevant target, and how signatures, KEMs and PQC families fit together."
+citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012"]
+tags: ["foundations", "kem", "signatures", "security-models"]
+prerequisites: ["quantum-threat"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Lockboxes, signatures and the games attackers play">
+
+## Two jobs, two primitives
+
+Public-key cryptography solves two different problems:
+
+- **Confidentiality:** anyone should be able to send a secret to the holder of a private key. A **key encapsulation mechanism (KEM)** does this by producing a fresh shared key plus a ciphertext that only the private key can open.
+- **Authenticity:** the holder of a private key should be able to prove that a message came from them and was not altered. A **digital signature** does this.
+
+They are not interchangeable. You cannot "sign" a session key and get confidentiality, and you cannot "encrypt" a public statement and get a signature.
+
+## Why KEMs replaced ad-hoc encryption
+
+Classic RSA encryption asks the sender to choose a random padding string and raise it to a public exponent. That is fragile: padding mistakes have broken real deployments. A KEM gives a cleaner contract:
+
+1. **KeyGen** produces a public encapsulation key and a secret decapsulation key.
+2. **Encaps** takes the public key and returns a ciphertext plus a 32-byte shared secret.
+3. **Decaps** takes the secret key and ciphertext and returns the same shared secret.
+
+The shared secret then keys a symmetric AEAD scheme. This is the hybrid encryption pattern used by TLS, HPKE and most modern protocols. <Cite id="rfc9180" locator="§4" />
+
+## The attacker matters more than the algebra
+
+A scheme is only meaningful relative to an attack model. For encryption, the strong target is **IND-CCA2**: the attacker can ask for decryptions of arbitrary ciphertexts, even after receiving a challenge ciphertext, but cannot decrypt that exact challenge. For signatures, the target is **EUF-CMA**: the attacker can request signatures on chosen messages but cannot forge one for a new message. <Cite id="fips203" locator="§3" /> <Cite id="fips186-5" locator="§4" />
+
+<Callout variant="warning" title="Textbook RSA is not a KEM">
+Raw RSA is malleable and deterministic. Real schemes need randomness, encoding and a CCA-secure transform. Post-quantum KEMs make the transform explicit with the Fujisaki–Okamoto construction.
+</Callout>
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What does the Encaps algorithm return?"
+  options={["Only a ciphertext", "A ciphertext and a shared secret", "A signature and a public key", "A symmetric key encrypted under RSA"]}
+  answer={1}
+  explanation="Encapsulation returns a ciphertext plus the shared secret. Decapsulation later recovers the same secret from the secret key and ciphertext."
+/>
+
+</Lens>
+
+<Lens level={2} title="The PQC family map and the size trade-offs">
+
+## Four families worth knowing
+
+| Family | Hardness assumption | Strengths | Costs | Standard / status |
+| --- | --- | --- | --- | --- |
+| Lattice | Module-LWE / Module-SIS | Fast, compact, versatile | Newer assumptions, implementation complexity | ML-KEM, ML-DSA, FN-DSA track |
+| Hash-based | Hash function security | Very conservative assumptions | Large signatures, slower signing | SLH-DSA, XMSS/LMS |
+| Code-based | Decoding random/structured codes | Long track record | Very large public keys | Classic McEliece, HQC |
+| Isogeny | Finding isogenies | Small keys (historically attractive) | SIKE broken in 2022 | Research / cautionary tale |
+
+NIST's fourth-round report documents the additional KEM selection and the ongoing signature work. <Cite id="nist-ir8545" locator="§3–4" /> The standardized signature schemes are ML-DSA <Cite id="fips204" locator="§1" /> and SLH-DSA <Cite id="fips205" locator="§1" />; FN-DSA remains on the standards track <Cite id="nist-pqc" />. Classic McEliece is the conservative code-based reference point. <Cite id="mceliece-spec" locator="§2–3" /> <Cite id="mceliece1978" locator="pp. 114–116" />
+
+<Figure caption="Compare public-key, secret-key and ciphertext/signature sizes across the standardised families and Classic McEliece. Bars are logarithmic.">
+  <ParameterExplorer />
+</Figure>
+
+## What the interfaces look like
+
+A KEM is deliberately minimal:
+
+```text
+(ek, dk) ← KeyGen()
+(c, K)   ← Encaps(ek)
+K'       ← Decaps(dk, c)
+```
+
+A signature scheme is:
+
+```text
+(pk, sk) ← KeyGen()
+σ        ← Sign(sk, m)
+0/1      ← Verify(pk, m, σ)
+```
+
+The simplicity is a feature. It keeps the attack surface small and makes it possible to swap algorithms behind a stable API — the essence of crypto agility.
+
+## Where PQC schemes plug into protocols
+
+- **TLS 1.3** negotiates a key-exchange group. A hybrid group combines X25519 and ML-KEM; authentication uses ML-DSA or SLH-DSA certificates.
+- **HPKE** exposes a KEM interface directly, so ML-KEM can be used for sealed messages and hybrid public-key encryption. <Cite id="rfc9180" locator="§4–5" />
+- **Firmware and code signing** need long-lived verification keys and offline signing; large SLH-DSA signatures may be acceptable, large McEliece public keys usually are not.
+- **Constrained devices** care about RAM and code size more than bandwidth; the optimal family depends on the device.
+
+<Callout variant="note" title="A KEM is not a drop-in replacement for every PKE">
+If a protocol needs to encrypt to a static key without interaction, a KEM can still work, but the protocol must define how the ciphertext and shared secret are carried. Do not invent your own combiner.
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Definitions, games and the FO theorem">
+
+## Public-key encryption
+
+A PKE scheme has algorithms $\mathsf{KeyGen}$, $\mathsf{Enc}$, $\mathsf{Dec}$ with correctness: for every $(pk, sk) \leftarrow \mathsf{KeyGen}()$ and message $m$,
+
+$$
+\Pr[\mathsf{Dec}(sk, \mathsf{Enc}(pk, m)) = m] \ge 1 - \delta.
+$$
+
+For lattice schemes, $\delta$ is not zero; it is a small decryption-failure probability that must be bounded and then eliminated at the KEM layer by the FO transform.
+
+## IND-CCA2
+
+The game gives the adversary a public key and a decryption oracle. The adversary submits $m_0, m_1$, receives $c^* = \mathsf{Enc}(pk, m_b)$ for a hidden bit $b$, and may continue to query decryption except on $c^*$. The scheme is IND-CCA2 if every polynomial-time adversary has advantage at most negligible in the security parameter.
+
+The FO transform converts a CPA-secure PKE into a CCA-secure KEM by deriving the encryption randomness from the message and a hash of the public key, then re-encrypting during decapsulation. A mismatch triggers **implicit rejection**: the decapsulator outputs a pseudorandom key derived from a secret rejection value $z$ and the ciphertext, rather than an error. <Cite id="fujisaki-okamoto2013" locator="Vol. 26, pp. 80–101" /> <Cite id="hofheinz2017" locator="pp. 341–371" />
+
+$$
+r = G(m \,\|\, H(ek)), \qquad c = \mathsf{Enc}(ek, m; r).
+$$
+
+## Signatures
+
+A signature scheme is EUF-CMA secure if an adversary with a signing oracle cannot produce $(m^*, \sigma^*)$ for a message $m^*$ it did not query, with non-negligible probability. Lattice signatures use Fiat–Shamir with aborts: sample a masking value, compute a challenge hash, form a candidate signature, and reject if it falls outside a norm bound. Rejection sampling ensures the output distribution is independent of the secret. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
+
+## The assumptions underneath
+
+Lattice schemes reduce to variants of Learning With Errors and Short Integer Solutions. Regev's LWE reduction connects worst-case lattice problems to average-case LWE. <Cite id="regev2009" locator="Vol. 56, Article 34" /> Ring and module variants add algebraic structure for efficiency, with their own reductions and caveats. <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="peikert2016" locator="pp. 283–424" />
+
+<Callout variant="lab" title="Proofs are conditional">
+An IND-CCA2 proof says: if you can break the KEM, you can solve Module-LWE with a related advantage. It does not rule out a future algorithm for Module-LWE. Security is always relative to the best known cryptanalysis and the stated model (classical ROM, quantum ROM, standard model).
+</Callout>
+
+</Lens>
+
+<Lens level={4} title="Interfaces, encoding and constant-time glue">
+
+## The code around the maths is part of the primitive
+
+A production KEM must define byte encodings for keys and ciphertexts, rejection behaviour for malformed inputs, and constant-time comparison. FIPS 203 makes these requirements explicit, including constant-time decapsulation and implicit rejection. <Cite id="fips203" locator="§3.3" />
+
+Common implementation hazards:
+
+- **Early-exit comparisons** on ciphertexts or tags leak how many bytes matched.
+- **Secret-dependent branches** in decompression or decoding leak message or key bits.
+- **Variable-time division** in modular reduction leaks coefficient values.
+- **Memory reuse** without zeroisation leaves keys in heap or stack dumps.
+- **Unchecked lengths** turn a decoder into an out-of-bounds read.
+
+## Serialization is a protocol contract
+
+ML-KEM encapsulation keys and ciphertexts have fixed sizes by parameter set. ML-DSA signatures include a hint encoding whose validity must be checked. SLH-DSA has a fixed structure but variable internal tree paths. If two implementations disagree on canonical encoding, one may accept ciphertexts the other rejects — a recipe for cross-protocol confusion. Use the standard test vectors.
+
+## Libraries versus reference code
+
+Reference implementations are written for clarity, not necessarily for side-channel resistance. Production deployments should use maintained, audited libraries and hardware where available. Open Quantum Safe's `liboqs` provides reference implementations and a test harness for experimentation, but the project itself warns that it is not a production-hardened library. <Cite id="liboqs" />
+
+<Callout variant="warning" title="Do not roll your own KEM combiner">
+Hybrid constructions need domain separation and a sound combiner. Follow RFC 9180 or the TLS hybrid design draft rather than concatenating secrets ad hoc. <Cite id="rfc9180" locator="§4" />
+</Callout>
+
+## A checklist before shipping
+
+1. Which security notion does the protocol actually require: IND-CCA2, EUF-CMA, or both?
+2. Are key and ciphertext sizes within every buffer on the path, including HSMs and firmware?
+3. Is decapsulation constant-time, including the rejection path?
+4. Are malformed inputs rejected deterministically and without an oracle?
+5. Is there a tested migration path to a second algorithm?
+
+<KnowledgeCheck
+  question="Why does ML-KEM return a pseudorandom key on re-encryption failure instead of an error?"
+  options={["To make decapsulation faster", "To avoid giving the attacker a decryption oracle", "Because the ciphertext is always valid", "To reduce key size"]}
+  answer={1}
+  explanation="Implicit rejection makes a tampered ciphertext indistinguishable from a valid one to the attacker. Returning an error would turn decapsulation into a chosen-ciphertext oracle."
+/>
+
+</Lens>

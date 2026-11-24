@@ -1,0 +1,175 @@
+---
+slug: quantum-threat
+title: "The quantum threat: what actually breaks, and when"
+subtitle: "Shor, Grover, harvest-now-decrypt-later, and why migration is an engineering project rather than a maths problem."
+track: "Foundations"
+order: 1
+difficulty: "Introductory"
+readingTime: 15
+summary: "Separate the two quantum algorithms that matter, map them onto real primitives, and turn an uncertain timeline into a concrete migration plan."
+citations: ["shor1994", "grover1996", "nist-ir8105", "nist-ir8547", "nist-ir8545", "nist-pqc", "castryck-decru2023", "mceliece-spec", "fips203"]
+tags: ["quantum", "migration", "threat-model"]
+prerequisites: []
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="A lock that is being photographed, not picked">
+
+## The short version
+
+Two quantum algorithms change the security landscape, and they do not do the same thing.
+
+- **Shor's algorithm** solves integer factorisation and discrete logarithms efficiently. It does not weaken RSA or elliptic-curve cryptography; it removes their underlying hardness assumption entirely. <Cite id="shor1994" locator="pp. 124–134" />
+- **Grover's algorithm** gives a quadratic speed-up for unstructured search. It halves the effective security level of symmetric keys and hash preimages, but it does not break AES or SHA-2 outright. <Cite id="grover1996" locator="pp. 212–219" />
+
+That distinction drives everything that follows. RSA, finite-field Diffie–Hellman, ECDH, ECDSA and EdDSA need replacement. AES and SHA need larger parameters, not a new design. NIST's 2016 report already framed the problem this way. <Cite id="nist-ir8105" locator="§4–5" />
+
+## The attacker you should actually worry about
+
+A cryptographically relevant quantum computer does not need to exist today for the threat to be real. An adversary can record encrypted traffic now and decrypt it later. For data with a long confidentiality lifetime — health records, source code, diplomatic cables, firmware signing keys — "later" is inside the risk window.
+
+<Callout variant="warning" title="Harvest now, decrypt later">
+The migration deadline is not the date a quantum computer appears. It is the date when the data you protected today is still sensitive, minus the time it takes to migrate. For a 25-year secret, that deadline may already be uncomfortably close.
+</Callout>
+
+## What "post-quantum" does not mean
+
+Post-quantum cryptography is not quantum cryptography. It is classical software and hardware that runs on today's machines, chosen so that no known quantum algorithm breaks it. The migration is therefore a deployment problem: protocols, certificate authorities, HSMs, firmware, libraries, procurement, and a decade of interoperability testing.
+
+The 2022 break of SIKE is a useful antidote to complacency: a scheme that survived years of review fell to a new isogeny attack, which is why algorithm diversity and conservative choices matter. <Cite id="castryck-decru2023" locator="pp. 423–447" />
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="Which statement best captures the difference between Shor's and Grover's impact?"
+  options={["Shor halves symmetric security; Grover breaks RSA", "Shor breaks factoring and discrete log; Grover gives a quadratic speed-up", "Both break AES-256 completely", "Neither applies to deployed cryptography"]}
+  answer={1}
+  explanation="Shor removes the hardness assumption behind RSA and discrete-log systems. Grover only halves the exponent of search-based security, so AES-256 still targets 128-bit quantum security."
+/>
+
+</Lens>
+
+<Lens level={2} title="Mapping the damage across deployed primitives">
+
+## The breakage map
+
+| Primitive | Examples | Quantum impact | Migration |
+| --- | --- | --- | --- |
+| Factoring | RSA encryption, RSA signatures | Broken by Shor | ML-KEM, ML-DSA, SLH-DSA |
+| Finite-field discrete log | DH, DSA | Broken by Shor | ML-KEM, ML-DSA |
+| Elliptic-curve discrete log | ECDH, ECDSA, EdDSA | Broken by Shor | ML-KEM, ML-DSA |
+| Symmetric encryption | AES-128/256 | Grover halves security | Prefer AES-256 |
+| Hashing | SHA-256/384/512 | Grover/BHT reduce margins | Use standard PQC parameter sets |
+| Code-based KEM | Classic McEliece | No known efficient quantum attack | Candidate / niche deployments |
+
+NIST finalised the first three post-quantum standards in August 2024: ML-KEM for key encapsulation, ML-DSA for signatures, and SLH-DSA for stateless hash-based signatures. <Cite id="fips203" locator="§1" /> <Cite id="nist-pqc" /> HQC was selected in 2025 as an additional code-based KEM, and additional signature schemes remain on the standardisation track. <Cite id="nist-ir8545" locator="§3–4" />
+
+## Security categories, not bit counts
+
+NIST's PQC categories compare schemes to familiar symmetric targets:
+
+- **Category 1** — roughly as hard to break as AES-128 key search.
+- **Category 3** — roughly AES-192.
+- **Category 5** — roughly AES-256.
+
+These are comparison points, not proofs, and they apply to the whole scheme rather than to a single parameter. A category-3 KEM and a category-3 signature can have very different key sizes and failure modes.
+
+<Figure caption="Switch between a classical and a quantum attacker. The bars are coarse security-bit estimates; they explain the migration logic, not an exact attack budget.">
+  <QuantumThreat />
+</Figure>
+
+## Where the transition happens first
+
+The practical order is usually:
+
+1. **Confidentiality-first transport** — hybrid key exchange in TLS, SSH and VPNs, because captured traffic is the immediate harvest-now risk.
+2. **Signing and firmware** — code signing, certificate authorities and long-lived roots, because trust anchors outlive the hardware that uses them.
+3. **Protocols with baked-in algorithms** — proprietary VPNs, smart-card protocols, industrial systems.
+4. **Data-at-rest and archives** — often symmetric and less urgent, but key-wrapping layers still need review.
+
+NIST IR 8547 sketches a transition in which 112-bit classical algorithms are deprecated after 2030 and disallowed after 2035 for federal use; it is a draft proposal, but a useful planning signal. <Cite id="nist-ir8547" locator="§4–5" />
+
+<Callout variant="note" title="Hybrid is the default, not a compromise">
+Combining X25519 with ML-KEM means traffic stays secure if either component survives. It also gives the ecosystem time to find implementation bugs in the new component without betting everything on it.
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Order finding, search, and what the reductions actually say">
+
+## Shor: from period finding to factoring
+
+Shor's algorithm reduces factoring $N$ and discrete logarithms in a group $G$ to order finding. For factoring, choose $a$ coprime to $N$ and find the multiplicative order $r$ of $a \bmod N$; with sufficient probability, $\gcd(a^{r/2} \pm 1, N)$ yields a non-trivial factor. The quantum subroutine uses phase estimation on the unitary
+
+$$
+U_a \ket{x} = \ket{a x \bmod N}
+$$
+
+to recover the period with polynomial precision. The end-to-end circuit is polynomial in $\log N$. <Cite id="shor1994" locator="pp. 124–134" />
+
+The consequence is structural: for RSA and elliptic curves there is no parameter increase that restores security against a large enough quantum computer. The relevant question is engineering scale and error correction, not asymptotic hardness.
+
+## Grover: a square-root, not a break
+
+Grover's algorithm finds a marked item in a space of size $N$ using $O(\sqrt{N})$ oracle calls. For a $k$-bit key, exhaustive search drops from $2^k$ to roughly $2^{k/2}$ operations, with substantial constant factors and the need for long coherent computation. <Cite id="grover1996" locator="pp. 212–219" />
+
+For collision search, the BHT algorithm and its variants give a quantum collision cost around $2^{n/3}$ for an $n$-bit hash, which is why hash-based signature parameter sets are chosen with quantum margins in mind.
+
+$$
+\text{classical preimage} \approx 2^n, \qquad \text{Grover preimage} \approx 2^{n/2}.
+$$
+
+## What a security category means
+
+NIST categories are calibrated against the cost of key search on AES. They are not theorems about a particular attack circuit. A scheme is placed in a category because the best known attacks — classical and quantum — are at least as expensive as the corresponding symmetric target, under stated assumptions.
+
+<Callout variant="lab" title="Reduction sketch">
+For lattice KEMs, the chain is roughly: break IND-CCA2 of the KEM $\Rightarrow$ break the FO-wrapped PKE $\Rightarrow$ solve Module-LWE (or a related problem) with non-negligible advantage. Each arrow carries a loss factor; the parameters are chosen so the loss does not collapse the advantage. The proof does not say "quantum computers cannot solve lattices"; it says the scheme is as hard as the underlying problem, and that problem has no known efficient quantum algorithm.
+</Callout>
+
+## The honest uncertainty
+
+We do not know when a cryptographically relevant quantum computer will exist, and we do not have a proof that lattices are hard for quantum computers. What we do have is a large body of cryptanalysis, multiple independent families, and a standardisation process designed to avoid a single point of failure. Planning under uncertainty is exactly what hybrid deployment and crypto agility are for.
+
+</Lens>
+
+<Lens level={4} title="Turning uncertainty into an engineering schedule">
+
+## The migration is a systems problem
+
+A PQC transition touches more than a library call:
+
+- **Wire formats** change. ML-KEM-768 encapsulation keys are 1,184 bytes and ciphertexts 1,088 bytes; ML-DSA-65 signatures are 3,309 bytes. Certificate chains and handshake flights grow.
+- **Trust anchors** live for decades. A root CA that signs with a quantum-vulnerable algorithm today may still be trusted when the quantum computer arrives.
+- **Embedded devices** cannot always be updated. Firmware signing keys, secure boot roots and long-lived IoT credentials need a plan for cryptographic agility.
+- **Side channels** remain. A new algorithm does not fix a secret-dependent branch or a leaky table lookup.
+
+## Hybrid key exchange in practice
+
+A hybrid group such as X25519MLKEM768 combines an ephemeral X25519 share with an ML-KEM-768 encapsulation. Both shared secrets are fed into the TLS 1.3 key schedule. The connection remains secure if either component is secure, and the classical component preserves compatibility during rollout. <Cite id="fips203" locator="§8" /> <Cite id="nist-ir8547" locator="§4" />
+
+<Callout variant="warning" title="Size is a protocol parameter">
+A 1.2 KB key share and a 1.1 KB ciphertext can push a ClientHello past common buffer assumptions. Test fragmentation, middlebox behaviour, record limits and HSM command sizes before turning hybrid groups on by default.
+</Callout>
+
+## Diversity is a security control
+
+The SIKE attack is the canonical lesson: a scheme can be mathematically elegant, heavily reviewed, and still fall. <Cite id="castryck-decru2023" locator="pp. 423–447" /> Algorithm diversity — lattices, hashes, codes — limits the blast radius of a single cryptanalytic advance. Classic McEliece remains attractive in niches where its megabyte-scale public keys are acceptable, precisely because its assumptions are old and conservative. <Cite id="mceliece-spec" locator="§2–3" />
+
+## A practical sequence
+
+1. **Inventory** every use of RSA, DH, ECDH, ECDSA and EdDSA, including firmware and certificates.
+2. **Prioritise** long-lived confidentiality and long-lived signing keys.
+3. **Deploy hybrids** where the protocol supports them; keep classical fallbacks until interoperability is proven.
+4. **Instrument** sizes, timings and failure modes; add crypto-agility tests to CI.
+5. **Review** the implementation layer: constant-time code, fault checks, key zeroisation, and hardware acceleration.
+
+<KnowledgeCheck
+  question="Why is hybrid key exchange useful even if ML-KEM is believed secure?"
+  options={["It makes ML-KEM faster", "It protects against implementation or cryptanalytic failure of either component", "It removes the need for certificates", "It doubles the key length for no reason"]}
+  answer={1}
+  explanation="A hybrid combiner preserves security as long as at least one component is secure. It also lets deployments gain PQC protection before the new implementation has survived as much operational testing as X25519."
+/>
+
+</Lens>

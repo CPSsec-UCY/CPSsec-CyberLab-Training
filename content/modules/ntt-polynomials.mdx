@@ -1,0 +1,199 @@
+---
+slug: ntt-polynomials
+title: "NTT and polynomial rings: the arithmetic engine"
+subtitle: "Why lattice schemes spend most of their cycles turning polynomial multiplication into point-wise multiplication."
+track: "Lattice PQC"
+order: 3
+difficulty: "Advanced"
+readingTime: 20
+summary: "From negacyclic convolution to the incomplete NTT used by ML-KEM, with a runnable coefficient-level lab and the implementation tricks that make it fast."
+citations: ["fips203", "kyber-spec", "longa2016", "harvey2014", "lpr2010", "lpr2013-toolkit", "peikert2016", "montgomery1985", "liboqs"]
+tags: ["ntt", "lattice", "arithmetic", "implementation"]
+prerequisites: ["asymmetric-primitives"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Multiplying polynomials without multiplying everything by everything">
+
+## The problem in one sentence
+
+Lattice cryptography needs to multiply pairs of degree-255 polynomials over a finite field, and the obvious method does about $256^2 = 65{,}536$ coefficient products per multiplication. A single ML-KEM operation performs many such products. That is too slow.
+
+## The FFT analogy
+
+The Number Theoretic Transform is the finite-field cousin of the Fast Fourier Transform. The idea is:
+
+1. **Transform** each polynomial into a different representation where multiplication is easy.
+2. **Multiply point by point** — one multiplication per coefficient instead of one per coefficient pair.
+3. **Inverse transform** back to the ordinary coefficient representation.
+
+In the transformed domain, multiplication is linear in the number of coefficients. The transform itself costs $O(n \log n)$, so the total is $O(n \log n)$ instead of $O(n^2)$.
+
+<Callout variant="note" title="Why the ring has X^n + 1, not X^n − 1">
+ML-KEM works in $R_q = \mathbb{Z}_q[X]/(X^n + 1)$. When a product term has degree at least $n$, it wraps around with a minus sign. This is called **negacyclic** convolution, and it is why the transform evaluates at odd powers of a root of unity rather than at all powers.
+</Callout>
+
+## Where the time goes
+
+For ML-KEM-768, one encapsulation or decapsulation runs several NTTs and point-wise products. The transform and Keccak hashing dominate the cycle count. Making the NTT fast, branch-free and vector-friendly is a core engineering problem, not an optional optimisation. <Cite id="fips203" locator="§4.3" />
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What is the main asymptotic gain from the NTT?"
+  options={["It reduces key size by half", "It turns O(n²) polynomial multiplication into O(n log n)", "It removes the need for modular reduction", "It makes the scheme quantum-safe"]}
+  answer={1}
+  explanation="The NTT converts convolution into point-wise multiplication. The transform costs O(n log n), so the total multiplication cost becomes O(n log n)."
+/>
+
+</Lens>
+
+<Lens level={2} title="Inside the ring and the butterfly network">
+
+## The ring
+
+ML-KEM uses
+
+$$
+R_q = \mathbb{Z}_q[X]/(X^{256} + 1), \qquad q = 3329.
+$$
+
+A polynomial is an array of 256 coefficients in $[0, q)$. Adding is coefficient-wise. Multiplying is negacyclic:
+
+$$
+c_k = \sum_{i+j=k} a_i b_j \;-\; \sum_{i+j=k+n} a_i b_j \pmod q.
+$$
+
+## Roots and layers
+
+Because $q - 1 = 3328 = 2^8 \cdot 13$, the field has a primitive 256th root of unity $\zeta$ (for example 17) but **no** primitive 512th root. A full 256-point negacyclic NTT would need a 512th root, so ML-KEM uses a seven-layer **incomplete** NTT:
+
+- 128 butterflies per layer,
+- 7 layers, ending with 128 degree-one polynomials,
+- a final 2×2 base-case multiplication that applies the remaining twiddle.
+
+This is exactly the structure in the reference specification. <Cite id="kyber-spec" locator="§2.3" />
+
+<Figure caption="Step through a toy four-coefficient negacyclic NTT. Pre-twisting, bit reversal and two butterfly layers are shown explicitly; the same pattern scales to 256 coefficients.">
+  <NttButterfly />
+</Figure>
+
+## What the lab lets you do
+
+The [PQC lab](/lab/) runs a full 128-point negacyclic NTT over the same field $q = 3329$. It exposes every coefficient, checks the transform round-trip, and compares NTT multiplication against a schoolbook convolution. The reduced size is deliberate: $q = 3329$ supports a full 128-point transform, which makes the arithmetic inspectable.
+
+<Callout variant="lab" title="Try it">
+Open the [NTT bench](/lab/), press **Multiply A × B**, and compare the speed-up and the coefficient arrays. The Wasm engine and the TypeScript fallback produce identical results.
+</Callout>
+
+## Common pitfalls
+
+- Forgetting the **negacyclic sign flip** gives a cyclic product, not the ring product.
+- Using the wrong root order breaks the transform, even if the butterfly code looks correct.
+- Reducing too late can overflow 16-bit lanes; reducing too often costs cycles.
+- A secret-dependent branch in the butterfly loop turns a maths bug into a side-channel bug.
+
+</Lens>
+
+<Lens level={3} title="Evaluation at odd powers and the correctness identity">
+
+## Negacyclic convolution as evaluation
+
+Let $\psi$ be a primitive $2n$-th root of unity in $\mathbb{Z}_q$. The negacyclic NTT of $a \in R_q$ is
+
+$$
+\hat{a}_k = \sum_{j=0}^{n-1} a_j \, \psi^{(2k+1)j}, \qquad 0 \le k < n.
+$$
+
+The inverse is
+
+$$
+a_j = n^{-1} \psi^{-j} \sum_{k=0}^{n-1} \hat{a}_k \, \omega^{-jk}, \qquad \omega = \psi^2.
+$$
+
+The factor $\psi^j$ is the pre-twist that converts negacyclic convolution into cyclic convolution; $\omega$ is a primitive $n$-th root used by the cyclic NTT. The ring and module variants, and their reductions, are covered in the standard lattice toolkit and survey literature. <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="lpr2013-toolkit" locator="pp. 35–54" /> <Cite id="peikert2016" locator="pp. 283–424" />
+
+## Point-wise multiplication
+
+Define the NTT-domain product $\hat{c}_k = \hat{a}_k \hat{b}_k$. Then
+
+$$
+\widehat{(a \cdot b)}_k = \hat{a}_k \hat{b}_k,
+$$
+
+and applying the inverse transform yields the negacyclic product in $R_q$. Correctness follows from evaluation: both sides are the product of the evaluations at $\psi^{2k+1}$.
+
+## Complexity
+
+A radix-2 butterfly layer performs $n/2$ butterflies, each with one multiplication and two additions modulo $q$. There are $\log_2 n$ layers, so the transform uses
+
+$$
+\frac{n}{2}\log_2 n \text{ butterflies} \quad\text{instead of}\quad n^2 \text{ coefficient products}.
+$$
+
+For $n = 256$: 1,024 butterflies versus 65,536 products. The asymptotic gain is real, but the constant factors — modular reduction, memory traffic, twiddle loads — determine the actual speed. <Cite id="longa2016" locator="pp. 124–139" />
+
+## Why incomplete is not incorrect
+
+ML-KEM stops at degree-one factors because $2n = 512$ does not divide $q - 1$. The remaining base-case multiplication
+
+$$
+(a_0 + a_1 X)(b_0 + b_1 X) \bmod (X^2 - \zeta)
+$$
+
+is still exact; it simply finishes the last layer with a dedicated formula. The standard specifies this decomposition precisely. <Cite id="fips203" locator="§4.3.1" />
+
+<Callout variant="lab" title="Reduction sketch">
+The NTT is a ring isomorphism from $R_q$ to a product of smaller fields (or degree-two extensions in the incomplete case). Correctness of multiplication follows from the Chinese Remainder Theorem: multiplication in the product ring is component-wise. The security of the scheme is separate; the NTT does not change the underlying lattice problem.
+</Callout>
+
+</Lens>
+
+<Lens level={4} title="Butterflies, lazy reductions and vector lanes">
+
+## The inner loop
+
+A typical forward butterfly computes
+
+$$
+t = \zeta \cdot a_{j+\ell}, \qquad a_{j+\ell} = a_j - t, \qquad a_j = a_j + t.
+$$
+
+Everything is modulo $q$. In practice implementations avoid `%` in the inner loop:
+
+- **Barrett reduction** replaces division by a precomputed reciprocal.
+- **Montgomery multiplication** keeps values in Montgomery form and uses shifts/masks.
+- **Lazy reduction** allows intermediate values to grow within a safe bound, reducing less often.
+
+Montgomery's method remains the standard way to avoid trial division in modular multiplication. <Cite id="montgomery1985" locator="Vol. 44, pp. 519–521" /> Harvey's work on NTT arithmetic develops tighter bounds and faster reduction strategies. <Cite id="harvey2014" locator="Vol. 60, pp. 113–119" />
+
+## Data layout and SIMD
+
+On x86 AVX2, coefficients are packed into 16-bit lanes and butterflies are vectorised across independent blocks. On Arm NEON/SVE the same idea applies with different lane widths. The enemy is not the arithmetic; it is shuffles, twiddle broadcasts, and memory traffic.
+
+<Callout variant="warning" title="Constant-time is a separate requirement">
+A vectorised NTT can still leak through secret-dependent memory access or branches. ML-KEM's implementation requirements call for constant-time behaviour; the NTT must not index tables with secret coefficients. <Cite id="fips203" locator="§3.3" />
+</Callout>
+
+## Memory and bandwidth
+
+- **In-place** transforms avoid allocating a second coefficient array.
+- **Twiddle tables** are small enough to stay in L1, but access patterns matter.
+- **Keccak** is often the other hot loop; on some platforms the hash dominates the NTT.
+- **Streaming** and in-place buffer reuse matter on microcontrollers with tens of kilobytes of RAM.
+
+## Where to look next
+
+- The [PQC lab](/lab/) exposes arrays and timings.
+- `liboqs` contains reference and optimised implementations for experimentation. <Cite id="liboqs" />
+- The ML-KEM module puts the NTT back into the full encapsulation and decapsulation flow.
+
+<KnowledgeCheck
+  question="Why does ML-KEM use an incomplete NTT rather than a full 256-point negacyclic NTT?"
+  options={["Because the NTT is faster when incomplete", "Because q − 1 is divisible by 256 but not by 512", "Because the ring is X^256 − 1", "Because 256 is not a power of two"]}
+  answer={1}
+  explanation="A 256-point negacyclic NTT needs a primitive 512th root of unity. Since 512 does not divide 3328, the standard stops at degree-one factors and finishes with a base-case multiplication."
+/>
+
+</Lens>

@@ -1,0 +1,171 @@
+---
+slug: slh-dsa
+title: "SLH-DSA: signatures from hash functions alone"
+subtitle: "WOTS+, FORS and a hypertree of one-time keys — conservative cryptography with a size bill attached."
+track: "Hash-Based Signatures"
+order: 6
+difficulty: "Advanced"
+readingTime: 21
+summary: "How SPHINCS+ became FIPS 205: stateless hash-based signatures, the WOTS+/FORS/hypertree stack, parameter trade-offs, and why the security assumptions are so small."
+citations: ["fips205", "sphincs-spec", "sphincs2019", "wots2013", "rfc8391", "fips202", "liboqs", "boneh1997", "nist-ir8545"]
+tags: ["pqc", "signature", "hash-based", "slh-dsa", "fips-205"]
+prerequisites: ["asymmetric-primitives"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="One-time signatures, stacked into a tree of trees">
+
+## The central idea
+
+A one-time signature can only sign one message safely. If you use it twice, the secret leaks. Hash-based signatures solve this by building a tree of one-time keys:
+
+- the leaves are one-time public keys,
+- each internal node is a hash of its children,
+- the root is the public key,
+- a signature reveals one leaf key and the path to the root.
+
+A single tree still has a limited number of signatures. SLH-DSA goes further: it uses a **hypertree**, a tree of trees, so one key pair can sign a huge number of messages.
+
+## Why "stateless" is a feature
+
+XMSS and LMS are efficient hash-based signatures, but the signer must remember which one-time keys have been used. Restore a backup, clone a VM, or sign from two machines, and you may reuse a one-time key — catastrophic. SLH-DSA is **stateless**: the signer derives everything from the secret seed, the message and fresh randomness. There is no counter to lose. <Cite id="fips205" locator="§3.1" />
+
+## The cost
+
+SLH-DSA signatures are large — 7,856 bytes for the smallest "s" parameter set, up to 49,856 bytes for the fastest category-5 set. Keys are tiny (32–64 bytes for the public key). You trade bandwidth for extremely conservative assumptions. <Cite id="fips205" locator="§11" /> The construction descends from the SPHINCS+ submission and its CCS paper. <Cite id="sphincs-spec" locator="§3–6" /> <Cite id="sphincs2019" locator="pp. 2129–2146" />
+
+<Callout variant="note" title="When this is the right tool">
+Code signing roots, firmware verification, long-lived archives and conservative government profiles may happily accept a 30 KB signature to avoid relying on lattices. Interactive protocols with tight packet budgets usually will not.
+</Callout>
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What is the main operational advantage of SLH-DSA over XMSS?"
+  options={["Smaller signatures", "It is stateless, so there is no one-time-key counter to lose", "It uses lattices", "It needs no hash function"]}
+  answer={1}
+  explanation="SLH-DSA derives its one-time keys pseudorandomly from a seed and the message, so the signer does not need to track state. XMSS requires careful state management."
+/>
+
+</Lens>
+
+<Lens level={2} title="WOTS+, FORS and the hypertree stack">
+
+## Three layers
+
+1. **WOTS+** signs a hash digest as a sequence of hash-chain values. It is a one-time signature: signing two different digests with the same key reveals enough chain values to forge.
+2. **FORS** (Forest of Random Subsets) signs a digest using a few-time signature scheme: several small trees, one leaf revealed per tree.
+3. **Hypertree** uses XMSS-style layers. Each layer signs the roots of the trees below it with WOTS+. The top root is the public key.
+
+## The signing flow
+
+1. Derive a randomizer from the secret and the message.
+2. Hash the message with the randomizer to obtain a digest.
+3. Use FORS to sign the digest.
+4. Use a WOTS+ key in the bottom hypertree layer to sign the FORS public key.
+5. Include the authentication path up the hypertree, signing each tree root with the layer above.
+
+Verification reverses the process and checks hashes up to the root. <Cite id="fips205" locator="§7" />
+
+## Parameters
+
+The standard defines 12 parameter sets: SHA-2 and SHAKE variants, each at categories 1, 3 and 5, in "small" (s) and "fast" (f) flavours. The additional-signature track and the SPHINCS+ design history are documented in the NIST status report. <Cite id="nist-ir8545" locator="§4" />
+
+| Family | $n$ | Hypertree height $h$ | Layers $d$ | Public key | Signature |
+| --- | --- | --- | --- | --- | --- |
+| SLH-DSA-128s | 16 | 63 | 7 | 32 B | 7,856 B |
+| SLH-DSA-128f | 16 | 66 | 22 | 32 B | 17,088 B |
+| SLH-DSA-192s | 24 | 63 | 7 | 48 B | 16,224 B |
+| SLH-DSA-192f | 24 | 66 | 22 | 48 B | 35,664 B |
+| SLH-DSA-256s | 32 | 64 | 8 | 64 B | 29,792 B |
+| SLH-DSA-256f | 32 | 68 | 17 | 64 B | 49,856 B |
+
+The "s" sets favour signature size; the "f" sets reduce signing work by using more layers and shorter trees. <Cite id="fips205" locator="Table 2" />
+
+<Figure caption="Compare SLH-DSA sizes with ML-DSA and the KEMs. The hash-based family trades bandwidth for minimal assumptions.">
+  <ParameterExplorer />
+</Figure>
+
+## Why WOTS+ keys cannot be reused
+
+A WOTS+ signature reveals one hash-chain value per digit. A second signature on a different digest may reveal a later chain value, letting an attacker compute the first signature's remaining chain and forge. This is not a theoretical nicety; stateful hash-based deployments have failed precisely here.
+
+<Callout variant="danger" title="Stateful schemes require operational discipline">
+XMSS and LMS are standardised and efficient, but the signer must guarantee that every one-time key is used at most once. Backups, failover and disaster recovery must all preserve that invariant. <Cite id="rfc8391" locator="§3–4" />
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Hash assumptions, few-time security and tight bounds">
+
+## WOTS+ as a one-time signature
+
+WOTS+ signs a base-$w$ representation of an $n$-byte digest. Each digit selects a position along a hash chain. The public key is the endpoint of every chain; a signature reveals intermediate values. Security reduces to the second-preimage resistance of the chain function, with careful domain separation through addresses. <Cite id="wots2013" locator="pp. 173–188" />
+
+## FORS as a few-time signature
+
+FORS signs $k$ chunks of the message digest. For each chunk, the signer reveals one secret leaf in a tree of height $a$; the verifier recomputes the root from the leaf and its authentication path. An attacker who obtains many FORS signatures on related digests can gradually learn more leaves, which is why the parameter sets are chosen for a bounded number of signatures. <Cite id="fips205" locator="§8" />
+
+## Hypertree correctness
+
+The hypertree is a sequence of XMSS trees. A signature at the bottom layer includes a WOTS+ signature on the FORS public key. Each higher layer signs the root of the tree below. Verification recomputes each root and finally compares with the public key.
+
+<Callout variant="lab" title="Security bound sketch">
+The forgery probability is bounded by the probability of breaking the hash functions plus the probability of a FORS/WOTS+ one-time key collision across the allowed number of signatures. The standard's analysis is parameterised by the number of hash queries and the number of signatures; the 2024 standard claims EUF-CMA security for up to $2^{64}$ signatures per key pair under its assumptions. <Cite id="fips205" locator="§11" />
+</Callout>
+
+## Quantum margins
+
+Hash-based signatures are attractive post-quantum because the assumptions are minimal. Grover still applies:
+
+- preimage resistance drops from $2^n$ to $2^{n/2}$,
+- collision resistance drops to about $2^{n/3}$ with quantum collision-finding.
+
+The parameter sets choose $n = 16, 24, 32$ bytes to meet categories 1, 3 and 5 with these reductions in mind. There is no algebraic structure to attack, but there is also no free lunch: the signature size grows to pay for the conservative proof.
+
+## What the proof does not cover
+
+It does not cover implementation faults, state reuse (for stateful cousins), randomness failures, or side-channel leakage. Those are engineering problems, not hash-function problems.
+
+</Lens>
+
+<Lens level={4} title="Hash calls, memory and operational failure modes">
+
+## What dominates the cost
+
+SLH-DSA is a hash-call engine. Signing performs thousands to millions of hash evaluations depending on the parameter set; verification is much cheaper but still hash-heavy. There is no NTT and no modular arithmetic in the hot path.
+
+- **SHA-2 variants** benefit from SHA-NI and mature hardware support.
+- **SHAKE variants** use Keccak, which is fast in software and increasingly accelerated. <Cite id="fips202" locator="§3" />
+- **Parallelism** is possible across independent FORS trees and hypertree nodes, but the dependency chain limits some speed-ups.
+
+## Memory and code size
+
+The signer needs to hold authentication paths and intermediate nodes. The "s" parameter sets minimise signature size but do more work; the "f" sets reduce work by using more hypertree layers. On constrained devices, code size and stack usage can matter more than raw speed.
+
+## Faults and randomness
+
+- **Randomness:** the message randomizer must be fresh and unpredictable. A broken RNG can undermine the security proof and enable fault attacks.
+- **Fault injection:** a corrupted hash computation can produce an invalid or exploitable signature. Redundant computation and verify-before-release are standard defences. <Cite id="boneh1997" locator="pp. 37–51" />
+- **Side channels:** hash functions are usually easier to make constant-time than lattice arithmetic, but address computation and secret-dependent branching still matter.
+
+## Deployment patterns
+
+- **Firmware and code signing:** verify once, at boot or install time; large signatures are acceptable.
+- **Long-lived roots:** small public keys and conservative assumptions simplify trust-anchor management.
+- **Protocols:** measure the handshake and record sizes; a 30 KB signature may fragment badly.
+- **Test vectors and interoperability:** use the standard's vectors and an independent implementation. <Cite id="liboqs" />
+
+<Callout variant="note" title="Hybrid signatures">
+In a hybrid signature scheme, both a classical and a PQC signature must verify. This protects against a break in either component, but doubles the signature size and verification cost. Decide whether the protocol can afford it.
+</Callout>
+
+<KnowledgeCheck
+  question="Why are SLH-DSA signatures so much larger than ML-DSA signatures?"
+  options={["Because they use bigger elliptic curves", "Because they reveal hash-chain values and authentication paths from a tree of one-time keys", "Because they encrypt the message", "Because they use RSA internally"]}
+  answer={1}
+  explanation="A hash-based signature includes WOTS+ chain values, FORS authentication paths and hypertree paths. The size buys security from hash functions alone."
+/>
+
+</Lens>

@@ -1,0 +1,16 @@
+[package]
+name = "pqc-lab"
+version = "0.1.0"
+edition = "2021"
+description = "WebAssembly polynomial-ring arithmetic lab for CPSsec CyberLab"
+license = "EUPL-1.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

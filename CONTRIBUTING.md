@@ -1,0 +1,208 @@
+# Contributing to CPSsec CyberLab
+
+Thank you for helping build an open, citation-backed security curriculum.
+
+By participating, you agree to follow the organisation's
+[Code of Conduct](./CODE_OF_CONDUCT.md). For security issues, follow [SECURITY.md](./SECURITY.md)
+instead of opening a public issue.
+
+## Ways to contribute
+
+- **New module:** propose it first with the “New module proposal” issue template.
+- **Correction:** fix a claim, improve an explanation, or add a precise locator.
+- **Citation:** add a primary source or repair a broken/incorrect reference.
+- **Visualiser:** improve an existing animation or add a new one with an accessible fallback.
+- **Wasm lab:** extend the Rust engine, add tests, or improve the TypeScript fallback.
+- **Site/accessibility:** keyboard navigation, screen-reader labels, reduced-motion behaviour, layout.
+
+## Local setup
+
+```bash
+npm ci
+npm run dev
+```
+
+Optional Wasm rebuild:
+
+```bash
+rustup target add wasm32-unknown-unknown
+npm run build:wasm
+```
+
+## Authoring a module
+
+Modules live in `content/modules/<slug>.mdx`. The filename must match the `slug`.
+
+### 1. Frontmatter
+
+```yaml
+---
+slug: example-module
+title: "A precise, specific title"
+subtitle: "One sentence that explains the angle."
+track: "Lattice PQC"
+order: 9
+difficulty: "Advanced"
+readingTime: 18
+summary: "A 2–3 sentence summary used on cards and in metadata."
+citations: ["fips203", "kyber-spec"]
+tags: ["pqc", "lattice"]
+prerequisites: ["ml-kem"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+```
+
+Rules:
+
+- `track` must be one of `Foundations`, `Lattice PQC`, `Hash-Based Signatures`, `Systems & Deployment`.
+- `order` must be unique across modules.
+- `citations` must list every source cited inline. Keys must exist in `content/citations.json`.
+- `prerequisites` must refer to existing module slugs.
+- `lenses` must be `[1, 2, 3, 4]` when present; all four sections are mandatory.
+
+### 2. Four lenses
+
+Use exactly one section per lens:
+
+```mdx
+<Lens level={1} title="Short, concrete framing">
+  ...
+</Lens>
+
+<Lens level={2} title="Protocol or system view">
+  ...
+</Lens>
+
+<Lens level={3} title="Definitions and correctness">
+  ...
+</Lens>
+
+<Lens level={4} title="Implementation and hardware">
+  ...
+</Lens>
+```
+
+Guidance:
+
+- **L1:** no walls of algebra; focus on goals, attacker capabilities and failure modes.
+- **L2:** be operational. Include parameters, message flow, state, sizes and pitfalls.
+- **L3:** define notation, state assumptions, give bounds or a reduction sketch, and distinguish
+  correctness from security.
+- **L4:** discuss constant-time code, memory, vectorisation, hardware and side-channel/fault issues.
+- Do not duplicate the same paragraphs across lenses. The lens switch should change the abstraction,
+  not just the font.
+
+### 3. Citations
+
+Add records to `content/citations.json`:
+
+```json
+{
+  "id": "fips203",
+  "short": "NIST FIPS 203",
+  "type": "standard",
+  "title": "Module-Lattice-Based Key-Encapsulation Mechanism Standard",
+  "authors": ["National Institute of Standards and Technology"],
+  "year": 2024,
+  "publisher": "U.S. Department of Commerce",
+  "url": "https://doi.org/10.6028/NIST.FIPS.203",
+  "doi": "10.6028/NIST.FIPS.203",
+  "locator": "§5 (K-PKE), §7 (ML-KEM)",
+  "tags": ["pqc", "kem", "standard"]
+}
+```
+
+Cite inline with a locator:
+
+```mdx
+... the decapsulation failure rate is below $2^{-138.8}$. <Cite id="fips203" locator="Table 1" />
+```
+
+Do not invent a DOI, RFC number, page range or locator. If you cannot verify a source, leave it out
+and ask in the issue or discussion. Every source listed in frontmatter should be cited inline;
+the validator warns if it is not.
+
+### 4. Interactive elements
+
+- Prefer small, inspectable components from `components/visualizers/`.
+- Every control needs a keyboard path and an accessible name.
+- Provide a static/experience-preserving fallback under `prefers-reduced-motion`.
+- Do not fetch external data from a module.
+- If a visualiser makes a quantitative claim, expose the assumptions and cite the source.
+
+Add new components to `components/mdx/index.tsx` so MDX can use them.
+
+### 5. Knowledge checks
+
+Use the existing component:
+
+```mdx
+<KnowledgeCheck
+  question="Which property does the FO transform add?"
+  options={["IND-CPA", "IND-CCA2", "EUF-CMA"]}
+  answer={1}
+  explanation="Re-encryption and implicit rejection upgrade CPA security to IND-CCA2 under the stated assumptions."
+/>
+```
+
+Include the reasoning in the explanation, not just “because it is correct”.
+
+## Glossary
+
+Add cross-linked terms to `content/glossary.json`. Each entry should have a short definition, at least
+one supporting citation, and the modules where it appears. Link related terms by id. The validator
+checks module and citation references.
+
+## Wasm / Rust changes
+
+The lab crate is in `wasm/pqc-lab`.
+
+- Keep it `no_std` for the `wasm32-unknown-unknown` build.
+- Do not add a runtime or a wasm-bindgen dependency without discussion.
+- Add or update unit tests in `src/lib.rs`.
+- The exported ABI is intentionally small; keep buffer ids stable or update
+  `lib/wasm/pqcLab.ts` and the fallback together.
+- Rebuild the artifact and commit `public/wasm/pqc_lab.wasm`:
+
+```bash
+npm run test:wasm
+npm run build:wasm
+```
+
+- The browser wrapper runs `self_test()` and falls back to TypeScript if the ABI or self-test fails.
+
+## Validation before opening a PR
+
+```bash
+npm run validate
+npm run lint
+npm run typecheck
+npm run build
+```
+
+If you touched Rust/Wasm:
+
+```bash
+npm run test:wasm
+npm run build:wasm
+```
+
+Optional network check:
+
+```bash
+npm run validate:links
+```
+
+## Review criteria
+
+A change is ready when:
+
+1. The claim is correct or the limitation is explicitly stated.
+2. The citation exists, is the right version, and the locator supports the sentence.
+3. The abstraction level matches the lens.
+4. The interaction is usable without a mouse and does not trap focus.
+5. CI is green and the preview build renders the module.
+
+Cryptographic claims should be reviewed by someone with domain expertise. Note the reviewer in the PR
+description if the change affects security statements.

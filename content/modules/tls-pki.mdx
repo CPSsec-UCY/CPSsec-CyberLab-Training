@@ -1,0 +1,177 @@
+---
+slug: tls-pki
+title: "TLS, PKI and the hybrid migration"
+subtitle: "Where post-quantum keys actually land: handshakes, certificates, firmware and the buffers in between."
+track: "Systems & Deployment"
+order: 7
+difficulty: "Intermediate"
+readingTime: 19
+summary: "Trace ML-KEM and ML-DSA through a TLS 1.3 handshake, then follow the operational consequences into X.509, HSMs, middleboxes and crypto agility."
+citations: ["rfc8446", "rfc9180", "rfc5280", "hybrid-design", "nist-ir8547", "fips203", "fips204", "fips205", "fips186-5", "rfc7748", "liboqs"]
+tags: ["tls", "pki", "deployment", "migration"]
+prerequisites: ["asymmetric-primitives", "ml-kem"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="A handshake that suddenly carries a suitcase">
+
+## The familiar picture
+
+When you open a secure website, your browser and the server agree on keys, authenticate the server, and start encrypting. TLS 1.3 does this in one round trip for a new connection. <Cite id="rfc8446" locator="§2" />
+
+Two separate jobs are happening:
+
+- **Key exchange:** agree on a fresh shared secret that an eavesdropper cannot compute.
+- **Authentication:** prove the server is who its certificate says it is.
+
+Post-quantum cryptography changes both. The key exchange can use a hybrid of X25519 and ML-KEM. The authentication can use ML-DSA or SLH-DSA certificates.
+
+## Why the packet gets bigger
+
+A classical X25519 key share is 32 bytes. An ML-KEM-768 encapsulation key is 1,184 bytes and its ciphertext is 1,088 bytes. A hybrid client hello can therefore carry more than a kilobyte of key material before any certificate appears. <Cite id="fips203" locator="Table 3" />
+
+<Callout variant="warning" title="The suitcase problem">
+The maths is not the hard part in deployment. The hard part is every assumption that a ClientHello fits in one TCP segment, a certificate chain fits in a buffer, or an HSM accepts a 3 KB signature. Test the whole path.
+</Callout>
+
+## Why hybrid is the safe first step
+
+A hybrid group remains secure if either X25519 or ML-KEM is secure. That protects against a surprise in the new component without betting the connection on a single assumption. It also gives the ecosystem time to find implementation bugs while traffic is already protected against harvest-now attacks. <Cite id="hybrid-design" locator="§3–4" />
+
+## What users should notice
+
+Ideally: nothing. In practice: slightly slower first connections, larger handshakes, and occasional failures in old middleboxes or constrained devices. Those failures are exactly what a staged rollout is for.
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="Which two jobs does a TLS handshake perform?"
+  options={["Compression and caching", "Key exchange and authentication", "Routing and DNS resolution", "Password hashing and salting"]}
+  answer={1}
+  explanation="TLS establishes fresh traffic keys and authenticates the server (and optionally the client) using certificates and signatures."
+/>
+
+</Lens>
+
+<Lens level={2} title="The TLS 1.3 flight, with PQC inserted">
+
+## The handshake
+
+<Figure caption="Step through a TLS 1.3 handshake with a hybrid X25519MLKEM768 key share and an ML-DSA certificate. Sizes are approximate and vary with the certificate chain.">
+  <TlsHandshake />
+</Figure>
+
+## Key exchange details
+
+- The client advertises groups in `supported_groups` and sends one or more `key_share` entries. <Cite id="rfc8446" locator="§4.2.1" />
+- For X25519MLKEM768, the client sends an X25519 public value (32 B) and an ML-KEM-768 encapsulation key (1,184 B).
+- The server selects the group and returns an X25519 public value plus an ML-KEM ciphertext (1,088 B).
+- Both sides derive a classical shared secret (X25519 is specified in RFC 7748 <Cite id="rfc7748" locator="§5" />) and a PQ shared secret, concatenate them, and feed the result into the TLS key schedule.
+
+## Authentication details
+
+- The server sends a certificate chain and a `CertificateVerify` signature over the transcript.
+- With ML-DSA-65, the signature is 3,309 bytes. <Cite id="fips204" locator="§4" /> With SLH-DSA-128s, it is 7,856 bytes; an SLH-DSA chain would be larger still. <Cite id="fips205" locator="§11" /> Classical ECDSA remains in the same X.509 framework. <Cite id="fips186-5" locator="§6" />
+- X.509 parsing, name constraints, revocation and path building are unchanged in principle, but size and algorithm identifiers change. <Cite id="rfc5280" locator="§4.1–4.2" />
+
+## HPKE and other protocols
+
+HPKE exposes a KEM interface directly and is used for sealed messages, encrypted metadata and hybrid public-key encryption. An ML-KEM-based HPKE ciphersuite replaces the classical KEM but keeps the same API shape. <Cite id="rfc9180" locator="§4–5" />
+
+## Certificate chain sizing
+
+For a rough planning model:
+
+- ML-DSA-65 public key: 1,952 B; signature: 3,309 B.
+- A three-certificate chain with one ML-DSA signature per certificate can add roughly 10 KB before extensions.
+- Classical ECDSA P-256 signatures are around 64 B; the delta is two orders of magnitude.
+
+Compression, shorter chains and cross-signing strategies can help, but they do not change the order of magnitude.
+
+<Callout variant="note" title="Crypto agility is a protocol feature">
+Algorithm identifiers, certificate extensions and negotiated groups must be able to change without a new protocol version. NIST IR 8547 treats agility as a central migration requirement. <Cite id="nist-ir8547" locator="§4" />
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Key schedule, combiners and the authentication chain">
+
+## The TLS 1.3 key schedule
+
+TLS 1.3 uses HKDF with SHA-256 or SHA-384. The early secret, handshake secret and master secret are derived by `HKDF-Extract` and `HKDF-Expand-Label`. The transcript hash binds the handshake messages, including the key shares and certificates. <Cite id="rfc8446" locator="§4.4" />
+
+For a hybrid group, the input keying material is a concatenation of the component shared secrets. The hybrid design draft specifies how the group is encoded and how the combined secret is formed, including domain separation. <Cite id="hybrid-design" locator="§3–4" />
+
+<Callout variant="lab" title="Security argument sketch">
+If the KDF behaves as a random oracle and the concatenated secrets contain at least one unknown-to-the-adversary component, the derived traffic keys are indistinguishable from random. The proof must account for the transcript, the authentication signatures and the possibility that one component is broken. Hybrid combiners are designed so that the failure of one component does not compromise the output.
+</Callout>
+
+## Authentication
+
+`CertificateVerify` signs a context string and the transcript hash with the server's private key. The verifier checks the certificate chain, the key usage, the signature algorithm and the signature over the transcript. PQC signatures plug into the same structure, but the algorithm identifier and signature length change.
+
+## X.509 and trust anchors
+
+A certificate binds a subject to a public key and is signed by an issuer. The chain terminates at a trust anchor in the client's store. PQC migration affects:
+
+- the signature algorithm of each certificate,
+- the public-key algorithm and key size,
+- the size of the encoded certificate,
+- the algorithms a CA is willing to issue,
+- the algorithms a client is willing to accept.
+
+There is no single switch. Trust stores, CA/browser policy, and cross-signing must be coordinated. <Cite id="rfc5280" locator="§4" />
+
+## Revocation and transparency
+
+CRLs and OCSP responses grow with certificate size and signature size. Certificate Transparency logs must accept PQC certificates. A migration that ignores revocation and transparency creates a second, slower outage later.
+
+</Lens>
+
+<Lens level={4} title="Buffers, middleboxes, HSMs and firmware">
+
+## The deployment gauntlet
+
+PQC in TLS fails in the same places classical TLS fails, only sooner:
+
+- **TCP segmentation and MTU:** a 4–10 KB handshake spans multiple segments. Some middleboxes assume one segment.
+- **Record fragmentation:** TLS records have a plaintext limit of $2^{14}$ bytes; handshake messages can span records, but implementations must reassemble correctly. <Cite id="rfc8446" locator="§5.1" />
+- **Buffer limits:** 2 KB ClientHello buffers, 4 KB certificate buffers and fixed-size HSM command buffers are common.
+- **Parsers:** length fields and extensions must be checked; a larger certificate is a larger attack surface.
+- **Hardware:** HSMs and secure elements need firmware support for ML-KEM and ML-DSA, plus enough command-buffer space.
+- **Firmware and boot:** code-signing keys live for years. Plan the trust-anchor migration before the hardware refresh.
+
+## Hybrid pitfalls
+
+- Do not concatenate secrets without a specified combiner and domain separation.
+- Do not silently fall back to a classical-only group if the PQ component fails; that can be a downgrade.
+- Do not assume both components have the same security level or the same failure behaviour.
+- Test with real clients, not only your own implementation.
+
+<Callout variant="danger" title="Downgrade and oracle hazards">
+A server that reveals whether a PQ key share was malformed, or that falls back on any error, can create an oracle or a downgrade path. Follow the protocol specification and test negative cases.
+</Callout>
+
+## Operational checklist
+
+1. Inventory TLS terminators, load balancers, CDNs and embedded clients.
+2. Measure handshake sizes and fragmentation on the real path.
+3. Enable hybrid groups in monitor mode; collect failure telemetry.
+4. Update certificate profiles and CA tooling for PQC signatures.
+5. Test HSM command sizes and key import/export paths.
+6. Add crypto-agility tests to CI: swap algorithms, reject unknowns, verify negatives.
+7. Plan the long-lived signing keys separately from ephemeral key exchange.
+
+## Interoperability
+
+Use standard test vectors and independent implementations. `liboqs` and the Open Quantum Safe provider ecosystem are useful for experimentation, but production deployment needs audited protocol stacks and hardware. <Cite id="liboqs" /> <Cite id="fips204" locator="§3.6" />
+
+<KnowledgeCheck
+  question="Why can a larger TLS handshake break a connection that works with classical cryptography?"
+  options={["Because TLS forbids certificates over 1 KB", "Because middleboxes, buffers and segmentation assumptions may not tolerate larger flights", "Because ML-KEM is slower than X25519 in every implementation", "Because PQC signatures cannot be verified in TLS"]}
+  answer={1}
+  explanation="The protocol can carry larger messages, but deployed buffers, MTU assumptions and middleboxes often cannot. The migration must test the whole path, not just the crypto library."
+/>
+
+</Lens>

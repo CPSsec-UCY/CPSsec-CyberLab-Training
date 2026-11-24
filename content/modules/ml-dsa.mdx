@@ -1,0 +1,196 @@
+---
+slug: ml-dsa
+title: "ML-DSA: lattice signatures and the art of rejection"
+subtitle: "How FIPS 204 signs without leaking the secret, and why a signature sometimes has to be thrown away."
+track: "Lattice PQC"
+order: 5
+difficulty: "Advanced"
+readingTime: 23
+summary: "The Fiat–Shamir-with-aborts construction behind ML-DSA: masking vectors, norm bounds, hints, rejection sampling, and the side-channel risks that remain."
+citations: ["fips204", "dilithium-spec", "lyubashevsky2012", "regev2009", "lpr2010", "fips203", "liboqs", "kocher1996", "boneh1997", "nist-ir8545"]
+tags: ["pqc", "signature", "lattice", "ml-dsa", "fips-204"]
+prerequisites: ["ml-kem", "ntt-polynomials"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="A signature that looks like a random shadow">
+
+## The goal
+
+A signature must convince a verifier that the signer knows the secret key, without revealing anything about that key. In lattice signatures, the signer starts from a fresh random masking vector, combines it with the secret, and only releases the result if it looks safely random.
+
+## Why some candidates are discarded
+
+Suppose the signer simply published $z = y + c \cdot s_1$. For small $y$, the distribution of $z$ would lean towards the secret $s_1$; an attacker collecting many signatures could recover it. **Rejection sampling** fixes this by discarding candidates that fall outside a bound. The accepted distribution is designed to be independent of the secret.
+
+<Callout variant="note" title="A physical analogy">
+Imagine signing a letter by choosing a random offset, then combining it with your handwriting. If the result strays too far from the centre, you throw it away and try again. What you publish looks like a random scrawl; it verifies, but it does not reveal your hand.
+</Callout>
+
+## What the verifier checks
+
+The verifier recomputes a challenge hash from the message and a high-order part of the signature. It checks that the challenge matches, that the norm of $z$ is small enough, and that the hint bits are consistent. A forged signature fails at least one of these checks. <Cite id="fips204" locator="§5.3" />
+
+## Why size matters
+
+ML-DSA signatures are 2.4–4.6 KB, substantially larger than ECDSA signatures but far smaller than SLH-DSA. They are a practical default for TLS certificates, code signing and general authentication. <Cite id="fips204" locator="§4" />
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What would happen if ML-DSA skipped rejection sampling?"
+  options={["Signatures would verify faster", "The signature distribution could leak the secret key", "The public key would be too large", "The scheme would become a KEM"]}
+  answer={1}
+  explanation="Without rejection, the output distribution depends on the secret. An attacker could collect signatures and recover key information; rejection sampling removes that dependence."
+/>
+
+</Lens>
+
+<Lens level={2} title="Key generation, signing loop and verification">
+
+## The parameter sets
+
+| Parameter set | NIST category | Public key | Secret key | Signature |
+| --- | --- | --- | --- | --- |
+| ML-DSA-44 | 2 | 1,312 B | 2,560 B | 2,420 B |
+| ML-DSA-65 | 3 | 1,952 B | 4,032 B | 3,309 B |
+| ML-DSA-87 | 5 | 2,592 B | 4,896 B | 4,627 B |
+
+The parameters trade signature size, rejection rate and security level. ML-DSA-65 is a common starting point. <Cite id="fips204" locator="§4" />
+
+## Signing, step by step
+
+1. Expand a random seed into a masking vector $y$.
+2. Compute $w = A y$ in the ring.
+3. Derive the challenge $c = H(\mu \,\|\, \mathsf{HighBits}(w))$.
+4. Compute $z = y + c s_1$.
+5. Reject if $\|z\|_\infty \ge \gamma_1 - \beta$, or if the hint/rounding conditions fail.
+6. Otherwise output $(c, z, h)$ where $h$ encodes the rounding hints.
+
+The loop is why signing has a variable number of attempts. The rejection probability is chosen to be small enough for performance and large enough for security.
+
+<Figure caption="Toggle the norm bound and run attempts. With the bound disabled, out-of-range candidates are released and their distribution depends on the secret. ML-DSA rejects and resamples instead.">
+  <RejectionSampling />
+</Figure>
+
+## Verification
+
+The verifier computes
+
+$$
+w' = A z - c \, t_1 \cdot 2^d,
+$$
+
+then applies the rounding decomposition and checks that $H(\mu \,\|\, \mathsf{HighBits}(w')) = c$ and that the hint is valid. The verification equation is algebraic; no secret is needed.
+
+<Figure caption="Signature sizes versus security level and family. ML-DSA sits between compact classical signatures and the much larger hash-based signatures.">
+  <ParameterExplorer />
+</Figure>
+
+## Deterministic versus hedged signing
+
+FIPS 204 permits both deterministic and hedged signing. Hedged signing mixes fresh randomness into the nonce derivation. That improves resilience against fault attacks and some side-channel attacks, at the cost of needing reliable randomness. <Cite id="fips204" locator="§3.4" />
+
+<Callout variant="warning" title="Nonce reuse is catastrophic">
+If the same masking vector is used for two different messages under the same key, the secret can be recovered algebraically. This is the lattice analogue of ECDSA nonce reuse. Randomness generation is part of the security boundary.
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Fiat–Shamir with aborts, norms and hints">
+
+## The ring and the keys
+
+ML-DSA works over $R_q = \mathbb{Z}_q[X]/(X^{256}+1)$ with $q = 8380417$; the ring family is the same one used by ML-KEM. <Cite id="fips203" locator="§2.3" /> The public key is $( \rho, t_1 )$; the secret key contains $(\rho, K, t_0, s_1, s_2)$ with
+
+$$
+t = A s_1 + s_2, \qquad t = t_1 \cdot 2^d + t_0.
+$$
+
+The high/low split is used by the verification equation and the hint mechanism. <Cite id="fips204" locator="§4" />
+
+## The signing equation
+
+The challenge $c$ is a ring element with small coefficients. The candidate signature is
+
+$$
+z = y + c s_1.
+$$
+
+For the signature to be safe, the distribution of $z$ must not depend on $s_1$. Rejection sampling enforces this by accepting only when
+
+$$
+\|z\|_\infty < \gamma_1 - \beta.
+$$
+
+The bound is chosen so that the accepted distribution is statistically close to a fixed distribution independent of the secret. This is the Fiat–Shamir-with-aborts paradigm introduced by Lyubashevsky. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
+
+## Hints
+
+The verifier does not know the low-order part of $t$, so it cannot directly recompute $w$. The signer supplies a small hint $h$ that lets the verifier recover the high bits used in the challenge hash. The hint is checked for consistency and must not leak the secret. A malformed hint causes verification to fail.
+
+## Security assumptions
+
+ML-DSA's unforgeability is argued from Module-LWE and Module-SIS, plus the random-oracle model for the challenge hash. The 2024 standard specifies the construction and parameter sets; the underlying proof is a substantial research literature. <Cite id="dilithium-spec" locator="§2" /> <Cite id="regev2009" locator="Vol. 56, Article 34" /> <Cite id="lpr2010" locator="pp. 1–23" /> The scheme was selected through the NIST PQC process before being standardized. <Cite id="nist-ir8545" locator="§3–4" />
+
+<Callout variant="lab" title="Proof sketch">
+A forgery yields a solution to a Module-SIS instance or breaks the challenge hash. The simulator can answer signing queries without the secret by programming the random oracle and using rejection sampling to shape the output. The reduction loses a factor related to the rejection probability and the number of queries.
+</Callout>
+
+## Why the norm bound is delicate
+
+- Too tight: rejection probability explodes and signing becomes slow.
+- Too loose: the accepted distribution depends on the secret, breaking the simulation argument.
+- Wrong rounding: the hint may reveal information or verification may accept invalid signatures.
+
+Parameter selection is therefore a joint optimisation over security, correctness and performance.
+
+</Lens>
+
+<Lens level={4} title="Constant-time signing and the nonce problem">
+
+## Where implementations leak
+
+ML-DSA signing touches secret values in several places:
+
+- expanding the secret key,
+- sampling the masking vector,
+- computing $c s_1$,
+- comparing norms and hints,
+- writing intermediate buffers.
+
+Any secret-dependent branch, index or timing variation is a potential leak. FIPS 204 imposes implementation requirements and forbids floating-point arithmetic in the reference path. <Cite id="fips204" locator="§3.6" />
+
+<Callout variant="danger" title="The nonce is the crown jewel">
+Timing or power leakage that reveals information about $y$ can be combined across signatures to recover $s_1$; timing attacks on secret-dependent arithmetic are a long-standing lesson. <Cite id="kocher1996" locator="pp. 104–113" /> Hedged signing reduces some risks but does not excuse a leaky implementation. Use constant-time sampling and arithmetic, and evaluate on real hardware.
+</Callout>
+
+## Arithmetic and memory
+
+- The NTT is used for matrix-vector products; the same butterfly and reduction issues as ML-KEM apply.
+- Sampling uses SHAKE256; the Keccak permutation is a major cost.
+- The rejection loop has data-dependent iteration count, which is public (the signature includes the result), but the *values* inside the loop are secret.
+- Hints are small but must be encoded and checked without out-of-bounds access.
+
+## Fault attacks
+
+A fault during signing can produce a signature that reveals the secret or breaks unforgeability. Countermeasures include recomputation, verification before release, and redundancy. The classic Bellcore fault attack on RSA signatures is the template: check the result, do not trust a single computation. <Cite id="boneh1997" locator="pp. 37–51" />
+
+## Engineering checklist
+
+1. Use an audited implementation; reference code is for study.
+2. Validate key and signature lengths before decoding.
+3. Use constant-time comparison for the challenge and hint.
+4. Keep the rejection loop free of secret-dependent memory access.
+5. Test with fault injection and side-channel evaluation.
+6. Confirm interoperability with the standard test vectors. <Cite id="liboqs" />
+
+<KnowledgeCheck
+  question="Why is hedged signing often preferred over deterministic signing in deployment?"
+  options={["It produces smaller signatures", "It mixes fresh randomness into the nonce, improving resilience to faults and some side channels", "It avoids the NTT", "It removes the need for rejection sampling"]}
+  answer={1}
+  explanation="Hedged signing adds randomness to the nonce derivation. This does not replace constant-time code, but it reduces the impact of certain fault and side-channel attacks."
+/>
+
+</Lens>

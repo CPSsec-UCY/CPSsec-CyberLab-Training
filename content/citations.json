@@ -1,0 +1,874 @@
+[
+  {
+    "id": "fips203",
+    "short": "NIST FIPS 203",
+    "type": "standard",
+    "title": "Module-Lattice-Based Key-Encapsulation Mechanism Standard",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2024,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.203",
+    "doi": "10.6028/NIST.FIPS.203",
+    "locator": "§5 (K-PKE), §7.1–7.3 (ML-KEM), §4.3 (NTT), §3.3 (implementation requirements)",
+    "tags": [
+      "pqc",
+      "kem",
+      "lattice",
+      "standard"
+    ]
+  },
+  {
+    "id": "fips204",
+    "short": "NIST FIPS 204",
+    "type": "standard",
+    "title": "Module-Lattice-Based Digital Signature Standard",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2024,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.204",
+    "doi": "10.6028/NIST.FIPS.204",
+    "locator": "§4 (parameter sets), §5 (KeyGen/Sign/Verify), §3.3 (construction), §3.6 (implementation requirements)",
+    "tags": [
+      "pqc",
+      "signature",
+      "lattice",
+      "standard"
+    ]
+  },
+  {
+    "id": "fips205",
+    "short": "NIST FIPS 205",
+    "type": "standard",
+    "title": "Stateless Hash-Based Digital Signature Standard",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2024,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.205",
+    "doi": "10.6028/NIST.FIPS.205",
+    "locator": "§5 (WOTS+), §7 (hypertree), §8 (FORS), §11 (parameter sets)",
+    "tags": [
+      "pqc",
+      "signature",
+      "hash-based",
+      "standard"
+    ]
+  },
+  {
+    "id": "fips202",
+    "short": "NIST FIPS 202",
+    "type": "standard",
+    "title": "SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2015,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.202",
+    "doi": "10.6028/NIST.FIPS.202",
+    "locator": "§3 (Keccak), §6 (SHAKE128/256)",
+    "tags": [
+      "hash",
+      "keccak",
+      "standard"
+    ]
+  },
+  {
+    "id": "fips186-5",
+    "short": "NIST FIPS 186-5",
+    "type": "standard",
+    "title": "Digital Signature Standard (DSS)",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2023,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.186-5",
+    "doi": "10.6028/NIST.FIPS.186-5",
+    "locator": "§4–6 (ECDSA, EdDSA, RSA)",
+    "tags": [
+      "signature",
+      "classical",
+      "standard"
+    ]
+  },
+  {
+    "id": "nist-ir8105",
+    "short": "NIST IR 8105",
+    "type": "report",
+    "title": "Report on Post-Quantum Cryptography",
+    "authors": [
+      "Lily Chen",
+      "Stephen Jordan",
+      "Yi-Kai Liu",
+      "Dustin Moody",
+      "Rene Peralta",
+      "Ray Perlner",
+      "Daniel Smith-Tone"
+    ],
+    "year": 2016,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.IR.8105",
+    "doi": "10.6028/NIST.IR.8105",
+    "locator": "§4 (quantum impact), §5 (candidate families)",
+    "tags": [
+      "pqc",
+      "report"
+    ]
+  },
+  {
+    "id": "nist-ir8547",
+    "short": "NIST IR 8547 (ipd)",
+    "type": "report",
+    "title": "Transition to Post-Quantum Cryptography Standards",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2024,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.IR.8547.ipd",
+    "doi": "10.6028/NIST.IR.8547.ipd",
+    "locator": "§4 (migration), §5 (deprecation timeline)",
+    "tags": [
+      "pqc",
+      "migration",
+      "report"
+    ]
+  },
+  {
+    "id": "nist-ir8545",
+    "short": "NIST IR 8545",
+    "type": "report",
+    "title": "Status Report on the Fourth Round of the NIST Post-Quantum Cryptography Standardization Process",
+    "authors": [
+      "Gorjan Alagic",
+      "Maxime Bros",
+      "Pierre Ciadoux",
+      "David Cooper",
+      "Quynh Dang",
+      "Thinh Dang",
+      "John Kelsey",
+      "Jacob Lichtinger",
+      "Yi-Kai Liu",
+      "Carl Miller",
+      "Dustin Moody",
+      "Rene Peralta",
+      "Ray Perlner",
+      "Angela Robinson",
+      "Daniel Smith-Tone",
+      "Daniel Apon",
+      "Jean-Philippe Aumasson",
+      "Daniel J. Bernstein",
+      "Ward Beullens",
+      "Xavier Bonnetain",
+      "Samuel Jaques",
+      "Gregor Leander",
+      "Gaëtan Leurent",
+      "Ruben Niederhagen",
+      "María Naya-Plasencia",
+      "Thomas Prest",
+      "Thomas Ricosset",
+      "Peter Schwabe",
+      "Nicolas Sendrier",
+      "Daniel J. Bernstein"
+    ],
+    "year": 2025,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.IR.8545",
+    "doi": "10.6028/NIST.IR.8545",
+    "locator": "§3 (HQC selection), §4 (additional signatures)",
+    "tags": [
+      "pqc",
+      "standardization",
+      "report"
+    ]
+  },
+  {
+    "id": "shor1994",
+    "short": "Shor 1994",
+    "type": "paper",
+    "title": "Algorithms for Quantum Computation: Discrete Logarithms and Factoring",
+    "authors": [
+      "Peter W. Shor"
+    ],
+    "year": 1994,
+    "container": "Proceedings 35th Annual Symposium on Foundations of Computer Science (FOCS)",
+    "publisher": "IEEE",
+    "url": "https://doi.org/10.1109/SFCS.1994.365700",
+    "doi": "10.1109/SFCS.1994.365700",
+    "locator": "pp. 124–134",
+    "tags": [
+      "quantum",
+      "factoring",
+      "discrete-log"
+    ]
+  },
+  {
+    "id": "grover1996",
+    "short": "Grover 1996",
+    "type": "paper",
+    "title": "A Fast Quantum Mechanical Algorithm for Database Search",
+    "authors": [
+      "Lov K. Grover"
+    ],
+    "year": 1996,
+    "container": "Proceedings of the 28th Annual ACM Symposium on Theory of Computing (STOC)",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/237814.237866",
+    "doi": "10.1145/237814.237866",
+    "locator": "pp. 212–219",
+    "tags": [
+      "quantum",
+      "search",
+      "symmetric"
+    ]
+  },
+  {
+    "id": "regev2009",
+    "short": "Regev 2009",
+    "type": "paper",
+    "title": "On Lattices, Learning with Errors, Random Linear Codes, and Cryptography",
+    "authors": [
+      "Oded Regev"
+    ],
+    "year": 2009,
+    "container": "Journal of the ACM",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/1568318.1568324",
+    "doi": "10.1145/1568318.1568324",
+    "locator": "Vol. 56, No. 6, Article 34",
+    "tags": [
+      "lattice",
+      "lwe",
+      "foundations"
+    ]
+  },
+  {
+    "id": "lpr2010",
+    "short": "Lyubashevsky–Peikert–Regev 2010",
+    "type": "paper",
+    "title": "On Ideal Lattices and Learning with Errors over Rings",
+    "authors": [
+      "Vadim Lyubashevsky",
+      "Chris Peikert",
+      "Oded Regev"
+    ],
+    "year": 2010,
+    "container": "Advances in Cryptology – EUROCRYPT 2010",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-642-13190-5_1",
+    "doi": "10.1007/978-3-642-13190-5_1",
+    "locator": "pp. 1–23",
+    "tags": [
+      "lattice",
+      "ring-lwe",
+      "foundations"
+    ]
+  },
+  {
+    "id": "lpr2013-toolkit",
+    "short": "Lyubashevsky et al. 2013",
+    "type": "paper",
+    "title": "A Toolkit for Ring-LWE Cryptography",
+    "authors": [
+      "Vadim Lyubashevsky",
+      "Chris Peikert",
+      "Oded Regev"
+    ],
+    "year": 2013,
+    "container": "Advances in Cryptology – EUROCRYPT 2013",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-642-38348-9_3",
+    "doi": "10.1007/978-3-642-38348-9_3",
+    "locator": "pp. 35–54",
+    "tags": [
+      "lattice",
+      "ring-lwe",
+      "foundations"
+    ]
+  },
+  {
+    "id": "peikert2016",
+    "short": "Peikert 2016",
+    "type": "paper",
+    "title": "A Decade of Lattice Cryptography",
+    "authors": [
+      "Chris Peikert"
+    ],
+    "year": 2016,
+    "container": "Foundations and Trends in Theoretical Computer Science",
+    "publisher": "Now Publishers",
+    "url": "https://doi.org/10.1561/0400000074",
+    "doi": "10.1561/0400000074",
+    "locator": "Vol. 10, No. 4, pp. 283–424",
+    "tags": [
+      "lattice",
+      "survey"
+    ]
+  },
+  {
+    "id": "langlois-stehle2015",
+    "short": "Langlois–Stehlé 2015",
+    "type": "paper",
+    "title": "Worst-Case to Average-Case Reductions for Module Lattices",
+    "authors": [
+      "Adeline Langlois",
+      "Damien Stehlé"
+    ],
+    "year": 2015,
+    "container": "Designs, Codes and Cryptography",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/s10623-014-9938-4",
+    "doi": "10.1007/s10623-014-9938-4",
+    "locator": "Vol. 75, pp. 565–599",
+    "tags": [
+      "lattice",
+      "module-lwe",
+      "foundations"
+    ]
+  },
+  {
+    "id": "lyubashevsky2012",
+    "short": "Lyubashevsky 2012",
+    "type": "paper",
+    "title": "Lattice Signatures without Trapdoors",
+    "authors": [
+      "Vadim Lyubashevsky"
+    ],
+    "year": 2012,
+    "container": "Advances in Cryptology – EUROCRYPT 2012",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-642-29011-4_43",
+    "doi": "10.1007/978-3-642-29011-4_43",
+    "locator": "pp. 738–755",
+    "tags": [
+      "lattice",
+      "signature",
+      "rejection-sampling"
+    ]
+  },
+  {
+    "id": "fujisaki-okamoto2013",
+    "short": "Fujisaki–Okamoto 2013",
+    "type": "paper",
+    "title": "Secure Integration of Asymmetric and Symmetric Encryption Schemes",
+    "authors": [
+      "Eiichiro Fujisaki",
+      "Tatsuaki Okamoto"
+    ],
+    "year": 2013,
+    "container": "Journal of Cryptology",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/s00145-011-9114-1",
+    "doi": "10.1007/s00145-011-9114-1",
+    "locator": "Vol. 26, pp. 80–101",
+    "tags": [
+      "kem",
+      "cca",
+      "transformation"
+    ]
+  },
+  {
+    "id": "hofheinz2017",
+    "short": "Hofheinz–Hövelmanns–Kiltz 2017",
+    "type": "paper",
+    "title": "A Modular Analysis of the Fujisaki–Okamoto Transformation",
+    "authors": [
+      "Dennis Hofheinz",
+      "Kathrin Hövelmanns",
+      "Eike Kiltz"
+    ],
+    "year": 2017,
+    "container": "Theory of Cryptography Conference (TCC) 2017",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-319-70500-2_12",
+    "doi": "10.1007/978-3-319-70500-2_12",
+    "locator": "pp. 341–371",
+    "tags": [
+      "kem",
+      "cca",
+      "transformation",
+      "proof"
+    ]
+  },
+  {
+    "id": "rfc8446",
+    "short": "RFC 8446",
+    "type": "rfc",
+    "title": "The Transport Layer Security (TLS) Protocol Version 1.3",
+    "authors": [
+      "Eric Rescorla"
+    ],
+    "year": 2018,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc8446.html",
+    "locator": "§4.2.1 (supported_groups), §4.4 (key schedule), Appendix D",
+    "tags": [
+      "tls",
+      "protocol",
+      "deployment"
+    ]
+  },
+  {
+    "id": "rfc9180",
+    "short": "RFC 9180",
+    "type": "rfc",
+    "title": "Hybrid Public Key Encryption",
+    "authors": [
+      "Richard Barnes",
+      "Karthik Bhargavan",
+      "Benjamin Lipp",
+      "Christopher Wood"
+    ],
+    "year": 2022,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9180.html",
+    "locator": "§4 (KEM interface), §5 (HPKE variants)",
+    "tags": [
+      "kem",
+      "protocol",
+      "deployment"
+    ]
+  },
+  {
+    "id": "rfc5280",
+    "short": "RFC 5280",
+    "type": "rfc",
+    "title": "Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile",
+    "authors": [
+      "David Cooper",
+      "Stefan Santesson",
+      "Stephen Farrell",
+      "Sharon Boeyen",
+      "Russell Housley",
+      "William Polk"
+    ],
+    "year": 2008,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc5280.html",
+    "locator": "§4.1 (certificate format), §4.2 (extensions)",
+    "tags": [
+      "pki",
+      "x509",
+      "protocol"
+    ]
+  },
+  {
+    "id": "rfc8391",
+    "short": "RFC 8391",
+    "type": "rfc",
+    "title": "XMSS: eXtended Merkle Signature Scheme",
+    "authors": [
+      "Andreas Hülsing",
+      "Denise Butin",
+      "Stefan-Lukas Gazdag",
+      "Joost Rijneveld",
+      "Peter Schwabe"
+    ],
+    "year": 2018,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc8391.html",
+    "locator": "§3 (XMSS), §4 (XMSS^MT)",
+    "tags": [
+      "hash-based",
+      "signature",
+      "stateful"
+    ]
+  },
+  {
+    "id": "rfc7748",
+    "short": "RFC 7748",
+    "type": "rfc",
+    "title": "Elliptic Curves for Security",
+    "authors": [
+      "Adam Langley",
+      "Mike Hamburg",
+      "Sean Turner"
+    ],
+    "year": 2016,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc7748.html",
+    "locator": "§4–5 (X25519, X448)",
+    "tags": [
+      "classical",
+      "ecdh",
+      "deployment"
+    ]
+  },
+  {
+    "id": "hybrid-design",
+    "short": "IETF TLS hybrid design",
+    "type": "internet-draft",
+    "title": "Hybrid Key Exchange in TLS 1.3",
+    "authors": [
+      "Douglas Stebila",
+      "Scott Fluhrer",
+      "Shay Gueron"
+    ],
+    "year": 2026,
+    "publisher": "IETF",
+    "url": "https://datatracker.ietf.org/doc/draft-ietf-tls-hybrid-design/",
+    "locator": "draft-ietf-tls-hybrid-design-16, §3–4",
+    "tags": [
+      "tls",
+      "hybrid",
+      "migration"
+    ]
+  },
+  {
+    "id": "kyber-spec",
+    "short": "CRYSTALS-Kyber spec",
+    "type": "specification",
+    "title": "CRYSTALS-Kyber: Algorithm Specifications and Supporting Documentation (Round 3)",
+    "authors": [
+      "Roberto Avanzi",
+      "Joppe Bos",
+      "Léo Ducas",
+      "Eike Kiltz",
+      "Tancrède Lepoint",
+      "Vadim Lyubashevsky",
+      "John M. Schanck",
+      "Peter Schwabe",
+      "Gregor Seiler",
+      "Damien Stehlé"
+    ],
+    "year": 2021,
+    "publisher": "CRYSTALS project",
+    "url": "https://pq-crystals.org/kyber/data/kyber-specification-round3-20210804.pdf",
+    "locator": "§2.3 (NTT), §4 (IND-CPA K-PKE), §5 (FO transform)",
+    "tags": [
+      "pqc",
+      "kem",
+      "lattice",
+      "specification"
+    ]
+  },
+  {
+    "id": "dilithium-spec",
+    "short": "CRYSTALS-Dilithium spec",
+    "type": "specification",
+    "title": "CRYSTALS-Dilithium: Algorithm Specifications and Supporting Documentation (Round 3)",
+    "authors": [
+      "Shi Bai",
+      "Léo Ducas",
+      "Eike Kiltz",
+      "Tancrède Lepoint",
+      "Vadim Lyubashevsky",
+      "Peter Schwabe",
+      "Gregor Seiler",
+      "Damien Stehlé"
+    ],
+    "year": 2021,
+    "publisher": "CRYSTALS project",
+    "url": "https://pq-crystals.org/dilithium/data/dilithium-specification-round3-20210208.pdf",
+    "locator": "§2 (rejection sampling), §4 (sign/verify), §6 (parameters)",
+    "tags": [
+      "pqc",
+      "signature",
+      "lattice",
+      "specification"
+    ]
+  },
+  {
+    "id": "sphincs-spec",
+    "short": "SPHINCS+ spec",
+    "type": "specification",
+    "title": "SPHINCS+ – Submission to the NIST Post-Quantum Cryptography Standardization Project (v3.1)",
+    "authors": [
+      "Daniel J. Bernstein",
+      "Andreas Hülsing",
+      "Stefan Kölbl",
+      "Ruben Niederhagen",
+      "Joost Rijneveld",
+      "Peter Schwabe",
+      "Jean-Philippe Aumasson",
+      "Ward Beullens"
+    ],
+    "year": 2020,
+    "publisher": "SPHINCS+ project",
+    "url": "https://sphincs.org/data/sphincs+-r3.1-specification.pdf",
+    "locator": "§3 (WOTS+), §4 (FORS), §6 (hypertree)",
+    "tags": [
+      "pqc",
+      "signature",
+      "hash-based",
+      "specification"
+    ]
+  },
+  {
+    "id": "sphincs2019",
+    "short": "Bernstein et al. 2019",
+    "type": "paper",
+    "title": "The SPHINCS+ Signature Framework",
+    "authors": [
+      "Daniel J. Bernstein",
+      "Andreas Hülsing",
+      "Stefan Kölbl",
+      "Ruben Niederhagen",
+      "Joost Rijneveld",
+      "Peter Schwabe"
+    ],
+    "year": 2019,
+    "container": "Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security (CCS)",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/3319535.3363229",
+    "doi": "10.1145/3319535.3363229",
+    "locator": "pp. 2129–2146",
+    "tags": [
+      "hash-based",
+      "signature",
+      "paper"
+    ]
+  },
+  {
+    "id": "wots2013",
+    "short": "Hülsing 2013",
+    "type": "paper",
+    "title": "W-OTS+ – Shorter Signatures for Hash-Based Signature Schemes",
+    "authors": [
+      "Andreas Hülsing"
+    ],
+    "year": 2013,
+    "container": "Progress in Cryptology – AFRICACRYPT 2013",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-642-38553-7_10",
+    "doi": "10.1007/978-3-642-38553-7_10",
+    "locator": "pp. 173–188",
+    "tags": [
+      "hash-based",
+      "signature",
+      "wots"
+    ]
+  },
+  {
+    "id": "mceliece-spec",
+    "short": "Classic McEliece spec",
+    "type": "specification",
+    "title": "Classic McEliece: Conservative Code-Based Cryptography",
+    "authors": [
+      "Daniel J. Bernstein",
+      "Tung Chou",
+      "Tanja Lange",
+      "Ingo von Maurich",
+      "Rafael Misoczki",
+      "Ruben Niederhagen",
+      "Edoardo Persichetti",
+      "Nicolas Sendrier",
+      "Jintai Ding",
+      "Shay Gueron",
+      "Stefan Heyse",
+      "Peter Schwabe"
+    ],
+    "year": 2022,
+    "publisher": "Classic McEliece project",
+    "url": "https://classic.mceliece.org/mceliece-spec-20221023.pdf",
+    "locator": "§2 (code-based encryption), §3 (parameters)",
+    "tags": [
+      "pqc",
+      "kem",
+      "code-based",
+      "specification"
+    ]
+  },
+  {
+    "id": "mceliece1978",
+    "short": "McEliece 1978",
+    "type": "paper",
+    "title": "A Public-Key Cryptosystem Based on Algebraic Coding Theory",
+    "authors": [
+      "Robert J. McEliece"
+    ],
+    "year": 1978,
+    "container": "DSN Progress Report 42-44",
+    "publisher": "Jet Propulsion Laboratory",
+    "url": "https://ipnpr.jpl.nasa.gov/progress_report2/42-44/44N.PDF",
+    "locator": "pp. 114–116",
+    "tags": [
+      "code-based",
+      "foundations"
+    ]
+  },
+  {
+    "id": "castryck-decru2023",
+    "short": "Castryck–Decru 2023",
+    "type": "paper",
+    "title": "An Efficient Key Recovery Attack on SIDH",
+    "authors": [
+      "Wouter Castryck",
+      "Thomas Decru"
+    ],
+    "year": 2023,
+    "container": "Advances in Cryptology – EUROCRYPT 2023",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-031-30589-4_15",
+    "doi": "10.1007/978-3-031-30589-4_15",
+    "locator": "pp. 423–447",
+    "tags": [
+      "isogeny",
+      "attack",
+      "case-study"
+    ]
+  },
+  {
+    "id": "kocher1996",
+    "short": "Kocher 1996",
+    "type": "paper",
+    "title": "Timing Attacks on Implementations of Diffie–Hellman, RSA, DSS, and Other Systems",
+    "authors": [
+      "Paul C. Kocher"
+    ],
+    "year": 1996,
+    "container": "Advances in Cryptology – CRYPTO 1996",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/3-540-68697-5_9",
+    "doi": "10.1007/3-540-68697-5_9",
+    "locator": "pp. 104–113",
+    "tags": [
+      "side-channel",
+      "timing"
+    ]
+  },
+  {
+    "id": "kocher1999",
+    "short": "Kocher–Jaffe–Jun 1999",
+    "type": "paper",
+    "title": "Differential Power Analysis",
+    "authors": [
+      "Paul C. Kocher",
+      "Joshua Jaffe",
+      "Benjamin Jun"
+    ],
+    "year": 1999,
+    "container": "Advances in Cryptology – CRYPTO 1999",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/3-540-48405-1_25",
+    "doi": "10.1007/3-540-48405-1_25",
+    "locator": "pp. 388–397",
+    "tags": [
+      "side-channel",
+      "power-analysis"
+    ]
+  },
+  {
+    "id": "boneh1997",
+    "short": "Boneh–DeMillo–Lipton 1997",
+    "type": "paper",
+    "title": "On the Importance of Checking Cryptographic Protocols for Faults",
+    "authors": [
+      "Dan Boneh",
+      "Richard A. DeMillo",
+      "Richard J. Lipton"
+    ],
+    "year": 1997,
+    "container": "Advances in Cryptology – EUROCRYPT 1997",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/3-540-69053-0_4",
+    "doi": "10.1007/3-540-69053-0_4",
+    "locator": "pp. 37–51",
+    "tags": [
+      "fault",
+      "side-channel"
+    ]
+  },
+  {
+    "id": "montgomery1985",
+    "short": "Montgomery 1985",
+    "type": "paper",
+    "title": "Modular Multiplication Without Trial Division",
+    "authors": [
+      "Peter L. Montgomery"
+    ],
+    "year": 1985,
+    "container": "Mathematics of Computation",
+    "publisher": "American Mathematical Society",
+    "url": "https://doi.org/10.1090/S0025-5718-1985-0777282-X",
+    "doi": "10.1090/S0025-5718-1985-0777282-X",
+    "locator": "Vol. 44, No. 170, pp. 519–521",
+    "tags": [
+      "arithmetic",
+      "implementation"
+    ]
+  },
+  {
+    "id": "longa2016",
+    "short": "Longa–Naehrig 2016",
+    "type": "paper",
+    "title": "Speeding up the Number Theoretic Transform for Faster Ideal Lattice-Based Cryptography",
+    "authors": [
+      "Patrick Longa",
+      "Michael Naehrig"
+    ],
+    "year": 2016,
+    "container": "Cryptology and Network Security (CANS) 2016",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-319-48965-0_8",
+    "doi": "10.1007/978-3-319-48965-0_8",
+    "locator": "pp. 124–139",
+    "tags": [
+      "ntt",
+      "implementation",
+      "lattice"
+    ]
+  },
+  {
+    "id": "harvey2014",
+    "short": "Harvey 2014",
+    "type": "paper",
+    "title": "Faster Arithmetic for Number-Theoretic Transforms",
+    "authors": [
+      "David Harvey"
+    ],
+    "year": 2014,
+    "container": "Journal of Symbolic Computation",
+    "publisher": "Elsevier",
+    "url": "https://doi.org/10.1016/j.jsc.2013.09.002",
+    "doi": "10.1016/j.jsc.2013.09.002",
+    "locator": "Vol. 60, pp. 113–119",
+    "tags": [
+      "ntt",
+      "arithmetic",
+      "implementation"
+    ]
+  },
+  {
+    "id": "liboqs",
+    "short": "Open Quantum Safe liboqs",
+    "type": "source",
+    "title": "liboqs: C library for quantum-safe cryptographic algorithms",
+    "authors": [
+      "Open Quantum Safe project"
+    ],
+    "year": 2026,
+    "publisher": "Open Quantum Safe",
+    "url": "https://github.com/open-quantum-safe/liboqs",
+    "locator": "Reference implementations and KEM/signature test harness",
+    "tags": [
+      "implementation",
+      "library",
+      "pqc"
+    ]
+  },
+  {
+    "id": "nist-pqc",
+    "short": "NIST PQC project",
+    "type": "website",
+    "title": "Post-Quantum Cryptography Standardization",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2026,
+    "publisher": "NIST Computer Security Resource Center",
+    "url": "https://csrc.nist.gov/projects/post-quantum-cryptography",
+    "locator": "Selected algorithms, additional digital signature schemes, migration resources",
+    "tags": [
+      "pqc",
+      "standardization",
+      "website"
+    ]
+  }
+]

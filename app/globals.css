@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --nav-height: 64px;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 132px;
+}
+
+body {
+  @apply bg-ink-950 text-slate-300 antialiased;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(1000px 600px at 12% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
+    radial-gradient(900px 520px at 88% 4%, rgba(167, 139, 250, 0.12), transparent 60%),
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 44px 44px, 44px 44px;
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.3);
+  color: #f8fafc;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b transparent;
+}
+
+*::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 3px;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-5 sm:px-8;
+  }
+
+  .glass-panel {
+    @apply border border-white/10 bg-ink-850/70 backdrop-blur-xl;
+  }
+
+  .panel {
+    @apply rounded-2xl border border-white/10 bg-ink-850/60;
+  }
+
+  .panel-hover {
+    @apply transition duration-300 hover:-translate-y-0.5 hover:border-cyber-cyan/40 hover:bg-ink-800/80 hover:shadow-glow;
+  }
+
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.22em] text-cyber-cyan;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-cyber-cyan via-cyber-teal to-cyber-violet bg-clip-text text-transparent;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 font-mono text-xs font-medium uppercase tracking-[0.12em] transition;
+  }
+
+  .btn-primary {
+    @apply btn border-cyber-cyan/60 bg-cyber-cyan/10 text-cyber-cyan hover:bg-cyber-cyan/20 hover:shadow-glow;
+  }
+
+  .btn-ghost {
+    @apply btn border-white/10 bg-white/[0.02] text-slate-300 hover:border-white/25 hover:bg-white/[0.06] hover:text-white;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .lab-range {
+    @apply h-2 w-full cursor-pointer appearance-none rounded-full bg-ink-700 accent-cyber-cyan;
+  }
+}
+
+.prose-cyber {
+  --tw-prose-body: #c2ccda;
+  --tw-prose-headings: #f1f5f9;
+  --tw-prose-lead: #94a3b8;
+  --tw-prose-links: #67e8f9;
+  --tw-prose-bold: #f8fafc;
+  --tw-prose-counters: #22d3ee;
+  --tw-prose-bullets: #22d3ee;
+  --tw-prose-hr: rgba(148, 163, 184, 0.18);
+  --tw-prose-quotes: #cbd5e1;
+  --tw-prose-quote-borders: #22d3ee;
+  --tw-prose-captions: #94a3b8;
+  --tw-prose-code: #a5f3fc;
+  --tw-prose-pre-code: #e2e8f0;
+  --tw-prose-pre-bg: #060a14;
+  --tw-prose-th-borders: rgba(148, 163, 184, 0.25);
+  --tw-prose-td-borders: rgba(148, 163, 184, 0.15);
+}
+
+.prose-cyber :where(h1, h2, h3, h4) {
+  scroll-margin-top: 130px;
+  letter-spacing: -0.015em;
+}
+
+.prose-cyber :where(h2) {
+  @apply mt-14 border-t border-white/10 pt-8 text-2xl;
+}
+
+.prose-cyber :where(h3) {
+  @apply mt-9 text-lg text-cyber-cyan;
+}
+
+.prose-cyber :where(p, li) {
+  @apply leading-7;
+}
+
+.prose-cyber :where(strong) {
+  @apply font-semibold;
+}
+
+.prose-cyber :where(code)::before,
+.prose-cyber :where(code)::after {
+  content: "";
+}
+
+.prose-cyber :where(code):not(pre code) {
+  @apply rounded border border-cyber-cyan/20 bg-cyber-cyan/10 px-1.5 py-0.5 font-mono text-[0.85em] font-normal;
+}
+
+.prose-cyber :where(pre) {
+  @apply rounded-xl border border-white/10 bg-ink-900 shadow-panel;
+}
+
+.prose-cyber :where(table) {
+  @apply overflow-hidden rounded-lg border border-white/10 text-sm;
+}
+
+.prose-cyber :where(thead) {
+  @apply bg-white/[0.04];
+}
+
+.prose-cyber :where(blockquote) {
+  @apply rounded-r-lg border-l-2 bg-white/[0.03] py-1 font-normal not-italic;
+}
+
+.prose-cyber :where(a) {
+  @apply font-medium underline decoration-cyber-cyan/40 hover:decoration-cyber-cyan;
+}
+
+.prose-cyber :where(hr) {
+  @apply my-12;
+}
+
+.katex {
+  color: #e2e8f0;
+  font-size: 1.03em;
+}
+
+.katex-display {
+  @apply overflow-x-auto overflow-y-hidden py-2;
+}
+
+[data-depth-root] [data-lens] {
+  display: none;
+}
+
+[data-depth-root][data-active-lens="1"] [data-lens="1"],
+[data-depth-root][data-active-lens="2"] [data-lens="2"],
+[data-depth-root][data-active-lens="3"] [data-lens="3"],
+[data-depth-root][data-active-lens="4"] [data-lens="4"] {
+  display: block;
+  animation: lens-in 0.35s ease both;
+}
+
+@keyframes lens-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

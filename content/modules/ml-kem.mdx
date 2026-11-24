@@ -1,0 +1,243 @@
+---
+slug: ml-kem
+title: "ML-KEM: module-lattice key encapsulation"
+subtitle: "From noisy linear algebra to the 1,088-byte ciphertext that protects your next TLS session."
+track: "Lattice PQC"
+order: 4
+difficulty: "Advanced"
+readingTime: 26
+summary: "A complete pass over FIPS 203: Module-LWE, K-PKE, compression, the FO transform, decapsulation correctness, constant-time implementation and hybrid deployment."
+citations: ["fips203", "kyber-spec", "regev2009", "lpr2010", "langlois-stehle2015", "fujisaki-okamoto2013", "hofheinz2017", "rfc8446", "hybrid-design", "longa2016", "liboqs", "montgomery1985", "fips202"]
+tags: ["pqc", "kem", "lattice", "ml-kem", "fips-203"]
+prerequisites: ["ntt-polynomials", "asymmetric-primitives"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="A box whose seal can be checked but not forged">
+
+## The shape of the problem
+
+Alice publishes a public **encapsulation key**. Bob wants to agree on a fresh 32-byte secret. He runs an encapsulation routine that produces:
+
+- a **ciphertext** that he sends to Alice, and
+- a **shared secret** that he keeps.
+
+Alice runs decapsulation on the ciphertext with her secret key. If everything is honest, she derives the same 32 bytes. An eavesdropper sees only the public key and the ciphertext.
+
+## Why noise is the feature
+
+ML-KEM's security rests on **Module-LWE**: recovering a secret from noisy linear equations over a polynomial ring is believed to be hard, even for quantum computers. The noise is not an implementation defect; it is the hardness.
+
+The engineering challenge is that Alice's reconstructed value is slightly noisy. ML-KEM solves this with rounding and a reconciliation step: the message is encoded far apart in the coefficient space, so small errors still decode correctly. <Cite id="fips203" locator="§4.2.1" />
+
+<Callout variant="note" title="One byte of intuition">
+Imagine encoding a single bit as “near 0” or “near half the modulus”. Add a little noise: the point wobbles, but it stays in the correct half. Only if the noise crosses the midpoint does the bit flip. ML-KEM keeps that probability astronomically small.
+</Callout>
+
+## Why the re-encryption check matters
+
+A naive noisy KEM is only secure against passive attackers. An active attacker can submit malformed ciphertexts and watch how the victim responds. The **Fujisaki–Okamoto transform** closes that hole: decapsulation re-encrypts the recovered message and compares the result with the received ciphertext. If they differ, it returns a pseudorandom rejection key rather than an error. <Cite id="fujisaki-okamoto2013" locator="Vol. 26, pp. 80–101" />
+
+## What it costs
+
+| Variant | Public key | Ciphertext | NIST category |
+| --- | --- | --- | --- |
+| ML-KEM-512 | 800 B | 768 B | 1 |
+| ML-KEM-768 | 1,184 B | 1,088 B | 3 |
+| ML-KEM-1024 | 1,568 B | 1,568 B | 5 |
+
+That is larger than an X25519 public key (32 bytes) but small enough for TLS and most protocols. The hard part is not the bandwidth; it is updating every buffer, HSM and middlebox that assumed classical sizes.
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What does ML-KEM decapsulation return when re-encryption does not match the received ciphertext?"
+  options={["An error code", "The secret key", "A pseudorandom rejection key", "An empty string"]}
+  answer={2}
+  explanation="Implicit rejection returns a key derived from a secret rejection value and the ciphertext, so the attacker cannot tell failure from success."
+/>
+
+</Lens>
+
+<Lens level={2} title="K-PKE, compression and the encapsulation flow">
+
+## The parameter set
+
+ML-KEM uses $n = 256$, $q = 3329$, and a module rank $k \in \{2,3,4\}$. The public key contains a matrix $\hat{A}$ in NTT form and the vector $\hat{t}$; the secret key contains $\hat{s}$. Key generation, encapsulation and decapsulation are specified in FIPS 203 Sections 7.1–7.3. <Cite id="fips203" locator="§7.1–7.3" />
+
+| Parameter set | $k$ | $\eta_1$ | $\eta_2$ | $d_u$ | $d_v$ | failure rate |
+| --- | --- | --- | --- | --- | --- | --- |
+| ML-KEM-512 | 2 | 3 | 2 | 10 | 4 | $2^{-138.8}$ |
+| ML-KEM-768 | 3 | 2 | 2 | 10 | 4 | $2^{-164.8}$ |
+| ML-KEM-1024 | 4 | 2 | 2 | 11 | 5 | $2^{-174.8}$ |
+
+The round-3 CRYSTALS-Kyber specification documents the same design, NTT representation and reference pseudocode. <Cite id="kyber-spec" locator="§2.3–2.4" />
+
+## Encapsulation
+
+1. Sample a 32-byte message $m$.
+2. Derive $(K, r) = G(m \,\|\, H(ek))$ using SHA3-256 and SHAKE256. <Cite id="fips202" locator="§6" />
+3. Run K-PKE.Encrypt with randomness $r$ to obtain $c$.
+4. Output $(c, K)$.
+
+## Decapsulation
+
+1. Decrypt $c$ to recover $m'$ (with possible noise).
+2. Recompute $(K', r') = G(m' \,\|\, H(ek))$.
+3. Re-encrypt $m'$ under $r'$ to obtain $c''$.
+4. Compare $c''$ with $c$ in constant time.
+5. Return $K'$ on equality; otherwise return $J(z \,\|\, c)$ for a secret rejection value $z$.
+
+The re-encryption step is the FO transform. The comparison must not exit early, and the rejection path must not be distinguishable by timing. <Cite id="fips203" locator="§7.3" />
+
+## Compression
+
+The ciphertext components are rounded to fewer bits:
+
+$$
+c_1 = \mathsf{Compress}_{d_u}(u), \qquad c_2 = \mathsf{Compress}_{d_v}(v).
+$$
+
+Decompression reconstructs an approximation. The parameters choose $d_u, d_v$ so the rounding error plus the LWE noise stays inside the decoding regions. Coarser compression saves bytes and consumes correctness margin.
+
+<Figure caption="Single-coefficient reconciliation. Move the noise or change the compression depth and watch the decoded bit cross a decision boundary. Real ML-KEM applies this across 256 coefficients with carefully bounded noise.">
+  <MlKemCorrectness />
+</Figure>
+
+## Where it appears
+
+TLS 1.3 negotiates a group; a hybrid group such as X25519MLKEM768 combines an ephemeral X25519 secret with ML-KEM-768. <Cite id="rfc8446" locator="§4.2.1" /> <Cite id="hybrid-design" locator="§3–4" /> HPKE exposes the KEM interface directly. <Cite id="fips203" locator="§1.1" />
+
+<Callout variant="warning" title="Do not use K-PKE on its own">
+FIPS 203 explicitly prohibits using K-PKE as a stand-alone public-key encryption scheme. It is an internal component; only the FO-wrapped ML-KEM is approved. <Cite id="fips203" locator="§3.3" />
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Module-LWE, correctness bounds and the FO argument">
+
+## The underlying problem
+
+Let $R_q = \mathbb{Z}_q[X]/(X^{256}+1)$. Module-LWE with rank $k$ gives samples
+
+$$
+(\mathbf{a}_i, \langle \mathbf{a}_i, \mathbf{s} \rangle + e_i) \in R_q^k \times R_q,
+$$
+
+where $\mathbf{s}$ is a secret module vector and $e_i$ is small. The decisional problem is to distinguish these samples from uniform. Worst-case-to-average-case reductions connect module lattices to hard lattice problems. <Cite id="regev2009" locator="Vol. 56, Article 34" /> <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="langlois-stehle2015" locator="Vol. 75, pp. 565–599" />
+
+## K-PKE in three equations
+
+Key generation samples $\hat{A}$, secret $\hat{s}$, and error $\hat{e}$, and sets
+
+$$
+\hat{t} = \hat{A}\hat{s} + \hat{e}.
+$$
+
+Encryption samples short $r, e_1, e_2$ and computes
+
+$$
+u = \mathsf{NTT}^{-1}(\hat{A}^T \hat{r}) + e_1, \qquad
+v = \mathsf{NTT}^{-1}(\hat{t}^T \hat{r}) + e_2 + \mathsf{Decompress}_1(m).
+$$
+
+Decryption computes $v - s^T u$ and decodes the message. The noise term is small with overwhelming probability; the parameters are chosen so that it stays below the decoding threshold.
+
+## Correctness
+
+The decryption error is a sum of products of small coefficients. A standard bound shows that, for the standardized parameters,
+
+$$
+\Pr[\text{decapsulation failure}] \le 2^{-138.8}\ \text{(ML-KEM-512)}, \quad 2^{-164.8}\ \text{(ML-KEM-768)}, \quad 2^{-174.8}\ \text{(ML-KEM-1024)}.
+$$
+
+These are the values tabulated in FIPS 203 Table 1. <Cite id="fips203" locator="Table 1" /> The bound assumes hash functions behave like random functions and that randomness generation succeeds.
+
+## The FO transform
+
+Let $\mathsf{PKE} = (\mathsf{KeyGen}, \mathsf{Enc}, \mathsf{Dec})$ be CPA-secure. Define
+
+$$
+\begin{aligned}
+\mathsf{Encaps}(ek):&\quad m \leftarrow \{0,1\}^{256},\quad (K,r) = G(m \,\|\, H(ek)),\\
+&\quad c = \mathsf{Enc}(ek, m; r),\quad \text{output } (c,K),\\
+\mathsf{Decaps}(dk,c):&\quad m' = \mathsf{Dec}(dk,c),\quad (K',r') = G(m' \,\|\, H(ek)),\\
+&\quad c'' = \mathsf{Enc}(ek,m';r'),\quad \text{return } K' \text{ if } c''=c \text{ else } J(z,c).
+\end{aligned}
+$$
+
+The modular analysis of Hofheinz, Hövelmanns and Kiltz explains which properties of $G$, $H$, $J$ and the PKE are needed for IND-CCA2 in the random oracle model. <Cite id="hofheinz2017" locator="pp. 341–371" /> The important engineering consequence is that the rejection path must be indistinguishable from success.
+
+<Figure caption="Step through the FO re-encryption check. Toggle a tampered ciphertext to see why implicit rejection is necessary and why the comparison must be constant-time.">
+  <FoTransform />
+</Figure>
+
+<Callout variant="lab" title="Correctness is not security">
+A decapsulation failure is a correctness event. The FO transform turns correctness failures and adversarial tampering into the same observable outcome, which is what protects the scheme against chosen-ciphertext attacks.
+</Callout>
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="Which property does the FO transform add to a CPA-secure K-PKE?"
+  options={["Shorter ciphertexts", "IND-CCA2 security via re-encryption and implicit rejection", "Quantum resistance", "Deterministic key generation"]}
+  answer={1}
+  explanation="The FO transform makes decapsulation reject inconsistent ciphertexts and return a pseudorandom key, upgrading CPA security to IND-CCA2 under the stated assumptions."
+/>
+
+</Lens>
+
+<Lens level={4} title="Making a lattice KEM survive real hardware">
+
+## The hot loops
+
+ML-KEM's performance is dominated by:
+
+1. **Keccak** for SHA3-256, SHA3-512 and SHAKE128/256. The XOF calls in matrix sampling and key derivation are substantial. <Cite id="fips202" locator="§3" />
+2. **NTT and inverse NTT** for polynomial multiplication. <Cite id="longa2016" locator="pp. 124–139" />
+3. **Sampling** from centered binomial distributions without secret-dependent branches.
+4. **Compression/decompression** and constant-time encoding.
+
+## Constant-time rules
+
+FIPS 203 Section 3.3 imposes implementation requirements. In practice that means:
+
+- no secret-dependent branches in decapsulation,
+- no secret-indexed table lookups,
+- constant-time comparison of the re-encrypted ciphertext,
+- deterministic handling of malformed inputs,
+- no floating-point arithmetic in the reference data path.
+
+The rejection key must be computed and selected without leaking whether rejection occurred.
+
+<Callout variant="danger" title="The compiler is not your friend">
+A branch that looks constant-time in C can be turned into a conditional move or a jump by the optimiser. Validate the generated code or use established constant-time primitives. Test with tools such as `dudect`, `valgrind`/ctgrind and hardware side-channel evaluation.
+</Callout>
+
+## Performance engineering
+
+- **AVX2** packs 16-bit coefficients and vectorises butterflies across independent blocks.
+- **Arm NEON/SVE** uses a different lane layout; twiddle handling is often the bottleneck.
+- **Montgomery/Barrett** reductions replace division in the inner loop. <Cite id="montgomery1985" locator="Vol. 44, pp. 519–521" />
+- **Keccak accelerators** (SHA-3 extensions, dedicated blocks) can change the performance balance entirely.
+- **In-place buffers** reduce RAM pressure on embedded targets.
+
+## Memory and protocol reality
+
+A decapsulation key is 2,400 bytes for ML-KEM-768; an encapsulation key is 1,184 bytes. Hybrid TLS adds these to a handshake that previously carried a 32-byte X25519 share. Firmware and HSMs need larger command buffers. Embedded devices need stack budgets measured in kilobytes, not megabytes.
+
+## Testing strategy
+
+1. **Known-answer tests** from the standard.
+2. **Differential testing** against a reference implementation. <Cite id="liboqs" />
+3. **Fuzzing** of decoders and length checks.
+4. **Constant-time verification** and leakage assessment.
+5. **Interoperability tests** across libraries and protocol stacks.
+6. **Failure injection** to confirm implicit rejection paths.
+
+<Callout variant="lab" title="Inspect the arrays">
+The [PQC lab](/lab/) exposes NTT coefficients, compression error and timings. It is a teaching instrument, not a production implementation; use it to build intuition before reading the optimised code.
+</Callout>
+
+</Lens>

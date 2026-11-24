@@ -1,0 +1,56 @@
+name: New module proposal
+description: Propose a cybersecurity or PQC module for the curriculum
+title: "[module] "
+labels: []
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Proposed module title
+      placeholder: e.g. "Threshold signatures and distributed key generation"
+    validations:
+      required: true
+  - type: dropdown
+    id: track
+    attributes:
+      label: Track
+      options:
+        - Foundations
+        - Lattice PQC
+        - Hash-Based Signatures
+        - Systems & Deployment
+        - New track (explain below)
+    validations:
+      required: true
+  - type: textarea
+    id: outline
+    attributes:
+      label: Four-lens outline
+      description: What will each lens cover? One or two bullet points per lens is enough.
+      value: |
+        L1 — Intuition and threat model:
+        L2 — Protocol and system mechanics:
+        L3 — Formal math and correctness:
+        L4 — Implementation and hardware:
+    validations:
+      required: true
+  - type: textarea
+    id: citations
+    attributes:
+      label: Primary sources
+      description: Standards, RFCs, papers or reference implementations. Include exact sections where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: interactivity
+    attributes:
+      label: Interactive element
+      description: What should the reader be able to change, run, inspect or step through?
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I intend to author this module
+        - label: I can review the cryptographic claims
+        - label: This is a proposal only; I am looking for an author

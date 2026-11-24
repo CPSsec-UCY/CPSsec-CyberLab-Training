@@ -1,0 +1,31 @@
+name: Citation correction
+description: Report a missing, inaccurate or outdated citation
+title: "[citation] "
+labels: []
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module or page
+      placeholder: e.g. /learn/ml-kem/ or content/modules/ml-kem.mdx
+    validations:
+      required: true
+  - type: input
+    id: claim
+    attributes:
+      label: Claim or passage
+      description: Quote the sentence or describe the claim that needs a better source.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Correct source and locator
+      description: Include title, authors, year, DOI or RFC number, and the exact section/page.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why the current citation is wrong
+      description: Wrong version, wrong section, unavailable link, misattribution, etc.
