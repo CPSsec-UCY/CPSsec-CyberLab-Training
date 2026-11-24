@@ -5,7 +5,7 @@ subtitle: "Shor, Grover, harvest-now-decrypt-later, and why migration is an engi
 track: "Post-Quantum Cryptography"
 order: 1
 difficulty: "Introductory"
-readingTime: 15
+readingTime: 24
 summary: "Separate the two quantum algorithms that matter, map them onto real primitives, and turn an uncertain timeline into a concrete migration plan."
 citations: ["shor1994", "grover1996", "nist-ir8105", "nist-ir8547", "nist-ir8545", "nist-pqc", "castryck-decru2023", "mceliece-spec", "fips203"]
 tags: ["quantum", "migration", "threat-model"]
@@ -48,6 +48,13 @@ The 2022 break of SIKE is a useful antidote to complacency: a scheme that surviv
   explanation="Shor removes the hardness assumption behind RSA and discrete-log systems. Grover only halves the exponent of search-based security, so AES-256 still targets 128-bit quantum security."
 />
 
+
+
+## A scenario that makes the timeline concrete
+
+A hospital archives genomic records with a 25-year confidentiality requirement. The adversary records today's TLS sessions and waits. If a cryptographically relevant quantum computer arrives in 15 years, the data still has a decade of sensitivity left. The attack does not need to succeed today; it only needs the ciphertext and time.
+
+This is why “we will migrate when the quantum computer exists” is not a plan. The relevant deadline is the point at which the protected data stops being sensitive, minus the time required to inventory, procure, deploy and validate the replacement. <Cite id="nist-ir8547" locator="§4" />
 </Lens>
 
 <Lens level={2} title="Mapping the damage across deployed primitives">
@@ -75,6 +82,10 @@ NIST's PQC categories compare schemes to familiar symmetric targets:
 
 These are comparison points, not proofs, and they apply to the whole scheme rather than to a single parameter. A category-3 KEM and a category-3 signature can have very different key sizes and failure modes.
 
+<Figure caption="A short migration timeline. The dates are proposals and standardisation milestones, not a prediction of when a cryptographically relevant quantum computer will exist.">
+  <QuantumTimeline />
+</Figure>
+
 <Figure caption="Switch between a classical and a quantum attacker. The bars are coarse security-bit estimates; they explain the migration logic, not an exact attack budget.">
   <QuantumThreat />
 </Figure>
@@ -94,6 +105,21 @@ NIST IR 8547 sketches a transition in which 112-bit classical algorithms are dep
 Combining X25519 with ML-KEM means traffic stays secure if either component survives. It also gives the ecosystem time to find implementation bugs in the new component without betting everything on it.
 </Callout>
 
+
+
+## Worked migration order
+
+A practical first pass looks like this:
+
+| Priority | Asset | Why first | Typical action |
+| --- | --- | --- | --- |
+| 1 | Public TLS/VPN traffic | Harvest-now risk | Hybrid X25519 + ML-KEM |
+| 2 | Long-lived signing keys | Trust anchors outlive hardware | Plan ML-DSA/SLH-DSA roots |
+| 3 | Firmware and code signing | Devices may be unpatchable | Crypto-agile boot chain |
+| 4 | Data at rest | Key wrapping and archives | Key hierarchy review |
+| 5 | Proprietary protocols | Hard-coded algorithms | Design agility now |
+
+The order is not universal, but it forces the question “what is the confidentiality or authenticity lifetime of this asset?”
 </Lens>
 
 <Lens level={3} title="Order finding, search, and what the reductions actually say">
@@ -132,6 +158,17 @@ For lattice KEMs, the chain is roughly: break IND-CCA2 of the KEM $\Rightarrow$ 
 
 We do not know when a cryptographically relevant quantum computer will exist, and we do not have a proof that lattices are hard for quantum computers. What we do have is a large body of cryptanalysis, multiple independent families, and a standardisation process designed to avoid a single point of failure. Planning under uncertainty is exactly what hybrid deployment and crypto agility are for.
 
+
+
+## Mosca's inequality
+
+A useful planning heuristic is Mosca's inequality: if $X$ is the time your data must stay secret, $Y$ is the time needed to migrate, and $Z$ is the time until a quantum computer can break the cryptography, then you have a problem when
+
+$$
+X + Y > Z.
+$$
+
+The uncertainty in $Z$ is exactly why hybrid deployment and crypto agility matter. You do not need to predict $Z$ precisely to start reducing $Y$. <Cite id="nist-ir8547" locator="§4–5" />
 </Lens>
 
 <Lens level={4} title="Turning uncertainty into an engineering schedule">
@@ -172,4 +209,41 @@ The SIKE attack is the canonical lesson: a scheme can be mathematically elegant,
   explanation="A hybrid combiner preserves security as long as at least one component is secure. It also lets deployments gain PQC protection before the new implementation has survived as much operational testing as X25519."
 />
 
+
+
+## A migration runbook
+
+1. **Inventory** algorithms, protocols, certificates, firmware, HSMs and third-party dependencies. Include key lifetimes, not just endpoints.
+2. **Classify** each use by confidentiality lifetime, authenticity lifetime, performance constraints and update ability.
+3. **Choose** a hybrid or PQC-only target per protocol; record why.
+4. **Measure** handshake sizes, CPU cost, memory, fragmentation and hardware support.
+5. **Pilot** with telemetry and rollback; test negative paths and downgrade resistance.
+6. **Retire** classical-only configurations on a documented schedule, not when an incident forces it.
+7. **Exercise** the replacement of a root key, a firmware-signing key and a protocol group.
+
+<Callout variant="warning" title="Do not forget the boring systems">
+Certificate authorities, code-signing infrastructure, backups and embedded devices are often the long pole. A modern TLS stack does not help if the firmware verification key cannot be rotated.
+</Callout>
 </Lens>
+
+
+## Key takeaways
+
+- Shor breaks factoring and discrete log; Grover changes symmetric margins.
+- The migration deadline is driven by data lifetime and migration time, not by a single predicted date.
+- Hybrid key exchange protects traffic while the PQC ecosystem matures.
+- Algorithm diversity and crypto agility are risk controls, not buzzwords.
+- Inventory and key lifetime matter more than a slide claiming “quantum-safe”.
+
+## Practice
+
+1. Pick one system you operate. Write its confidentiality lifetime, authenticity lifetime and update mechanism.
+2. Identify the three places where a classical algorithm is embedded in firmware or hardware.
+3. Sketch a hybrid migration for a protocol that has a fixed 2 KB handshake buffer.
+
+<KnowledgeCheck
+  question="Which asset should usually be migrated first for harvest-now-decrypt-later risk?"
+  options={["A public website with a 5-minute session", "Long-lived confidential traffic and archives", "A test lab with no data", "A public hash of a release"]}
+  answer={1}
+  explanation="Traffic and archives whose confidentiality must last for years are the priority, because recorded ciphertext can be attacked later."
+/>

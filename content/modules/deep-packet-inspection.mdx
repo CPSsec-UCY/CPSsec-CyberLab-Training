@@ -5,7 +5,7 @@ subtitle: "What a sensor can see, what TLS hides, and why packet-level detection
 track: "Network & Protocol Security"
 order: 7
 difficulty: "Intermediate"
-readingTime: 16
+readingTime: 20
 summary: "Follow packets through capture, decode, flow reconstruction, detection and action, then examine the limits and risks of DPI under modern encryption."
 citations: ["sp800-94", "zeek", "suricata", "rfc7011", "rfc5424", "rfc8446"]
 tags: ["network", "dpi", "ids", "monitoring"]
@@ -41,6 +41,13 @@ When payloads disappear, defenders move to flow behaviour, DNS and TLS metadata,
   explanation="TLS encrypts application data. Addresses, ports and often packet timing remain visible, while payload content does not."
 />
 
+
+
+## What a sensor actually sees
+
+A passive sensor on a mirrored port sees packet headers: source and destination addresses, ports, protocol, TCP flags, sequence numbers and timing. If the application is plaintext HTTP, it can also see the request line, headers and body. If the application is TLS 1.3, it sees a handshake and then encrypted records; the payload is opaque.
+
+That difference changes the detection strategy. A plaintext signature can look for `GET /admin`; an encrypted sensor must reason about the flow, the TLS metadata, the endpoint and the identity. It can still detect a compromised host calling a suspicious destination, but it may not know what was sent.
 </Lens>
 
 <Lens level={2} title="Capture, decode, flow, detect, action">
@@ -68,6 +75,35 @@ When payloads disappear, defenders move to flow behaviour, DNS and TLS metadata,
 
 A signature that is never tuned becomes noise. Start from an asset inventory, know which services are expected where, and measure alert precision and response cost. NIST SP 800-94 frames the deployment and tuning problem for IDPS. <Cite id="sp800-94" locator="§2–4" />
 
+
+
+## The pipeline in more detail
+
+**Capture.** A tap, SPAN port, eBPF hook or packet-capture library copies frames. Loss at capture is a silent blind spot; monitor drop counters.
+
+**Decode.** Parse link, IP and transport headers. Handle VLANs, tunnels, fragmentation and malformed packets. A parser bug can crash the sensor or create an evasion.
+
+**Flow and stream reconstruction.** Group packets into conversations, track TCP state and reassemble application streams. Stateful inspection must handle retransmissions, out-of-order packets and asymmetric routing.
+
+**Detect.** Apply signatures, protocol parsers, anomaly models and threat intelligence. Rules should name the protocol, direction, field and expected behaviour, not just a byte string.
+
+**Action.** Alert, enrich, throttle, reset or block. Inline blocking changes the availability risk and requires a fail-open/fail-closed decision.
+
+## Common evasions
+
+- Fragmenting a payload across IP fragments or TCP segments.
+- Encoding or compressing content that the parser does not normalise.
+- Tunnelling one protocol inside another.
+- Using encryption or domain fronting to hide the destination.
+- Sending the malicious action after a benign-looking handshake.
+
+Detection engineering is an arms race; test evasions, not only known samples.
+
+## A packet walk-through
+
+A plaintext HTTP request to `/admin` reveals the method, path, headers and body. A signature can match the path and the user agent. A TLS 1.3 connection to the same server reveals a handshake and encrypted records; the sensor may see the SNI, certificate and flow shape, but not `/admin`.
+
+If the endpoint is compromised, EDR telemetry may show the process and command line even when the network payload is opaque. If the endpoint is not instrumented, the defender must rely on flow behaviour, DNS and authentication logs. No single sensor tells the whole story.
 </Lens>
 
 <Lens level={3} title="Detection is classification under base rates">
@@ -88,6 +124,10 @@ Flow analysis provides metadata features — bytes, packets, duration, periodici
 
 ## Encrypted traffic
 
+<Figure caption="What a passive sensor can see for plaintext and TLS 1.3 traffic. Encryption removes payload visibility but leaves metadata and often the server name.">
+  <DpiVisibility />
+</Figure>
+
 Without decryption, DPI can use:
 
 - TLS metadata and certificate properties,
@@ -97,6 +137,33 @@ Without decryption, DPI can use:
 
 These are probabilistic. They support hunting and triage; they rarely prove content-level malice on their own.
 
+
+
+## Detection as a decision problem
+
+A signature fires when a pattern matches. Its operational value depends on prevalence, false positives and the cost of investigation. With base rate $\pi$, true-positive rate $p$ and false-positive rate $q$:
+
+$$
+\Pr(\text{attack} \mid \text{alert}) = \frac{\pi p}{\pi p + (1-\pi)q}.
+$$
+
+When attacks are rare, a small $q$ can dominate the queue. A high-accuracy rule can still be operationally useless if it fires on every benign deployment.
+
+## Encrypted traffic
+
+With TLS 1.3, payload signatures cannot see the plaintext. Defenders use:
+
+- flow features: bytes, packets, duration, directionality;
+- TLS metadata: SNI where visible, certificate properties, ALPN;
+- timing and periodicity for beaconing;
+- DNS and proxy logs;
+- endpoint telemetry.
+
+These features support hunting and triage, but they rarely prove content-level malice. Be explicit about uncertainty. <Cite id="rfc8446" locator="§5" />
+
+<Callout variant="lab" title="Normalise before you match">
+A signature that works on one parser can fail on another because of encoding, case, chunking or normalisation. Document the parser and the normalisation assumptions with the rule.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Line rate, inline risk and encrypted traffic">
@@ -136,4 +203,61 @@ A proxy that terminates TLS holds keys, sees plaintext and must be trusted by cl
   explanation="When attacks are rare, a small false-positive rate can make most alerts false. Precision and response cost matter as much as raw accuracy."
 />
 
+
+
+## Performance and deployment
+
+- **Kernel bypass** (DPDK, PF_RING) and **eBPF/XDP** move processing close to the NIC.
+- **Flow tables** and hardware offload reduce per-packet cost.
+- **Sampling** reduces volume but can miss short-lived events.
+- **Full packet capture** is expensive in storage, privacy and review time; retain flows and capture around alerts.
+
+## Inline versus passive
+
+An inline IPS can block, but a false positive becomes an outage. A passive IDS cannot block but is safer to deploy and easier to justify legally. Many organisations run passive detection first, then add targeted inline enforcement after tuning.
+
+## Privacy and legal constraints
+
+Packet capture can contain credentials, personal data and regulated content. Define lawful basis, retention, access control, encryption and deletion. TLS interception is a high-value target: it holds keys, sees plaintext and must be hardened and authorised.
+
+## Deployment checklist
+
+1. Define the questions the sensor must answer and the response it may take.
+2. Place sensors where traffic is representative and not asymmetric.
+3. Normalise timestamps, identities and schema.
+4. Benchmark worst-case traffic and capture loss.
+5. Test fail-open/fail-closed and rollback.
+6. Measure alert precision and response cost.
+7. Document retention and privacy controls.
+
+## Common pitfalls
+
+- Deploying a sensor without measuring capture loss.
+- Writing signatures against a parser without normalising encodings.
+- Treating an encrypted flow as invisible instead of using metadata and endpoint telemetry.
+- Forgetting retention, privacy and access control for captured payload.
+- Enabling inline blocking before measuring false positives.
+- Assuming a signature still covers a protocol after a version upgrade.
 </Lens>
+
+
+## Key takeaways
+
+- DPI provides visibility, not omniscience; encryption changes what is observable.
+- Capture, decode, flow and detection each have distinct failure modes.
+- Detection quality is a function of base rates and response cost, not just accuracy.
+- Inline blocking trades availability risk for control.
+- Privacy and legal constraints are part of the architecture.
+
+## Practice
+
+1. Sketch a detection that works without payload access for a suspicious outbound beacon.
+2. List three evasions against a naive HTTP signature and how to normalise for them.
+3. Write a fail-open/fail-closed policy for an inline sensor protecting a hospital network.
+
+<KnowledgeCheck
+  question="Why can a signature-based sensor miss malicious content inside TLS 1.3?"
+  options={["TLS removes IP addresses", "The application payload is encrypted", "TLS disables TCP ports", "Signatures only match DNS"]}
+  answer={1}
+  explanation="TLS 1.3 encrypts application data. Metadata and endpoint telemetry remain useful, but payload signatures cannot inspect plaintext."
+/>

@@ -5,7 +5,7 @@ subtitle: "The workhorse of secure systems: fast encryption, authenticated integ
 track: "Foundations"
 order: 3
 difficulty: "Intermediate"
-readingTime: 18
+readingTime: 22
 summary: "Understand AES, ChaCha20, GCM, AEAD interfaces, nonces, key rotation and the failure modes that turn strong primitives into broken systems."
 citations: ["fips197", "sp800-38d", "rfc8439", "rfc5116", "sp800-57pt1r5", "kocher1999"]
 tags: ["symmetric", "aes", "aead", "key-management"]
@@ -37,6 +37,10 @@ A nonce (number used once) makes encryption unique. With AES-GCM, reusing a nonc
 
 ## Key management is half the system
 
+<Figure caption="A simple key hierarchy. Root keys protect key-encryption keys, which protect data-encryption keys. Rotation and purpose separation are controls, not housekeeping.">
+  <KeyHierarchy />
+</Figure>
+
 A cipher is only as strong as the key lifecycle around it: generation, distribution, storage, rotation, revocation and destruction. NIST SP 800-57 frames this as a lifecycle, not a one-time configuration step. <Cite id="sp800-57pt1r5" locator="§5–6" />
 
 ### Knowledge check
@@ -48,6 +52,15 @@ A cipher is only as strong as the key lifecycle around it: generation, distribut
   explanation="AEAD binds the ciphertext and optional associated data to an authentication tag. Tampering with either causes decryption to fail."
 />
 
+
+
+## Three failure stories worth internalising
+
+1. **Nonce reuse.** Two messages encrypted under the same key and nonce leak their XOR. In GCM it is worse: the authentication key can be recovered and ciphertexts forged. The algorithmic strength of AES does not help.
+2. **Padding oracle.** A CBC-based protocol that distinguishes “bad padding” from “bad MAC” gives an attacker a decryption oracle. AEAD avoids this class of design error.
+3. **Key confusion.** Using the same key for two purposes, directions or algorithms can let an attacker reinterpret a value from one context in another. Key separation is a security control.
+
+Each failure is an interface and lifecycle failure more than a cipher failure.
 </Lens>
 
 <Lens level={2} title="AES, ChaCha20 and the AEAD contract">
@@ -90,6 +103,24 @@ TLS 1.3 derives per-record keys and manages sequence numbers so nonces do not re
 Two messages encrypted under the same key and nonce leak the XOR of their plaintexts and break the authentication key. There is no recovery; rotate the key and treat both messages as compromised.
 </Callout>
 
+
+
+## Worked example: a TLS record
+
+A TLS 1.3 record uses an AEAD key derived from the traffic secret. The nonce is built from a static IV and the record sequence number, so each record has a unique nonce even though the key is reused. The content type and sequence number are bound into the authentication so truncation, reordering or cross-record splicing fails.
+
+If the connection state is restored from a snapshot and the sequence number rewinds, the nonce repeats. This is why nonce state must be durable or the key must be rotated when state is cloned. Random nonces avoid counter state but introduce birthday collision risk; the choice depends on message volume.
+
+## Envelope encryption
+
+For data at rest, a common design is:
+
+1. Generate a random data-encryption key (DEK) per object.
+2. Encrypt the object with an AEAD.
+3. Wrap the DEK with a key-encryption key (KEK).
+4. Store the wrapped DEK and ciphertext together.
+
+Rotation can re-wrap DEKs without re-encrypting the objects. Access control and audit focus on the KMS, while the object store sees only ciphertext.
 </Lens>
 
 <Lens level={3} title="IND-CPA, INT-CTXT and what the tag actually proves">
@@ -120,6 +151,26 @@ Standard AEAD does not necessarily commit to a unique key. An attacker who can p
 
 Do not use one key for everything. Derive independent keys for encryption, MACs, IVs and protocol directions using a KDF such as HKDF. Domain separation prevents cross-protocol collisions. Key rotation limits the damage of a compromise and resets nonce budgets.
 
+
+
+## How large is the nonce risk?
+
+With random 96-bit nonces, the chance of a collision after $q$ messages is roughly $q^2/2^{97}$. At $q = 2^{32}$ messages the probability is around $2^{-33}$; at $q = 2^{48}$ it becomes non-negligible. Standards therefore impose per-key limits or prefer counter-based/derived nonces. <Cite id="sp800-38d" locator="§8" />
+
+For a $t$-bit tag, a forgery attempt succeeds with probability about $2^{-t}$ if the key and nonce discipline are sound. Truncating the tag to 32 bits makes online forgery attempts cheap; that is a protocol decision, not a free optimisation.
+
+<Callout variant="lab" title="Key commitment and multi-key attacks">
+Standard AEAD is not necessarily key-committing. A ciphertext that decrypts under two keys can create ambiguity in protocols that select keys by context. Constructions with key commitment or an explicit key identifier avoid this, at some cost.
+</Callout>
+
+## Misuse resistance
+
+A robust design limits the damage of a mistake:
+
+- derive per-message or per-session keys so nonce reuse is confined;
+- use counters with persistent state or random nonces with enforced message limits;
+- authenticate protocol context as associated data;
+- reject unknown algorithm identifiers rather than guessing.
 </Lens>
 
 <Lens level={4} title="AES-NI, constant-time code and the operational key lifecycle">
@@ -168,4 +219,49 @@ If you must compose primitives, use Encrypt-then-MAC with independent keys and a
   explanation="Restoring a snapshot can rewind the nonce or counter state, causing the same nonce to be used twice under one key. GCM nonce reuse leaks plaintext relationships and breaks authentication."
 />
 
+
+
+## Randomness and state are cryptographic components
+
+- Use an approved CSPRNG; never seed from time, process IDs or user input.
+- Persist nonce counters atomically; a crash must not reset them silently.
+- Treat VM snapshots, container clones and restore-from-backup as nonce-reset events.
+- Re-key after a suspected nonce reuse; there is no safe “continue with the same key”.
+- Use a KMS/HSM for wrapping keys and audit every unwrap.
+- Benchmark encryption and key rotation under realistic load; rotation should not be an emergency-only procedure.
+
+<Callout variant="danger" title="Do not roll your own mode">
+AES is a block cipher, not an encryption scheme. Compose it with a standard AEAD and a vetted library. Hand-written CBC+HMAC, custom nonce formats and home-grown key derivation are common sources of catastrophic bugs.
+</Callout>
+
+## Test plan
+
+1. Known-answer vectors for the chosen AEAD.
+2. Tamper every part of ciphertext, nonce and associated data.
+3. Test nonce/counter persistence across restart and snapshot restore.
+4. Fuzz decoders and length checks.
+5. Measure tag comparison constant-time behaviour.
+6. Rotate keys during a live workload and verify old ciphertexts remain decryptable where intended.
 </Lens>
+
+
+## Key takeaways
+
+- AEAD gives confidentiality and integrity, but not nonce-reuse protection.
+- Nonce generation and key lifecycle are part of the security boundary.
+- GCM is efficient but unforgiving; ChaCha20-Poly1305 is a strong software alternative.
+- Envelope encryption enables rotation without re-encrypting all data.
+- Test failure paths and state restoration, not only happy-path encryption.
+
+## Practice
+
+1. Design a nonce strategy for 10 billion messages under one key. What changes if the device can restore from backups?
+2. Write a tamper test for every field in an AEAD record: ciphertext, nonce, associated data and tag.
+3. Explain why `AES-CBC + HMAC` requires independent keys and Encrypt-then-MAC.
+
+<KnowledgeCheck
+  question="What is the safest response to a suspected GCM nonce reuse?"
+  options={["Continue but use a longer tag", "Rotate the key and treat affected messages as compromised", "Switch to CBC", "Reuse the key with a different nonce"]}
+  answer={1}
+  explanation="Nonce reuse can expose the authentication key and plaintext relationships. Rotate the key; there is no parameter tweak that restores security for the affected key."
+/>

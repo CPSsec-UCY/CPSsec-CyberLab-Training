@@ -5,7 +5,7 @@ subtitle: "Prove a statement without revealing the witness; compute on secrets w
 track: "Advanced Cryptography"
 order: 10
 difficulty: "Advanced"
-readingTime: 19
+readingTime: 21
 summary: "Interactive proofs, Schnorr, SNARKs, secret sharing, MPC threat models, trusted setup and the engineering cost of privacy-preserving computation."
 citations: ["gmr1989", "yao1986", "shamir1979", "groth2016", "bulletproofs2018"]
 tags: ["zero-knowledge", "mpc", "privacy", "cryptography"]
@@ -46,6 +46,13 @@ Privacy-preserving credentials, confidential transactions, private auctions, thr
   explanation="The proof convinces the verifier that the statement is true while hiding the witness. The statement itself is public."
 />
 
+
+
+## A concrete privacy problem
+
+A consortium of banks wants to detect fraud patterns across customers without pooling transaction records. MPC can compute a joint statistic or train a model over encrypted inputs, revealing only the agreed output. A zero-knowledge proof can let one bank prove that its contribution satisfies a policy — for example, that no customer exceeds a reporting threshold — without revealing the underlying accounts.
+
+The hard part is not the primitive. It is defining the policy, deciding what the output itself reveals, and proving that the deployed circuit implements the policy. A private computation that outputs a per-customer score can still violate privacy.
 </Lens>
 
 <Lens level={2} title="Schnorr, SNARKs, secret sharing and MPC">
@@ -70,6 +77,10 @@ The verifier learns that the prover knows $x$, not $x$ itself. Hashing the chall
 
 ## MPC building blocks
 
+<Figure caption="Threshold secret sharing splits a secret into shares. In the 2-of-3 example, any single share is uniform, while any two reconstruct the secret.">
+  <MpcSharing />
+</Figure>
+
 - **Secret sharing:** split a secret into shares; a threshold reconstructs it, fewer shares reveal nothing. Shamir secret sharing is the canonical construction. <Cite id="shamir1979" locator="Vol. 22, pp. 612–613" />
 - **Garbled circuits:** two-party computation of a Boolean circuit. <Cite id="yao1986" locator="pp. 162–167" />
 - **Secret-sharing MPC:** evaluate arithmetic or Boolean circuits over shares.
@@ -79,6 +90,17 @@ The verifier learns that the prover knows $x$, not $x$ itself. Hashing the chall
 
 Ask who may be malicious, how many parties may collude, whether the network is synchronous, and whether fairness or output privacy is required. A semi-honest protocol assumes parties follow the protocol; a malicious model must also handle incorrect inputs and selective abort.
 
+
+
+## The proof and MPC stack
+
+A zero-knowledge proof system has a prover, a verifier and a statement. The prover knows a witness; the verifier checks a proof. SNARKs make proofs small and verification cheap, often with a trusted setup and pairing-based assumptions. STARKs avoid the setup but produce larger proofs. Bulletproofs are useful for range and confidential-value proofs without a trusted setup. <Cite id="groth2016" locator="pp. 305–326" /> <Cite id="bulletproofs2018" locator="pp. 315–334" />
+
+MPC has complementary building blocks: secret sharing distributes a value, garbled circuits evaluate a Boolean circuit between two parties, and secret-sharing protocols evaluate arithmetic or Boolean circuits among many parties. Oblivious transfer and commitments supply the glue. <Cite id="yao1986" locator="pp. 162–167" /> <Cite id="shamir1979" locator="Vol. 22, pp. 612–613" />
+
+## What the proof does not establish
+
+A proof establishes that a witness satisfies the circuit. It does not establish that the witness corresponds to real-world facts, that the input was not manipulated, or that the output is safe to reveal. Those are application and governance questions.
 </Lens>
 
 <Lens level={3} title="Completeness, soundness and simulation">
@@ -105,6 +127,27 @@ For secret-sharing MPC, correctness follows from linearity of sharing and a secu
 
 Even a perfect MPC reveals the output. If the function's output identifies an individual or allows differencing attacks, the protocol is not enough. Combine MPC with differential privacy or query restrictions when the output itself is sensitive.
 
+
+
+## Completeness, soundness and simulation
+
+- **Completeness:** an honest prover with a valid witness convinces the verifier.
+- **Soundness:** a prover without a witness cannot convince the verifier except with small probability.
+- **Zero knowledge:** a simulator can generate transcripts indistinguishable from real ones without the witness.
+
+For Schnorr, the simulator chooses the challenge $c$ and response $s$ first, then sets $t = g^s y^{-c}$. In the random-oracle model, Fiat–Shamir turns the interactive protocol into a non-interactive one; domain separation and challenge binding are essential.
+
+## Trusted setup
+
+A SNARK setup can produce a structured reference string. If the toxic waste is retained, false proofs may be possible. Multi-party ceremonies reduce the risk, but the verifier must authenticate the parameters and the ceremony transcript. Transparent systems avoid this trust assumption at a performance and proof-size cost.
+
+## MPC security models
+
+A semi-honest protocol assumes parties follow the protocol but inspect the transcript. A malicious model must also handle incorrect inputs, selective abort and collusion. Security is stated relative to a corruption threshold and a network model (synchronous or asynchronous). The output itself may leak; MPC alone does not provide differential privacy.
+
+<Callout variant="lab" title="Circuit correctness is a security property">
+If the circuit checks the wrong predicate, a valid proof certifies a false business statement. Audit the circuit against the policy, not only the proof system.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Circuits, proving time and side-channel reality">
@@ -140,4 +183,57 @@ Ask what is hidden, from whom, under what collusion and network assumptions, and
   explanation="Zero knowledge is defined by a simulator that produces indistinguishable transcripts without the witness. It does not prove the real-world truth of the statement's inputs."
 />
 
+
+
+## Engineering cost
+
+- **Prover time and memory** dominate SNARK deployments; proving keys can be huge.
+- **Trusted setup** adds a ceremony and parameter-distribution process.
+- **MPC networking** dominates WAN latency; protocol choice depends on round complexity.
+- **Side channels:** the prover handles the witness; timing, memory access and power can leak it.
+- **Randomness:** biased randomness can reveal a witness or break soundness.
+- **Verifier keys** and proof encodings need strict validation.
+
+## Deployment patterns
+
+1. **Confidential transactions / rollups:** prove state transitions without publishing inputs.
+2. **Selective disclosure credentials:** prove attributes without revealing the document.
+3. **Private analytics:** MPC or secure aggregation across organisations.
+4. **Threshold custody:** distribute signing authority; no single share can sign.
+5. **Compliance proofs:** prove a policy holds without exposing raw records.
+
+## Checklist
+
+- State the statement, witness, public inputs and output.
+- State the trust assumptions: setup, collusion threshold, network model.
+- Audit the circuit and the parameter generation.
+- Test malformed proofs and adversarial transcripts.
+- Protect witness and proving keys as crown jewels.
+- Consider output privacy separately from input privacy.
+
+<Callout variant="danger" title="“Zero-knowledge” is not a complete security claim">
+Ask what is hidden, from whom, under what assumptions, and what the output reveals. A proof system with a leaky prover or a revealing output can fail operationally.
+</Callout>
 </Lens>
+
+
+## Key takeaways
+
+- ZK proofs prove statements about witnesses; MPC computes over private inputs.
+- Completeness, soundness and zero knowledge are the core proof properties.
+- SNARKs trade setup and assumptions for small proofs; transparent systems trade size for trust.
+- MPC protects inputs under a stated corruption and network model.
+- Circuit correctness, randomness and output privacy are part of the security boundary.
+
+## Practice
+
+1. Write the statement, witness and public inputs for a proof that a transaction is balanced.
+2. Explain why a simulator is needed to define zero knowledge.
+3. Design an MPC threshold for five parties tolerating one malicious party.
+
+<KnowledgeCheck
+  question="What does a zero-knowledge proof guarantee?"
+  options={["The witness is true in the real world", "The statement is true and the witness remains hidden", "The verifier learns the witness", "The output is differentially private"]}
+  answer={1}
+  explanation="A ZK proof convinces the verifier of the statement without revealing the witness. It does not establish real-world truth or output privacy."
+/>

@@ -5,7 +5,7 @@ subtitle: "From telemetry to a defensible decision — how a security operations
 track: "Security Operations"
 order: 8
 difficulty: "Intermediate"
-readingTime: 18
+readingTime: 21
 summary: "Log pipelines, SIEM, detection-as-code, MITRE ATT&CK, alert triage, incident response, metrics and the human factors that determine whether a SOC works."
 citations: ["sp800-61r3", "sp800-92", "mitre-attack", "sigma", "pyramid-of-pain", "rfc5424", "sp800-94"]
 tags: ["soc", "detection", "incident-response", "siem"]
@@ -49,11 +49,22 @@ NIST SP 800-61r3 frames incident response around preparation, detection and anal
   explanation="Triage is a defensible assessment under uncertainty. Closing alerts quickly without evidence is how real incidents get missed."
 />
 
+
+
+## A day in the queue
+
+An analyst starts with 180 open alerts. Most are low-severity scanner noise, a few are identity anomalies, one is an endpoint detection with a suspicious parent process. The analyst must decide where to spend the next hour. That decision depends on asset criticality, identity context, threat intelligence and the quality of the detection — not on the number of alerts alone.
+
+A good SOC makes this decision cheaper: it enriches automatically, groups related alerts into cases, documents playbooks and removes rules that waste attention. A bad SOC measures success by closed tickets.
 </Lens>
 
 <Lens level={2} title="Telemetry, SIEM and detection engineering">
 
 ## The data pipeline
+
+<Figure caption="The incident-response lifecycle is a loop: preparation and detection feed analysis, containment, recovery and learning, which feeds back into detections and controls.">
+  <SocLifecycle />
+</Figure>
 
 1. **Collect** logs and telemetry from identity, endpoints, network, cloud and applications.
 2. **Normalise** fields and timestamps into a common schema.
@@ -86,6 +97,32 @@ MITRE ATT&CK catalogues adversary tactics and techniques. Use it to find coverag
 Indicators at the bottom (hashes, IPs) are cheap for an adversary to change. Behaviours and tools are harder to change. Detection strategy should climb the pyramid where the environment supports it. <Cite id="pyramid-of-pain" locator="Indicator value versus adversary cost" />
 </Callout>
 
+
+
+## Detection as code: one worked example
+
+Suppose the hypothesis is “a workstation authenticated with a valid account and then spawned an encoded PowerShell process shortly after”. The detection needs:
+
+1. Identity telemetry: successful interactive logon, source asset, user, time.
+2. Endpoint telemetry: process creation, parent-child relationship, command line.
+3. Correlation window: a few minutes, tuned to the environment.
+4. Suppression: known administrative scripts and signed automation.
+5. Response: isolate the host, capture memory, revoke sessions, hunt for lateral movement.
+
+The rule should be versioned, tested and owned. A rule without a runbook is an alert generator, not a detection product. Sigma is useful because it separates the detection logic from a specific SIEM query language. <Cite id="sigma" locator="Rule format and conversion tooling" />
+
+## Runbook anatomy
+
+A usable runbook contains:
+
+1. **Trigger:** the detection and its confidence.
+2. **Context:** asset owner, business criticality and identity.
+3. **Validation:** queries and evidence that confirm or refute the hypothesis.
+4. **Containment:** exact actions, permissions and rollback.
+5. **Escalation:** who is called, when, and with what evidence.
+6. **Closure:** what to document and which detection to tune.
+
+A runbook that says “investigate” is not a runbook. The analyst should know the next command and the decision criteria.
 </Lens>
 
 <Lens level={3} title="Detection quality, base rates and response cost">
@@ -128,6 +165,31 @@ NIST SP 800-61r3 integrates response with cybersecurity risk management rather t
 Mean time to respond can be reduced by closing tickets faster. Pair speed metrics with quality metrics: reopened incidents, missed detections, evidence completeness and containment effectiveness.
 </Callout>
 
+
+
+## Detection quality under base rates
+
+For a detection with true-positive rate $p$, false-positive rate $q$ and attack prevalence $\pi$:
+
+$$
+\Pr(\text{attack} \mid \text{alert}) = \frac{\pi p}{\pi p + (1-\pi)q}.
+$$
+
+When attacks are rare, precision can be low even at high accuracy. This is why tuning, asset context and response cost are part of detection engineering. A rule that fires on every failed login is not a control; it is a denial-of-service attack on the analyst team.
+
+## Response under uncertainty
+
+Incident response is decision-making with incomplete evidence. Separate confirmed facts from hypotheses, preserve volatile evidence before containment when possible, and define containment thresholds in advance. A false positive that isolates a domain controller is an outage; a delayed containment that lets ransomware spread is a breach. The playbook should make both failure modes explicit.
+
+<Callout variant="lab" title="Metrics can be gamed">
+Mean time to respond can be reduced by closing tickets faster. Pair speed metrics with reopened incidents, missed detections, evidence completeness and containment success. Measure quality, not only throughput.
+</Callout>
+
+## Evidence preservation
+
+Before containment, capture volatile evidence where feasible: memory, running processes, network connections, authentication tokens and relevant logs. Record hashes, timestamps and the identity of the person who collected each artefact. Containment actions can destroy evidence, so the playbook should state what to preserve and how.
+
+Chain of custody matters for legal, regulatory and HR processes. Store evidence separately from the affected host, restrict access and document every transfer. A perfect technical response with unusable evidence can still fail the organisation's obligations.
 </Lens>
 
 <Lens level={4} title="Building a SOC that survives volume">
@@ -178,4 +240,56 @@ Isolating a host or disabling an account on a bad signal is an availability atta
   explanation="Failed logins are extremely common. Without correlation, asset context and thresholds, the rule creates noise and alert fatigue rather than actionable intelligence."
 />
 
+
+
+## Data engineering for a SOC
+
+- **Schema:** normalise users, hosts, IPs, processes and cloud resources.
+- **Time:** synchronise clocks and record event and ingestion time.
+- **Retention:** hot search versus cold archive; legal and privacy constraints.
+- **Cost:** high-cardinality fields and full packet capture are expensive; measure value.
+- **Reliability:** queueing, backpressure and parser failure handling.
+
+## Automation with guardrails
+
+SOAR and automated enrichment reduce repetitive work. High-impact actions need explicit authorisation, idempotency, audit logs, rollback and human override. An automated isolation action on a low-confidence signal is an availability attack with a good intention.
+
+## Building the team
+
+- Tiered triage works only with clear escalation criteria.
+- Detection engineers and analysts should co-own rule quality.
+- Run tabletop exercises for ransomware, identity compromise and cloud misconfiguration.
+- Rotate on-call and measure workload; fatigue degrades judgement.
+- Conduct blameless post-incident reviews and track actions.
+
+## Maturity path
+
+1. Centralise identity and endpoint logs.
+2. Build a small set of high-confidence detections with runbooks.
+3. Measure precision and response time; retire noise.
+4. Add threat hunting and ATT&CK coverage mapping.
+5. Automate low-risk enrichment and containment.
+6. Exercise recovery and evidence handling.
 </Lens>
+
+
+## Key takeaways
+
+- A SOC turns telemetry into defensible decisions; alerts are hypotheses, not incidents.
+- Detection engineering is product engineering: owners, tests, metrics and retirement.
+- Base rates and response cost determine whether a detection is useful.
+- Evidence preservation and escalation are part of response, not afterthoughts.
+- Automation needs guardrails; a wrong block is an outage.
+
+## Practice
+
+1. Write a detection hypothesis for “valid account, new device, impossible travel” and list the required telemetry.
+2. Calculate the alert precision for a rule with $p=0.9$, $q=0.01$ and attack prevalence $\pi=0.001$.
+3. Design an escalation path for a suspected ransomware incident that includes legal and communications.
+
+<KnowledgeCheck
+  question="Why can a high-accuracy detection still be mostly false positives?"
+  options={["Because attacks are rare and false positives dominate low base rates", "Because SIEMs cannot store logs", "Because signatures are illegal", "Because every alert is malicious"]}
+  answer={0}
+  explanation="Precision depends on prevalence. When attacks are rare, even a small false-positive rate can make most alerts false."
+/>

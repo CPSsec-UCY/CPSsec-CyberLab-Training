@@ -5,7 +5,7 @@ subtitle: "Why lattice schemes spend most of their cycles turning polynomial mul
 track: "Post-Quantum Cryptography"
 order: 11
 difficulty: "Advanced"
-readingTime: 20
+readingTime: 22
 summary: "From negacyclic convolution to the incomplete NTT used by ML-KEM, with a runnable coefficient-level lab and the implementation tricks that make it fast."
 citations: ["fips203", "kyber-spec", "longa2016", "harvey2014", "lpr2010", "lpr2013-toolkit", "peikert2016", "montgomery1985", "liboqs"]
 tags: ["ntt", "lattice", "arithmetic", "implementation"]
@@ -47,6 +47,13 @@ For ML-KEM-768, one encapsulation or decapsulation runs several NTTs and point-w
   explanation="The NTT converts convolution into point-wise multiplication. The transform costs O(n log n), so the total multiplication cost becomes O(n log n)."
 />
 
+
+
+## A concrete cost
+
+For $n=256$, naive negacyclic multiplication needs about $256^2 = 65{,}536$ coefficient products. ML-KEM performs several such products per encapsulation or decapsulation, so the naive approach would dominate the CPU budget. The NTT reduces the transform and point-wise work to a few thousand butterflies, then a small base-case multiply.
+
+The speed-up is not only asymptotic. The transform's memory access pattern is regular enough to vectorise, while the schoolbook product has a much larger working set and more multiplications per output.
 </Lens>
 
 <Lens level={2} title="Inside the ring and the butterfly network">
@@ -94,6 +101,19 @@ Open the [NTT bench](/lab/), press **Multiply A × B**, and compare the speed-up
 - Reducing too late can overflow 16-bit lanes; reducing too often costs cycles.
 - A secret-dependent branch in the butterfly loop turns a maths bug into a side-channel bug.
 
+
+
+## A tiny worked example
+
+In the toy ring $\mathbb{Z}_{17}[X]/(X^4+1)$, multiply
+
+$$
+a = 1 + 2X + 3X^2 + 4X^3, \qquad b = 1 + 2X + 3X^2 + 4X^3.
+$$
+
+Naive convolution gives coefficients $1,4,10,20,25,24,16$ before reduction, then the negacyclic wrap subtracts the terms of degree $\ge 4$ from the low coefficients. The result is exact but requires 16 products. The NTT computes the same result with two butterfly layers and point-wise products.
+
+The interactive diagram on this page lets you step through the pre-twist, bit reversal and butterflies for a four-coefficient ring. The same structure scales to 256 coefficients; only the tables and loop bounds change.
 </Lens>
 
 <Lens level={3} title="Evaluation at odd powers and the correctness identity">
@@ -115,6 +135,10 @@ $$
 The factor $\psi^j$ is the pre-twist that converts negacyclic convolution into cyclic convolution; $\omega$ is a primitive $n$-th root used by the cyclic NTT. The ring and module variants, and their reductions, are covered in the standard lattice toolkit and survey literature. <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="lpr2013-toolkit" locator="pp. 35–54" /> <Cite id="peikert2016" locator="pp. 283–424" />
 
 ## Point-wise multiplication
+
+<Figure caption="A visual comparison of schoolbook convolution and NTT work for n = 256. The NTT replaces quadratic coefficient products with layered butterflies plus a base-case multiply.">
+  <NttWork />
+</Figure>
 
 Define the NTT-domain product $\hat{c}_k = \hat{a}_k \hat{b}_k$. Then
 
@@ -148,6 +172,19 @@ is still exact; it simply finishes the last layer with a dedicated formula. The 
 The NTT is a ring isomorphism from $R_q$ to a product of smaller fields (or degree-two extensions in the incomplete case). Correctness of multiplication follows from the Chinese Remainder Theorem: multiplication in the product ring is component-wise. The security of the scheme is separate; the NTT does not change the underlying lattice problem.
 </Callout>
 
+
+
+## Why the transform is correct
+
+The negacyclic NTT evaluates a polynomial at the odd powers of a primitive $2n$-th root:
+
+$$
+\hat a_k = \sum_{j=0}^{n-1} a_j \psi^{(2k+1)j}.
+$$
+
+Multiplication in the evaluation domain is point-wise, and the inverse transform interpolates back. The Chinese Remainder Theorem explains why the transform is a ring isomorphism: the polynomial ring splits into a product of smaller fields (or degree-two factors in the incomplete case).
+
+The incomplete NTT stops at degree-one factors because a 256-point negacyclic transform would require a primitive 512th root, which $\mathbb{Z}_{3329}$ does not contain. The 2×2 base-case multiply is not an approximation; it finishes the last layer exactly.
 </Lens>
 
 <Lens level={4} title="Butterflies, lazy reductions and vector lanes">
@@ -196,4 +233,39 @@ A vectorised NTT can still leak through secret-dependent memory access or branch
   explanation="A 256-point negacyclic NTT needs a primitive 512th root of unity. Since 512 does not divide 3328, the standard stops at degree-one factors and finishes with a base-case multiplication."
 />
 
+
+
+## From algebra to cycles
+
+- **Barrett/Montgomery reduction** replaces division with multiply/shift; both must be branch-free.
+- **Lazy reduction** lets values grow within a proven bound, reducing the number of reductions.
+- **Twiddle tables** should fit in L1 and be accessed in a pattern that does not depend on secrets.
+- **SIMD** packs 16-bit coefficients and vectorises independent butterflies; Arm NEON/SVE and x86 AVX2 have different lane layouts.
+- **Keccak** is often the other hot loop in ML-KEM; optimising only the NTT may not move the end-to-end number much.
+
+## Benchmarking honestly
+
+Measure the transform, point-wise multiply, inverse transform and hashing separately. Report the CPU, compiler, optimisation level and whether the implementation is constant-time. A faster NTT that leaks through secret-dependent indexing is not an improvement.
 </Lens>
+
+
+## Key takeaways
+
+- The NTT turns polynomial convolution into point-wise multiplication.
+- Negacyclic rings require evaluation at odd powers of a $2n$-th root.
+- ML-KEM uses an incomplete NTT because 512 does not divide $q-1$.
+- Reduction, memory layout and vectorisation determine real performance.
+- Constant-time behaviour is a separate requirement from speed.
+
+## Practice
+
+1. Multiply two degree-three polynomials in $\mathbb{Z}_{17}[X]/(X^4+1)$ and compare with the NTT result.
+2. Explain why a full 256-point negacyclic NTT is impossible over $\mathbb{Z}_{3329}$.
+3. List three implementation choices that can turn an NTT into a side-channel leak.
+
+<KnowledgeCheck
+  question="Why does ML-KEM use an incomplete NTT?"
+  options={["To make the transform slower", "Because q−1 lacks the required 512th root of unity", "Because 256 is not a power of two", "Because ML-KEM uses a block cipher"]}
+  answer={1}
+  explanation="A 256-point negacyclic NTT needs a primitive 512th root. Since 512 does not divide 3328, the standard stops at degree-one factors and finishes with a base-case multiply."
+/>

@@ -5,7 +5,7 @@ subtitle: "From file fingerprints to password storage and TLS key schedules — 
 track: "Foundations"
 order: 4
 difficulty: "Intermediate"
-readingTime: 17
+readingTime: 21
 summary: "Hash properties, HMAC, HKDF, password hashing, salts, domain separation and the subtle ways hash constructions fail in real systems."
 citations: ["fips180-4", "fips202", "rfc2104", "rfc5869", "rfc9106", "owasp-password-storage"]
 tags: ["hashing", "hmac", "kdf", "passwords"]
@@ -51,6 +51,17 @@ Passwords are low-entropy, reused and often breached. Storing a fast hash such a
   explanation="Fast hashes are cheap to brute-force. Argon2id deliberately consumes memory and CPU, and its parameters can be tuned as hardware improves."
 />
 
+
+
+## The questions these tools answer
+
+- **Integrity:** “Did this file change after the publisher signed the hash?” A hash detects accidental or unsophisticated modification, but an attacker who can replace both the file and the published hash defeats it. Signatures or a trusted channel are needed for adversarial integrity.
+- **Authentication:** “Did someone holding the shared key produce this message?” A MAC answers this; a plain hash does not.
+- **Password verification:** “Does this password match the stored verifier?” This needs a salted, slow, memory-hard function, not a general-purpose hash.
+
+<Callout variant="danger" title="A hash is not a password vault">
+A SHA-256 digest of a password can be computed billions of times per second on a GPU. Salting prevents precomputation but does not make a fast hash suitable. Use Argon2id, scrypt or bcrypt with tuned parameters. <Cite id="rfc9106" locator="§3–4" />
+</Callout>
 </Lens>
 
 <Lens level={2} title="SHA-2, SHA-3, HMAC, HKDF and password hashing">
@@ -62,6 +73,10 @@ Passwords are low-entropy, reused and often breached. Storing a fast hash such a
 - **BLAKE2/3** are fast modern alternatives common in file integrity and password hashing contexts.
 
 ## MACs
+
+<Figure caption="HMAC authenticates with an inner and outer pad; HKDF extracts and expands key material into purpose-specific keys.">
+  <HmacHkdfFlow />
+</Figure>
 
 A MAC authenticates a message under a secret key. HMAC is the standard construction built from a hash:
 
@@ -98,6 +113,44 @@ Argon2id combines data-independent and data-dependent memory access, making it r
 | Password storage | Argon2id / scrypt / bcrypt |
 | Random tokens | CSPRNG, not a hash |
 
+
+
+## HMAC and HKDF step by step
+
+HMAC is defined by two nested hash evaluations:
+
+$$
+\mathrm{HMAC}_K(m) = Hig((K \oplus \mathrm{opad}) \,\|\, H((K \oplus \mathrm{ipad}) \,\|\, m)ig).
+$$
+
+The inner hash processes the keyed message; the outer hash protects the result from length extension. Verification must compare the full tag in constant time.
+
+HKDF has two phases:
+
+1. **Extract:** $\mathrm{PRK} = \mathrm{HMAC}_{\mathrm{salt}}(\mathrm{IKM})$. This concentrates non-uniform input into a pseudorandom key.
+2. **Expand:** derive output blocks with HMAC(PRK, info ‖ counter). The `info` string should include protocol, version, direction and purpose.
+
+<Cite id="rfc5869" locator="§2" />
+
+## Argon2id parameters in practice
+
+A password hash stores the algorithm, parameters and salt alongside the digest. A typical deployment chooses memory and iterations so one verification takes a deliberate fraction of a second, then benchmarks under peak login load. Parameters must fit the server memory budget; a configuration that causes memory exhaustion under a login flood is a denial-of-service vulnerability. <Cite id="rfc9106" locator="§4" />
+
+| Field | Why it matters |
+| --- | --- |
+| Salt | unique per password; prevents precomputation |
+| Memory cost | raises GPU/ASIC cost |
+| Iterations | raises CPU cost |
+| Parallelism | uses cores without changing the security target |
+| Pepper | optional server-side secret; not a substitute for a salt |
+
+## Migrating an old password store
+
+1. Keep the old verifier and mark its algorithm/parameters.
+2. On successful login, verify with the old scheme, then rehash with the new one.
+3. For dormant accounts, force a reset or a risk-based migration.
+4. Never log plaintext passwords or raw verifier material.
+5. Rate-limit authentication even after migration.
 </Lens>
 
 <Lens level={3} title="Collision bounds, PRF security and KDF assumptions">
@@ -128,6 +181,25 @@ If two protocols derive keys with the same KDF input and no context separation, 
 
 Password hashing is an arms race between defenders and attackers. Memory-hard functions raise the cost of parallel GPU/ASIC guessing. The right parameters depend on hardware budgets and latency requirements; they are not a universal constant. Argon2id's hybrid memory access pattern is designed to balance side-channel and GPU resistance. <Cite id="rfc9106" locator="§3–4" />
 
+
+
+## Length extension in one example
+
+For a Merkle–Damgård hash, the digest is the internal state after processing the message. An attacker who knows `H(secret || message)` can often compute `H(secret || message || padding || suffix)` without knowing the secret. HMAC avoids this by using the secret in both an inner and an outer hash. This is why “hash the secret as a prefix” is not a MAC.
+
+## Security bounds
+
+For an $n$-bit output:
+
+- preimage resistance: about $2^n$ classical work, $2^{n/2}$ with Grover;
+- second-preimage resistance: about $2^n$;
+- collision resistance: about $2^{n/2}$ classical, roughly $2^{n/3}$ with quantum collision search.
+
+A KDF does not create entropy. HKDF assumes the input has enough min-entropy; a password has little, so password hashing must add cost. <Cite id="rfc5869" locator="§3" />
+
+<Callout variant="lab" title="Domain separation is not cosmetic">
+If two protocols derive keys from the same input without distinct `info` or salt values, a key from one context may be valid in another. Bind algorithm, version, direction and identity into the derivation, and keep the encoding unambiguous.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Acceleration, constant-time verification and operational storage">
@@ -163,4 +235,40 @@ TLS 1.3 uses HKDF to derive handshake and application traffic keys from the key 
   explanation="HKDF expands existing high-entropy key material. Human passwords have low entropy, so a deliberately expensive password-hashing function such as Argon2id is required."
 />
 
+
+
+## Constant-time verification and storage
+
+- Compare MACs and tags with a constant-time routine over the full length.
+- Use a CSPRNG for salts and reset tokens; never a timestamp or counter.
+- Store algorithm and parameters with the verifier so you can upgrade later.
+- Rehash on successful login when parameters change.
+- Protect the password database like a crown jewel: encryption at rest, least privilege, audit.
+- Avoid putting secrets in URLs, logs, crash reports or analytics.
+
+## Hardware economics
+
+GPU and ASIC attackers excel at fast, low-memory hashes. Memory-hard functions change the cost curve, but they also consume server memory. Benchmark the real deployment, choose a target verification time, and monitor authentication latency and error rates. The goal is not “unbreakable”; it is to make guessing expensive enough relative to the value of the account and the lifetime of the password.
 </Lens>
+
+
+## Key takeaways
+
+- Hashes detect change; MACs authenticate; KDFs derive keys; password hashes resist guessing.
+- HMAC is not `H(secret || message)`; use the standard construction.
+- HKDF binds context through `info` and can derive many independent keys.
+- Argon2id parameters are a deployment decision with availability consequences.
+- Constant-time tag comparison and secret hygiene are part of the primitive.
+
+## Practice
+
+1. Derive three independent keys from one shared secret for a protocol with two directions and a handshake MAC. Write the `info` strings.
+2. Design a migration from SHA-256 password hashes to Argon2id without locking users out.
+3. Explain why a 128-bit hash tag may be acceptable for integrity but not for a high-value MAC.
+
+<KnowledgeCheck
+  question="Which construction is a safe keyed MAC for a shared secret?"
+  options={["SHA-256(secret || message)", "HMAC-SHA-256(secret, message)", "SHA-256(message || secret || message)", "Base64(secret)"]}
+  answer={1}
+  explanation="HMAC is designed for keyed authentication and avoids length-extension and ad-hoc composition problems."
+/>

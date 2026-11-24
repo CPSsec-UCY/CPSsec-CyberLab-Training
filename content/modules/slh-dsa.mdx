@@ -5,7 +5,7 @@ subtitle: "WOTS+, FORS and a hypertree of one-time keys — conservative cryptog
 track: "Post-Quantum Cryptography"
 order: 14
 difficulty: "Advanced"
-readingTime: 21
+readingTime: 25
 summary: "How SPHINCS+ became FIPS 205: stateless hash-based signatures, the WOTS+/FORS/hypertree stack, parameter trade-offs, and why the security assumptions are so small."
 citations: ["fips205", "sphincs-spec", "sphincs2019", "wots2013", "rfc8391", "fips202", "liboqs", "boneh1997", "nist-ir8545"]
 tags: ["pqc", "signature", "hash-based", "slh-dsa", "fips-205"]
@@ -48,11 +48,21 @@ Code signing roots, firmware verification, long-lived archives and conservative 
   explanation="SLH-DSA derives its one-time keys pseudorandomly from a seed and the message, so the signer does not need to track state. XMSS requires careful state management."
 />
 
+
+## Where SLH-DSA fits
+
+Consider a firmware root key that must verify updates for 20 years and is used only a few times per release. A 30 KB signature is irrelevant compared with the update image, and the conservative hash-only assumption is valuable. The same scheme would be a poor fit for a high-volume TLS handshake on a constrained device.
+
+SLH-DSA is stateless: the signer can be restored from a backup, cloned, or run on two machines without reusing a one-time key. XMSS and LMS are more compact but require the signer to track state. That difference is operational, not cosmetic.
 </Lens>
 
 <Lens level={2} title="WOTS+, FORS and the hypertree stack">
 
 ## Three layers
+
+<Figure caption="The SLH-DSA stack: a hypertree of XMSS trees, WOTS+ one-time keys, FORS for the message digest, and a public key that is just a root.">
+  <SlhHypertree />
+</Figure>
 
 1. **WOTS+** signs a hash digest as a sequence of hash-chain values. It is a one-time signature: signing two different digests with the same key reveals enough chain values to forge.
 2. **FORS** (Forest of Random Subsets) signs a digest using a few-time signature scheme: several small trees, one leaf revealed per tree.
@@ -95,6 +105,22 @@ A WOTS+ signature reveals one hash-chain value per digit. A second signature on 
 XMSS and LMS are standardised and efficient, but the signer must guarantee that every one-time key is used at most once. Backups, failover and disaster recovery must all preserve that invariant. <Cite id="rfc8391" locator="§3–4" />
 </Callout>
 
+
+## WOTS+ by example
+
+A WOTS+ key is a set of hash chains. To sign a base-$w$ digit, the signer reveals the chain value at that digit's position. The verifier applies the remaining hash steps to recover the chain endpoint. Revealing two different values for the same chain would let an attacker compute later values and forge.
+
+FORS signs a digest with a small forest of trees: one leaf is revealed per tree, and the authentication path lets the verifier recompute each root. The roots are then signed by the bottom XMSS layer.
+
+## Signing flow
+
+1. Derive a randomizer from the secret and message.
+2. Hash the message and randomizer into a digest.
+3. Produce a FORS signature over the digest.
+4. Sign the FORS public key with a WOTS+ key.
+5. Include the authentication path up the hypertree, signing each tree root with the layer above.
+
+Verification reverses the process and checks the final root against the public key. <Cite id="fips205" locator="§7–9" />
 </Lens>
 
 <Lens level={3} title="Hash assumptions, few-time security and tight bounds">
@@ -128,6 +154,20 @@ The parameter sets choose $n = 16, 24, 32$ bytes to meet categories 1, 3 and 5 w
 
 It does not cover implementation faults, state reuse (for stateful cousins), randomness failures, or side-channel leakage. Those are engineering problems, not hash-function problems.
 
+
+## Security from hashes alone
+
+WOTS+ reduces to second-preimage resistance of the chain function with domain-separated addresses. FORS is a few-time signature; the parameter sets bound how many signatures an attacker can collect before the probability of a useful collision becomes significant. The hypertree extends a small number of one-time keys into many signatures.
+
+The security bound accounts for hash queries, signature queries and the probability of a FORS or WOTS+ collision. FIPS 205 claims EUF-CMA security up to $2^{64}$ signatures for the standard parameter sets. <Cite id="fips205" locator="§11" />
+
+## Quantum margins
+
+Grover halves preimage security and quantum collision search reduces collision security further. The parameter sets use $n=16,24,32$ bytes for categories 1, 3 and 5. The conservative assumption is the selling point, but the signature size pays for it.
+
+<Callout variant="lab" title="Few-time is not many-time">
+FORS and WOTS+ are not general-purpose many-time signatures. The hypertree and parameter choices keep the number of revealed one-time keys within the security bound. Reusing a WOTS+ key across two different digests is a break.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Hash calls, memory and operational failure modes">
@@ -168,4 +208,42 @@ In a hybrid signature scheme, both a classical and a PQC signature must verify. 
   explanation="A hash-based signature includes WOTS+ chain values, FORS authentication paths and hypertree paths. The size buys security from hash functions alone."
 />
 
+
+## Hash cost and memory
+
+Signing performs many hash evaluations; verification is cheaper but still hash-heavy. SHA-2 variants benefit from hardware acceleration; SHAKE variants use Keccak. There is no NTT or modular arithmetic in the hot path, which makes the implementation simpler but not free.
+
+The signer holds authentication paths and intermediate nodes. The "s" parameter sets minimise signature size but do more work; the "f" sets reduce work by using more hypertree layers. On constrained devices, stack and code size can matter more than raw speed.
+
+## Faults and deployment
+
+- **Randomness:** the message randomizer must be fresh; a broken RNG undermines the proof and can enable fault attacks.
+- **Faults:** redundant computation and verify-before-release reduce the risk of releasing a corrupted signature.
+- **State:** statelessness removes the one-time-key counter, but the secret seed becomes a long-lived crown jewel.
+- **Interoperability:** test with standard vectors and an independent implementation.
+
+<Callout variant="danger" title="A large signature is still a security boundary">
+If a protocol silently truncates or fragments an SLH-DSA signature, verification fails or, worse, a different parser accepts a malformed value. Treat signature size as a protocol parameter.
+</Callout>
 </Lens>
+
+## Key takeaways
+
+- SLH-DSA builds signatures from hash functions with minimal algebraic assumptions.
+- WOTS+ and FORS are few-time/one-time primitives; the hypertree makes the scheme stateless and scalable.
+- Signatures are large because they contain chain values and authentication paths.
+- The "s" and "f" parameter sets trade size against signing work.
+- Hash-only assumptions are conservative, but implementation and operational risks remain.
+
+## Practice
+
+1. Explain why a WOTS+ key must never sign two different digests.
+2. Compare SLH-DSA-128s and SLH-DSA-128f for a firmware-signing use case.
+3. Describe how a fault during signing could affect security and how to mitigate it.
+
+<KnowledgeCheck
+  question="Why is SLH-DSA stateless?"
+  options={["It does not use keys", "It derives one-time keys from a seed and message-specific randomness", "It reuses one WOTS+ key", "It uses lattices"]}
+  answer={1}
+  explanation="SLH-DSA derives the one-time keys pseudorandomly, so the signer does not need to track a counter or avoid cloning. XMSS-style stateful schemes do."
+/>

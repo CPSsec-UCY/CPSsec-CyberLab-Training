@@ -5,7 +5,7 @@ subtitle: "No architecture is automatically secure. What changes when one operat
 track: "Distributed Systems & Privacy"
 order: 5
 difficulty: "Intermediate"
-readingTime: 17
+readingTime: 20
 summary: "Compare centralised, federated, consortium and peer-to-peer architectures through trust boundaries, Byzantine failure, CAP, governance and operational reality."
 citations: ["lamport1982", "gilbert-lynch2002", "castro-liskov1999", "nakamoto2008", "gencer2018", "sp800-207", "kairouz2021"]
 tags: ["distributed", "consensus", "architecture", "trust"]
@@ -44,6 +44,28 @@ Decentralisation distributes trust; it does not delete it. Clients still trust p
   explanation="Every system has trust assumptions. Decentralisation redistributes them; governance, code and cryptographic assumptions remain."
 />
 
+
+
+## Three concrete systems
+
+- **Online banking:** one bank controls the ledger, identity, fraud rules and recovery. Customers accept that trust because the operator is regulated, auditable and legally accountable. A breach or insider abuse is catastrophic.
+- **Healthcare consortium:** several hospitals share a research model or audit trail. No single hospital should see another's raw records, so the protocol coordinates computation while keeping data local.
+- **Public blockchain:** anyone can validate the chain, but finality depends on a majority of hash power or stake. The absence of a central operator removes some censorship risks and creates governance, energy and scalability costs.
+
+The security question is not “centralised or decentralised?” but “which trust assumptions does this application require, and what happens when each assumption fails?”
+
+## A trust worksheet
+
+For each component, ask:
+
+- What can it read?
+- What can it write or delete?
+- Can it change the rules or upgrade the protocol?
+- What happens if it is unavailable?
+- What happens if it is malicious?
+- Who can recover a lost credential?
+
+If the answer is “the operator” for every row, you have a centralised system with a single trust boundary. If the answers differ, document the trust set and the quorum required to change state. That worksheet is more useful than a decentralisation score.
 </Lens>
 
 <Lens level={2} title="Architectures, consensus and recovery">
@@ -63,11 +85,32 @@ Recovery differs sharply. Centralised systems use operator workflows. Consortium
 Do not grant implicit trust based on network location. Authenticate and authorise every request. <Cite id="sp800-207" locator="§3" /> This applies to centralised and decentralised designs alike.
 </Callout>
 
+
+
+## A walk through the architecture choices
+
+**Central server.** Clients authenticate to one authority. Replication and backups provide availability; a control-plane compromise affects everyone. Recovery is a support workflow.
+
+**Federated / hybrid.** Participants coordinate through protocols. The hard parts are identity, policy consistency, data minimisation and dispute resolution. Federated learning is a data-plane example: local data, shared updates, central or delegated aggregation.
+
+**Consortium.** A known validator set signs blocks or decisions. Membership is permissioned; governance decides who joins, who leaves and how upgrades happen. A majority or supermajority of validators can change state, so validator capture is the key risk.
+
+**Permissionless peer-to-peer.** Open participation and protocol-enforced rules. Security depends on the consensus mechanism, client diversity, network assumptions and the cost of acquiring influence. Finality may be probabilistic, and upgrades may require social coordination.
+
+## Recovery and identity
+
+In a centralised system, account recovery is an operator workflow with identity proofing. In a consortium, it is a policy decision with quorum approval. In a permissionless system, identity is a key pair; recovery is multi-signature, social recovery or loss. Each answer changes the threat model: recovery mechanisms are often the weakest link because they bypass the cryptography.
 </Lens>
 
 <Lens level={3} title="CAP, Byzantine bounds and the trust set">
 
-Under a network partition, a distributed store cannot guarantee both linearizable consistency and availability for every request. Partitions are not optional; the design must choose behaviour. <Cite id="gilbert-lynch2002" locator="Vol. 33, No. 2, pp. 51–59" />
+Under a network partition, a distributed store cannot guarantee both linearizable consistency and availability for every request.
+
+<Figure caption="With four replicas and at most one Byzantine fault, two quorums of three must overlap in at least two replicas, including an honest one. That overlap prevents conflicting decisions.">
+  <ByzantineQuorum />
+</Figure>
+
+Partitions are not optional; the design must choose behaviour. <Cite id="gilbert-lynch2002" locator="Vol. 33, No. 2, pp. 51–59" />
 
 For deterministic oral-message Byzantine agreement with $n$ parties and at most $f$ faults, $n \ge 3f + 1$ is necessary and sufficient. PBFT makes this practical for small known validator sets. <Cite id="lamport1982" locator="pp. 382–401" /> <Cite id="castro-liskov1999" locator="pp. 173–186" /> Proof-of-work changes the assumption to an honest majority of hash power and introduces mining concentration, which has been measured in practice. <Cite id="gencer2018" locator="pp. 439–457" />
 
@@ -77,6 +120,27 @@ A “decentralised” protocol may still trust a foundation, core developers, a 
 
 Federated systems are a deliberate middle ground: they distribute data or authority while retaining coordination points. They can reduce concentration without pretending coordination is free. <Cite id="kairouz2021" locator="Vol. 14, pp. 1–210" />
 
+
+
+## CAP in practice
+
+Under a partition, a system must decide whether to reject requests (favour consistency) or serve potentially stale data (favour availability). The theorem is not a design recipe; it forces an explicit choice per operation. A payment ledger and a social feed can choose differently.
+
+Consistency also has levels: linearizability, sequential consistency, causal consistency and eventual consistency. A security review should ask what a client can observe during a partition and whether that observation enables fraud, replay or privilege confusion.
+
+## Byzantine quorum arithmetic
+
+With $n$ replicas and at most $f$ Byzantine faults, safety and liveness require $n \ge 3f + 1$ under classical oral-message assumptions. Quorums of size $2f+1$ intersect in at least $f+1$ replicas, so at least one honest replica appears in both. This is why a malicious minority cannot convince two honest clients of conflicting histories. <Cite id="lamport1982" locator="pp. 382–401" />
+
+Proof-of-work replaces the quorum with an economic majority. Its finality is probabilistic and its security depends on assumptions about mining concentration and network propagation. Measurement studies show why “decentralised” is a spectrum. <Cite id="gencer2018" locator="pp. 439–457" />
+
+<Callout variant="lab" title="Trust assumptions are part of the interface">
+Write down who can read state, who can write state, how many faults are tolerated, what synchrony is assumed and how membership changes. A protocol that is safe under one model can be unsafe under another.
+</Callout>
+
+<Callout variant="lab" title="Identity provider compromise">
+A central identity provider can authenticate users to every connected service. Compromising it is equivalent to compromising many systems at once. A decentralised identity design may reduce this blast radius, but it introduces recovery, revocation and interoperability problems. The right architecture depends on which failure is worse for the organisation.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Operating a distributed trust boundary">
@@ -105,4 +169,46 @@ Choose centralisation when you need low latency, strong consistency and clear ac
   explanation="Under a partition, a store cannot guarantee both linearizable consistency and availability for every request. The design must make the trade-off explicit."
 />
 
+
+
+## Failure modes and controls
+
+| Failure | Impact | Control |
+| --- | --- | --- |
+| Control-plane compromise | global state or policy change | least privilege, hardware-backed keys, break-glass audit |
+| Split brain | conflicting state | quorum rules, fencing tokens, partition testing |
+| Validator capture | censorship or rewrite | membership policy, geographic/organisational diversity |
+| Upgrade capture | malicious code becomes law | reproducible builds, multi-party release signing |
+| Key loss | account or validator loss | threshold custody, recovery policy |
+| Client monoculture | one bug halts everyone | independent implementations, canary releases |
+
+## Measuring decentralisation
+
+Ask how many independent entities can censor a transaction, finalise a block, change the protocol or read the data. Count validator/stake concentration, client diversity, hosting concentration and governance control. A system with a central upgrade key and one hosted RPC provider is not meaningfully decentralised, even if it uses a blockchain.
+
+## Choosing an architecture
+
+Use centralisation when you need low latency, strong consistency, clear accountability and easy recovery. Use decentralisation when no single party should be able to censor or rewrite history, and the application tolerates weaker finality and higher coordination cost. Most systems are hybrids; document the boundary and test failure.
 </Lens>
+
+
+## Key takeaways
+
+- Centralisation concentrates control and trust; decentralisation redistributes them but adds coordination costs.
+- CAP and BFT bounds constrain what a distributed design can promise.
+- Recovery, identity and upgrade authority are security-critical design choices.
+- Quorum intersection and membership policy determine Byzantine safety.
+- “Decentralised” is a measurable spectrum, not a binary label.
+
+## Practice
+
+1. Map the trust assumptions of a system you use: who can read, write, censor, recover and upgrade?
+2. For $n=7$ replicas, what is the largest $f$ tolerated by a classical BFT protocol? Why?
+3. Design a recovery process for a lost validator key that does not let a single administrator bypass quorum.
+
+<KnowledgeCheck
+  question="Why does a BFT protocol need more than two-thirds honest participants?"
+  options={["To encrypt messages", "So two quorums intersect in enough honest replicas to prevent conflicting decisions", "To reduce latency", "Because hashes are reversible"]}
+  answer={1}
+  explanation="Quorum intersection ensures that two conflicting decisions cannot both gather enough honest support. With Byzantine faults, that requires a stronger margin than crash fault tolerance."
+/>

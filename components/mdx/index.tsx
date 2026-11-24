@@ -20,6 +20,21 @@ import { FederatedLearningDemo } from "@/components/visualizers/FederatedLearnin
 import { DpiPipeline } from "@/components/visualizers/DpiPipeline";
 import { SocTriage } from "@/components/visualizers/SocTriage";
 import { ZkSchnorrDemo } from "@/components/visualizers/ZkSchnorrDemo";
+import { KemVsSignature } from "@/components/illustrations/KemVsSignature";
+import { KeyHierarchy } from "@/components/illustrations/KeyHierarchy";
+import { HmacHkdfFlow } from "@/components/illustrations/HmacHkdfFlow";
+import { ByzantineQuorum } from "@/components/illustrations/ByzantineQuorum";
+import { SocLifecycle } from "@/components/illustrations/SocLifecycle";
+import { PkiChain } from "@/components/illustrations/PkiChain";
+import { MpcSharing } from "@/components/illustrations/MpcSharing";
+import { SlhHypertree } from "@/components/illustrations/SlhHypertree";
+import { MlKemFlow } from "@/components/illustrations/MlKemFlow";
+import { MlDsaFlow } from "@/components/illustrations/MlDsaFlow";
+import { MaskingDiagram } from "@/components/illustrations/MaskingDiagram";
+import { QuantumTimeline } from "@/components/illustrations/QuantumTimeline";
+import { NttWork } from "@/components/illustrations/NttWork";
+import { DpiVisibility } from "@/components/illustrations/DpiVisibility";
+import { FederatedThreatMatrix } from "@/components/illustrations/FederatedThreatMatrix";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
   if (href.startsWith("/")) {
@@ -54,5 +69,20 @@ export const mdxComponents = {
   DpiPipeline,
   SocTriage,
   ZkSchnorrDemo,
+  KemVsSignature,
+  KeyHierarchy,
+  HmacHkdfFlow,
+  ByzantineQuorum,
+  SocLifecycle,
+  PkiChain,
+  MpcSharing,
+  SlhHypertree,
+  MlKemFlow,
+  MlDsaFlow,
+  MaskingDiagram,
+  QuantumTimeline,
+  NttWork,
+  DpiVisibility,
+  FederatedThreatMatrix,
   a: MdxLink,
 };

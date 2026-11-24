@@ -5,7 +5,7 @@ subtitle: "The interfaces and attacker games that every post-quantum scheme must
 track: "Foundations"
 order: 2
 difficulty: "Intermediate"
-readingTime: 17
+readingTime: 25
 summary: "Learn the difference between encryption and encapsulation, why IND-CCA2 is the relevant target, and how signatures, KEMs and PQC families fit together."
 citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012"]
 tags: ["foundations", "kem", "signatures", "security-models"]
@@ -52,11 +52,22 @@ Raw RSA is malleable and deterministic. Real schemes need randomness, encoding a
   explanation="Encapsulation returns a ciphertext plus the shared secret. Decapsulation later recovers the same secret from the secret key and ciphertext."
 />
 
+
+
+## What a primitive is not
+
+A common design mistake is to treat public-key encryption as a universal tool. Encryption does not authenticate the sender: anyone can encrypt under a public key. A signature does not hide the message: anyone can verify it. A hash does not prove who produced a file, and a key exchange does not by itself authenticate the peer.
+
+Protocols compose primitives with identities, transcripts and policy. A KEM gives a shared key; the protocol must decide which identity is allowed to establish it and what happens on failure. A signature proves a private-key operation; the verifier must decide which key and certificate chain it trusts.
 </Lens>
 
 <Lens level={2} title="The PQC family map and the size trade-offs">
 
 ## Four families worth knowing
+
+<Figure caption="KEMs establish a shared secret; signatures prove authenticity. They have different APIs, failure modes and protocol roles.">
+  <KemVsSignature />
+</Figure>
 
 | Family | Hardness assumption | Strengths | Costs | Standard / status |
 | --- | --- | --- | --- | --- |
@@ -102,6 +113,26 @@ The simplicity is a feature. It keeps the attack surface small and makes it poss
 If a protocol needs to encrypt to a static key without interaction, a KEM can still work, but the protocol must define how the ciphertext and shared secret are carried. Do not invent your own combiner.
 </Callout>
 
+
+
+## API contract in practice
+
+The clean separation between KEMs and signatures is useful because it makes protocol integration explicit.
+
+| Operation | Input | Output | Failure behaviour |
+| --- | --- | --- | --- |
+| KEM KeyGen | randomness | ek, dk | randomness failure |
+| KEM Encaps | ek | c, K | malformed ek |
+| KEM Decaps | dk, c | K or rejection key | implicit reject |
+| Sig KeyGen | randomness | pk, sk | randomness failure |
+| Sig Sign | sk, m | σ | randomness / rejection |
+| Sig Verify | pk, m, σ | valid / invalid | invalid encoding |
+
+The failure behaviour is part of the interface. A KEM that returns an error on a bad ciphertext creates an oracle; a signature verifier that leaks parsing detail can create a side channel. FIPS 203 and FIPS 204 specify these behaviours rather than leaving them to the implementer. <Cite id="fips203" locator="§3.3" /> <Cite id="fips204" locator="§3.6" />
+
+## Key and ciphertext sizes
+
+Sizes are not an afterthought. An ML-KEM-768 encapsulation key is 1,184 bytes and a ciphertext is 1,088 bytes; an ML-DSA-65 signature is 3,309 bytes. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="§4" /> Protocol buffers, certificate chains, HSMs and firmware update formats must all accommodate those sizes before deployment.
 </Lens>
 
 <Lens level={3} title="Definitions, games and the FO theorem">
@@ -138,6 +169,21 @@ Lattice schemes reduce to variants of Learning With Errors and Short Integer Sol
 An IND-CCA2 proof says: if you can break the KEM, you can solve Module-LWE with a related advantage. It does not rule out a future algorithm for Module-LWE. Security is always relative to the best known cryptanalysis and the stated model (classical ROM, quantum ROM, standard model).
 </Callout>
 
+
+
+## The games in more detail
+
+For IND-CCA2, the adversary receives $pk$ and a decryption oracle. It chooses $m_0,m_1$, receives $c^*$, and may continue to query decryption for any $c \ne c^*$. It wins if it guesses the challenge bit with non-negligible advantage. The oracle is what makes CCA much stronger than CPA: a scheme that reveals whether a ciphertext is valid can be attacked even if the underlying maths is hard.
+
+For EUF-CMA, the adversary receives $pk$ and a signing oracle. It wins if it outputs a valid $(m^*,\sigma^*)$ where $m^*$ was never queried. Rejection sampling and transcript simulation are the tools that make lattice signatures simulatable without the secret.
+
+<Callout variant="lab" title="Proofs are conditional">
+The FO theorem and signature proofs are reductions: a successful attacker yields a solver for the underlying lattice problem, with some advantage loss. They assume hash functions behave like random oracles and that randomness is good. A proof does not protect against a broken RNG, a faulty decoder or a side channel.
+</Callout>
+
+## Hybrid combiners
+
+A hybrid KEM concatenates two shared secrets and feeds them into a KDF. The combiner must be unambiguous and domain-separated; otherwise an attacker may be able to swap components or replay a secret across protocols. Use the combiner defined by the protocol (for example the TLS hybrid design) rather than inventing one. <Cite id="rfc9180" locator="§4" />
 </Lens>
 
 <Lens level={4} title="Interfaces, encoding and constant-time glue">
@@ -181,4 +227,41 @@ Hybrid constructions need domain separation and a sound combiner. Follow RFC 918
   explanation="Implicit rejection makes a tampered ciphertext indistinguishable from a valid one to the attacker. Returning an error would turn decapsulation into a chosen-ciphertext oracle."
 />
 
+
+
+## Interface and encoding checklist
+
+1. Fix the byte encoding of keys, ciphertexts and signatures; reject non-canonical inputs.
+2. Define failure as a single observable outcome, without distinguishing parsing errors.
+3. Validate lengths before decoding; avoid out-of-bounds reads.
+4. Keep secret-dependent branches out of decapsulation and signing.
+5. Zeroise secret keys and intermediate values after use.
+6. Test known-answer vectors, negative cases and cross-implementation interoperability.
+7. Document the security level, parameter set and migration path for each key.
+
+<Callout variant="warning" title="A KEM is not a drop-in RSA replacement">
+Protocols must define how the ciphertext and shared secret are carried, how identities are bound and how failures are handled. A library swap is not a protocol migration.
+</Callout>
 </Lens>
+
+
+## Key takeaways
+
+- PKE, KEM and signatures solve different problems; APIs encode different failure modes.
+- IND-CCA2 and EUF-CMA are the relevant attacker games for most deployments.
+- FO converts CPA security into CCA security with re-encryption and implicit rejection.
+- Hybrid combiners and serialization are protocol design, not library details.
+- Post-quantum security is relative to assumptions and implementation quality.
+
+## Practice
+
+1. Write the API calls a TLS-like protocol needs for a KEM and for a signature scheme.
+2. Identify which failure paths in a KEM decapsulation could become an oracle if they returned distinct errors.
+3. Compare the certificate size impact of ML-DSA-65 with ECDSA P-256 for a three-certificate chain.
+
+<KnowledgeCheck
+  question="What does a hybrid KEM combiner protect against?"
+  options={["Only implementation bugs in the KDF", "Failure of either component, provided the combiner and KDF are sound", "All side-channel attacks", "Loss of the private key"]}
+  answer={1}
+  explanation="A hybrid combiner preserves security if at least one component remains secure. It does not protect against a stolen key or a broken implementation."
+/>

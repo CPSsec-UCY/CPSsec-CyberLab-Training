@@ -5,7 +5,7 @@ subtitle: "Where post-quantum keys actually land: handshakes, certificates, firm
 track: "Network & Protocol Security"
 order: 9
 difficulty: "Intermediate"
-readingTime: 19
+readingTime: 23
 summary: "Trace ML-KEM and ML-DSA through a TLS 1.3 handshake, then follow the operational consequences into X.509, HSMs, middleboxes and crypto agility."
 citations: ["rfc8446", "rfc9180", "rfc5280", "hybrid-design", "nist-ir8547", "fips203", "fips204", "fips205", "fips186-5", "rfc7748", "liboqs"]
 tags: ["tls", "pki", "deployment", "migration"]
@@ -52,11 +52,22 @@ Ideally: nothing. In practice: slightly slower first connections, larger handsha
   explanation="TLS establishes fresh traffic keys and authenticates the server (and optionally the client) using certificates and signatures."
 />
 
+
+
+## What happens in the first second
+
+A browser opens a TLS connection and sends a ClientHello with supported versions, cipher suites, groups and key shares. The server selects parameters and returns its own key share, certificate chain and signature. Both sides derive traffic keys and the browser verifies the certificate path before sending the HTTP request.
+
+For a PQ hybrid, the ClientHello may carry both a 32-byte X25519 share and a 1,184-byte ML-KEM encapsulation key. The server returns an X25519 share and a 1,088-byte ML-KEM ciphertext. The resulting shared secret is a combination of both, so the connection remains secure if either component is secure.
 </Lens>
 
 <Lens level={2} title="The TLS 1.3 flight, with PQC inserted">
 
 ## The handshake
+
+<Figure caption="A simplified certificate chain. The root anchors trust; intermediates scope signing; the server certificate binds a name to a key; the client validates the whole path.">
+  <PkiChain />
+</Figure>
 
 <Figure caption="Step through a TLS 1.3 handshake with a hybrid X25519MLKEM768 key share and an ML-DSA certificate. Sizes are approximate and vary with the certificate chain.">
   <TlsHandshake />
@@ -93,6 +104,19 @@ Compression, shorter chains and cross-signing strategies can help, but they do n
 Algorithm identifiers, certificate extensions and negotiated groups must be able to change without a new protocol version. NIST IR 8547 treats agility as a central migration requirement. <Cite id="nist-ir8547" locator="§4" />
 </Callout>
 
+
+
+## Flights and state
+
+TLS 1.3 has a tightly specified key schedule and transcript. The handshake transcript binds the ClientHello, ServerHello, certificates, CertificateVerify and Finished messages. If an attacker modifies a group, signature algorithm or certificate, the transcript changes and the Finished MAC fails.
+
+The client and server maintain separate traffic secrets for each direction. Record sequence numbers prevent reordering and replay within a connection. A new connection derives fresh secrets, giving forward secrecy.
+
+## Certificates and algorithms
+
+A modern chain may use different signature algorithms at different levels: a root with a long-lived classical or PQC signature, an intermediate signed with ML-DSA, and a leaf using another approved scheme. The verifier must support each algorithm and enforce path constraints.
+
+Certificate size is a protocol constraint. ML-DSA-65 has a 3,309-byte signature and a 1,952-byte public key; an SLH-DSA chain is much larger. <Cite id="fips204" locator="§4" /> Buffer limits, fragmentation and middlebox behaviour must be tested with realistic chains.
 </Lens>
 
 <Lens level={3} title="Key schedule, combiners and the authentication chain">
@@ -127,6 +151,21 @@ There is no single switch. Trust stores, CA/browser policy, and cross-signing mu
 
 CRLs and OCSP responses grow with certificate size and signature size. Certificate Transparency logs must accept PQC certificates. A migration that ignores revocation and transparency creates a second, slower outage later.
 
+
+
+## The key schedule and hybrid security
+
+TLS 1.3 derives handshake and application secrets with HKDF. The hybrid group supplies input keying material containing both the classical and PQ shared secrets. The hybrid design must define the encoding, ordering and domain separation so both peers derive the same value and an attacker cannot splice components across groups.
+
+A reduction for a hybrid combiner typically argues that if the derived key is distinguishable, then either the KDF is broken or at least one component secret is distinguishable. This is why the protocol must not silently fall back or accept a mismatched group.
+
+## Certificate validation in depth
+
+Validation checks the signature chain, validity dates, name constraints, key usage, basic constraints, revocation policy and trust anchor. A PQ certificate is not automatically trusted because it uses a PQ algorithm; the same path-building rules apply. Mis-issued or cross-signed certificates remain a risk, and revocation data must be available and fresh. <Cite id="rfc5280" locator="§4" />
+
+<Callout variant="lab" title="Transcript binding">
+If the handshake transcript or algorithm identifiers are not bound into the Finished MAC and CertificateVerify signature, an attacker may be able to downgrade or splice messages. Protocols must bind every negotiated parameter that affects security.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Buffers, middleboxes, HSMs and firmware">
@@ -174,4 +213,49 @@ Use standard test vectors and independent implementations. `liboqs` and the Open
   explanation="The protocol can carry larger messages, but deployed buffers, MTU assumptions and middleboxes often cannot. The migration must test the whole path, not just the crypto library."
 />
 
+
+
+## Deployment and performance
+
+- **Buffer sizing:** handshake messages and certificates can span multiple records and TCP segments.
+- **Middleboxes:** some assume classical handshake sizes or specific extensions.
+- **HSMs:** firmware must support the algorithm, key sizes and command-buffer sizes.
+- **Firmware and boot:** signing keys outlive devices; plan rotation and recovery.
+- **Crypto agility:** negotiate algorithms without requiring a new protocol version.
+
+## Testing checklist
+
+1. Measure handshake size and fragmentation on the real path.
+2. Test with old clients, middleboxes and constrained devices.
+3. Verify negative cases: bad signatures, unknown groups, expired certificates.
+4. Check downgrade resistance and failure behaviour.
+5. Test HSM key generation, import/export and signing performance.
+6. Exercise root and intermediate rotation.
+7. Monitor handshake failure rates by client and network.
+
+<Callout variant="danger" title="Interception changes the trust model">
+A TLS proxy that decrypts traffic holds keys and sees plaintext. It must be isolated, authorised, monitored and included in incident response. It can also break certificate pinning and create a new single point of compromise.
+</Callout>
 </Lens>
+
+
+## Key takeaways
+
+- TLS performs key exchange and authentication; PQC changes both sizes and algorithms.
+- Hybrid groups protect traffic while the PQC ecosystem matures.
+- Certificate path validation and revocation remain essential.
+- The transcript binds the handshake; downgrade resistance is a protocol property.
+- Deployment failures often come from buffers, middleboxes and hardware, not the maths.
+
+## Practice
+
+1. Calculate the approximate ClientHello size for X25519 + ML-KEM-768 and compare with a classical-only hello.
+2. Design a certificate chain migration plan from ECDSA to ML-DSA.
+3. List three middlebox behaviours to test before enabling a hybrid group.
+
+<KnowledgeCheck
+  question="Why is a hybrid TLS group useful during migration?"
+  options={["It removes the need for certificates", "It remains secure if either the classical or PQ component is secure", "It makes handshakes smaller", "It avoids transcript binding"]}
+  answer={1}
+  explanation="A hybrid combiner derives keys from both components, so the connection survives a failure of either one under the protocol's assumptions."
+/>

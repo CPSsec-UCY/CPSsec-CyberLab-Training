@@ -5,7 +5,7 @@ subtitle: "The maths can be perfect and the device can still tell the attacker e
 track: "Systems & Hardware"
 order: 15
 difficulty: "Advanced"
-readingTime: 22
+readingTime: 27
 summary: "Timing, cache, power and fault leakage; the constant-time discipline; masking; and the specific places where PQC implementations leak."
 citations: ["kocher1996", "kocher1999", "boneh1997", "fips203", "fips204", "montgomery1985", "liboqs", "longa2016"]
 tags: ["side-channel", "constant-time", "implementation", "hardware"]
@@ -51,6 +51,14 @@ Constant-time code defeats timing and cache-index attacks. It does not defeat po
   explanation="A secret-indexed array lookup changes the memory access pattern and can be observed through the cache. Constant-time code scans arrays or uses register selection instead."
 />
 
+
+## Three ways a correct algorithm fails
+
+- **Timing:** a secret-dependent branch or variable-time division changes how long an operation takes. An attacker with many observations can recover the branch pattern.
+- **Power:** a multiplier or memory access consumes different power depending on the data. Differential power analysis correlates many traces with a guessed intermediate value.
+- **Faults:** a glitch skips a check or corrupts a computation. The attacker compares the faulty output with a correct one to recover a key.
+
+The algorithm can be provably secure and still lose to any of these. Security engineering must include the implementation, the compiler, the hardware and the operational environment.
 </Lens>
 
 <Lens level={2} title="Timing, cache, power, faults — and the fixes">
@@ -105,6 +113,24 @@ A fault during a computation can produce an incorrect result that reveals the se
 In ML-KEM and ML-DSA, the path taken on rejection or failure must not be distinguishable from the success path. Implicit rejection exists for exactly this reason. <Cite id="fips203" locator="§7.3" /> <Cite id="fips204" locator="§3.6" />
 </Callout>
 
+
+## Timing and cache attacks
+
+A timing attack needs a secret-dependent execution path and enough measurements to average out noise. Remote timing attacks are practical when the leak is amplified by many queries or by a shared cache. Constant-time code removes the path dependence; it does not remove power leakage.
+
+Cache attacks observe which lines are loaded. A table indexed by a secret coefficient reveals the index if only one line is touched. A full-table scan touches every line and selects in registers, which hides the index but costs time and power.
+
+## Power analysis
+
+Simple power analysis reads a trace directly. Differential power analysis uses many traces and a leakage model such as Hamming weight. The attacker guesses a key byte, predicts an intermediate value, and correlates traces with the prediction. Enough traces distinguish the correct guess.
+
+## Fault attacks
+
+The Bellcore attack on RSA signatures used one faulty signature to factor the modulus. A fault during a post-quantum decapsulation or signature can similarly leak secrets or break unforgeability. Redundancy, verification before release and fault-detection circuitry are standard mitigations. <Cite id="boneh1997" locator="pp. 37–51" />
+
+<Callout variant="warning" title="Constant time is not side-channel freedom">
+Constant-time code hides instruction and address traces. It does not hide power, electromagnetic emanations or faults. Protection requires layered countermeasures and evaluation on real hardware.
+</Callout>
 </Lens>
 
 <Lens level={3} title="Leakage models, distinguishers and masking proofs">
@@ -130,6 +156,10 @@ $$
 With enough traces and a good model, the correct key emerges. Masking aims to make the joint distribution of shares independent of the secret.
 
 ## Masking
+
+<Figure caption="Masking splits a secret into shares. Any single share is uniform, but the combination reconstructs the secret; masking must be combined with constant-time code and fresh randomness.">
+  <MaskingDiagram />
+</Figure>
 
 Split a secret $x$ into $d+1$ shares:
 
@@ -161,6 +191,34 @@ Constant-time code prevents a specific class of observable, the instruction/addr
 
 Without those, "side-channel resistant" is a marketing phrase.
 
+
+## A leakage model
+
+A simple model treats the observed trace as
+
+$$
+L(x) = \mathrm{HW}(x) + \eta,
+$$
+
+where $\mathrm{HW}$ is Hamming weight and $\eta$ is noise. More realistic models include transitions, memory effects and device-specific power profiles.
+
+For correlation power analysis, the attacker computes
+
+$$
+\rho(k) = \frac{\mathrm{Cov}(L(v(k)), T)}{\sigma_{L(v(k))}\,\sigma_T}
+$$
+
+for each key guess $k$, where $v(k)$ is a predicted intermediate value. The correct guess should stand out above the noise.
+
+## Masking theory
+
+A secret $x$ is split into shares $x = x_0 \oplus \cdots \oplus x_d$. In the $d$-probing model, any $d$ wires are independent of $x$. Boolean masking suits bitwise operations; arithmetic masking suits modular arithmetic; conversions between them are delicate. A broken refresh or a leaky conversion can destroy the guarantee.
+
+The security proof is only as good as the model: probing security, strong non-interference, composability and glitch resistance are separate properties. Real hardware evaluation is still required.
+
+<Callout variant="lab" title="Fault and side-channel models compose">
+A combined attacker can use a fault to bypass a check and a power trace to learn the branch. Defences should be evaluated together, not as independent checkboxes.
+</Callout>
 </Lens>
 
 <Lens level={4} title="Writing and validating code that does not tell">
@@ -224,4 +282,57 @@ Start with a constant-time library, then measure. Review the assembly for the ex
   explanation="Constant-time code hides the instruction/address trace, but the power trace still depends on the values being processed. Masking and hiding are needed for power/EM leakage."
 />
 
+
+## Writing constant-time code
+
+- No branches on secret values.
+- No array indices derived from secrets.
+- No variable-time division or modulo on secrets.
+- No early-exit comparisons.
+- No secret-dependent loop bounds.
+- No floating point in the cryptographic path.
+- Wipe secrets and avoid logging them.
+
+The compiler can transform a conditional into a branch or a conditional move depending on optimisation level and target. Validate the generated assembly, not only the source.
+
+## Validation
+
+- **Timing:** `dudect`, statistical timing tests and controlled experiments.
+- **Taint analysis:** ctgrind-style tools for secret-dependent branches and addresses.
+- **Formal tools:** constant-time verifiers for source or assembly.
+- **Power/EM:** leakage assessment (TVLA or equivalent) on a representative device.
+- **Faults:** voltage/clock/EM fault injection campaigns and simulation.
+
+## PQC hotspots
+
+- **ML-KEM:** decapsulation re-encryption comparison, decompression, rejection selection.
+- **ML-DSA:** masking vector generation, norm checks, rejection loop, hints.
+- **SLH-DSA:** secret seed handling and address-dependent hashing.
+- **NTT:** secret-dependent indexing or branches in the butterfly loop.
+- **Compression:** rounding must not branch on secret coefficients.
+
+<Callout variant="danger" title="Validate the deployed artifact">
+A constant-time claim at the source level does not survive a different compiler, optimisation level or CPU. Re-run validation after toolchain or hardware changes.
+</Callout>
 </Lens>
+
+## Key takeaways
+
+- Side channels attack the implementation, not the mathematical definition.
+- Constant-time code prevents timing and cache-index leaks; masking and hiding address power/EM.
+- Faults require redundancy and verification, not just encryption.
+- Leakage models and validation methods define what a security claim means.
+- PQC introduces new secret-dependent code paths that need the same discipline.
+
+## Practice
+
+1. Find a secret-dependent branch in a toy AES implementation and rewrite it without a branch.
+2. Explain why a full-table scan hides a secret index but may increase power leakage.
+3. Design a validation plan for a new ML-KEM decapsulation implementation.
+
+<KnowledgeCheck
+  question="Which attack does constant-time code directly mitigate?"
+  options={["Differential power analysis", "A secret-dependent timing or cache-access leak", "A stolen private key", "A broken hash function"]}
+  answer={1}
+  explanation="Constant-time code removes secret-dependent control flow and memory addresses. It does not hide power/EM leakage or prevent key theft."
+/>

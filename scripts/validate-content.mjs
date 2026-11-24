@@ -224,6 +224,25 @@ for (const file of moduleFiles) {
     errors.push(`${relative}: expected four Lens sections, found ${lensLevels.length}`);
   }
 
+  const wordCount = parsedFile.content.trim().split(/\s+/).filter(Boolean).length;
+  const figureCount = (parsedFile.content.match(/<Figure\b/g) ?? []).length;
+  const checkCount = (parsedFile.content.match(/<KnowledgeCheck\b/g) ?? []).length;
+  if (wordCount < 1800) {
+    errors.push(`${relative}: only ${wordCount} words; modules require at least 1800 words of detailed learning content`);
+  }
+  if (figureCount < 1) {
+    errors.push(`${relative}: no <Figure> illustration found`);
+  }
+  if (checkCount < 1) {
+    errors.push(`${relative}: no <KnowledgeCheck> interaction found`);
+  }
+  if (!parsedFile.content.includes("## Key takeaways")) {
+    errors.push(`${relative}: missing a Key takeaways recap section`);
+  }
+  if (!parsedFile.content.includes("## Practice")) {
+    errors.push(`${relative}: missing a Practice exercise section`);
+  }
+
   if (data.lenses && JSON.stringify([...data.lenses].sort()) !== JSON.stringify([1, 2, 3, 4])) {
     errors.push(`${relative}: frontmatter lenses must be [1,2,3,4] when present`);
   }
