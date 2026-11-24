@@ -291,7 +291,7 @@ export function IdentityFlowLab() {
           <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">JWT claim inspection · ID token</p>
           <span className="text-[9px] text-muted">Reference time {REFERENCE_TIME} · signature verified with toy JWKS</span>
         </div>
-        <div className="mt-2 overflow-x-auto">
+        <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
           <table className="w-full min-w-[520px] text-left text-[10px]">
             <thead className="text-muted">
               <tr><th className="py-1.5 pr-3">Claim</th><th className="py-1.5 pr-3">Expected</th><th className="py-1.5 pr-3">Received</th><th className="py-1.5">Result</th></tr>

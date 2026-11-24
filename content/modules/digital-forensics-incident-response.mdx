@@ -8,7 +8,7 @@ difficulty: "Advanced"
 readingTime: 100
 summary: "Acquire and analyse memory and filesystem evidence, build clock-aware super timelines, maintain chain of custody and produce incident decisions that separate facts from hypotheses."
 outcomes: ["Design an evidence-aware incident response plan before destructive containment.", "Acquire, hash and analyse memory and disk artefacts with reproducible workflows.", "Interpret filesystem metadata and deleted-file records without overclaiming recovery.", "Correlate sources, state confidence and write a defensible forensic report."]
-citations: ["book-ligh-memory-forensics", "book-carrier-filesystem-forensics", "book-luttgens-incident-response", "nist-sp800-86", "volatility-docs", "sp800-61r3"]
+citations: ["book-ligh-memory-forensics", "book-carrier-filesystem-forensics", "book-luttgens-incident-response", "nist-sp800-86", "volatility-docs", "sp800-61r3", "sysmon-docs"]
 tags: ["dfir", "memory-forensics", "filesystem-forensics", "timeline", "chain-of-custody", "incident-response"]
 prerequisites: ["malware-endpoint-forensics", "soc-operations"]
 updated: "2026-11-24"
@@ -62,6 +62,21 @@ NIST SP 800-61r3 integrates incident response with cybersecurity risk management
 Volatile evidence generally disappears fastest. Running processes, network sockets, logged-on users, memory contents and temporary state can change within seconds. Filesystem metadata and local logs are more durable but still alterable. Remote logs, protected backups and immutable exports may be more stable, but collection can take longer and depend on service availability.
 
 The classic response is to collect the most volatile evidence first. That rule is useful, not absolute. If ransomware is actively encrypting files, isolation may need to precede memory acquisition. If a collector tool is untrusted or likely to crash a fragile host, a safer alternative may preserve more reliable evidence. Record the trade-off, the approving authority and what was lost. A documented emergency exception is more defensible than a rigid checklist followed while harm continues.
+
+### Worked acquisition order: exfiltration and encryption at once
+
+Suppose a database host begins writing encrypted files at 10:02 UTC while an established connection has already transferred several gigabytes. Its endpoint agent still reports, but the database is degrading. A literal top-to-bottom volatility list would spend ten minutes imaging memory before stopping the transfer. A better plan starts independent, low-disturbance exports in parallel: freeze relevant identity sessions, preserve provider-side audit records, retain network flows and ask the network team to capture the active flow. The collector then decides whether a short memory acquisition can complete before isolation; the incident lead retains authority to isolate immediately if the transfer rate makes delay unacceptable.
+
+| Evidence source | Action in this scenario | Ordering constraint and failure mode |
+| --- | --- | --- |
+| Identity and database audit exports | Request protected copies immediately | Provider retention may expire; export APIs can rate-limit or omit local activity |
+| Network flows and firewall state | Preserve flow records and current connection ownership | Live sockets disappear on isolation; retrospective flows may lack payload |
+| Memory and process state | Capture if the tool is tested and delay is bounded | Acquisition consumes resources and can crash an unstable database |
+| Active packet capture | Enable for the suspected flow only | High volume can fill storage; encryption limits content inspection |
+| Filesystem or VM snapshot | Acquire after volatile state, or isolate first under the emergency exception | A crash-consistent snapshot may contain journal work still awaiting replay |
+| Database transaction state | Preserve transaction logs with the disk evidence | Application-level deletion can be legitimate while storage retains recoverable records |
+
+This is a dependency schedule, not a new ranking. Provider exports and network preservation do not require loading code on the suspect host, so they can protect evidence that would otherwise be lost while the memory decision is made. Conversely, a cloud snapshot is not automatically a substitute for memory: it preserves virtual-disk bytes, not the guest's running sockets and process objects. Every branch of the plan should name the evidence it sacrifices and the condition that activates it. NIST separates collection from later examination and analysis, which is why the plan records what was collected before anyone interprets it. <Cite id="nist-sp800-86" locator="§3–4 (forensic process and evidence)" />
 
 <Figure caption="Collection priority is conditional. Each step records authority, method, time, hash and storage before analysis begins.">
   <div className="not-prose grid gap-3 md:grid-cols-4">
@@ -141,8 +156,23 @@ Look for mismatches between the executable path and the mapped image, unexpected
 
 Memory can also show deleted-file activity. A process may retain a handle to a file after its directory entry is removed. A file object may preserve a path or content in cache. This supports the claim that a process interacted with a named object; it does not automatically make deleted bytes recoverable. Pair the memory observation with filesystem records and, where appropriate, content recovery from a working image.
 
+### A PID-reuse join that looks perfect
+
+A memory image shows PID 7412 owning a socket, and a Sysmon event shows PID 7412 launching an encoded command. Both records name the same executable path, so a PID-only join appears to connect the network activity to that command. The join is unsafe: Windows can reuse a PID after a process exits. Sysmon process-creation events provide a process GUID that distinguishes process instances, while memory must supply its own process context, start time and session information. <Cite id="sysmon-docs" locator="Configuration and event types (process creation, Event ID 1)" />
+
+| Identifier or attribute | Correlation value | Required cross-check |
+| --- | --- | --- |
+| PID | Useful within a bounded interval | Creation time, exit evidence and possible reuse |
+| Process GUID | Strong across endpoint events | Whether memory tooling exposes the same GUID or a reliable mapping |
+| Executable path and hash | Connects on-disk and mapped code | Paths can be renamed; compare image bytes or signed-module evidence |
+| Process start time | Tests whether two records can describe one instance | Clock offset, resolution and timer granularity |
+| Parent process | Supports an ancestry hypothesis | Parent may have exited and its PID may already be reused |
+| Socket inode or endpoint tuple | Links endpoint and flow records | NAT, connection reuse and short-lived sockets create ambiguity |
+
+In the toy case, the memory process began four seconds before the Sysmon process, and the Sysmon GUID has no predecessor with that start time. The correct conclusion is not “the socket belonged to the command” but “PID 7412 was reused; the socket belongs to an earlier process whose identity is unresolved.” Ligh and colleagues emphasise analysing process relationships rather than treating a process listing as a self-explanatory answer. <Cite id="book-ligh-memory-forensics" locator="ISBN 978-1-118-82509-9, volatile memory acquisition, process analysis and hidden artefacts" /> Preserve both candidate joins, record why the PID match was rejected and seek network telemetry keyed by the earlier process's creation window. That negative join is itself useful: it prevents an attractive but false execution-to-exfiltration narrative.
+
 <Figure caption="Memory evidence supports several questions. Each artefact must be tied to the image, process context and a stated limitation.">
-  <div className="not-prose overflow-x-auto">
+  <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
     <table className="w-full min-w-[760px] text-left text-[10px]">
       <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Artefact</th><th className="px-3 py-2">Useful question</th><th className="px-3 py-2">Corroborate with</th><th className="px-3 py-2">Do not conclude</th></tr></thead>
       <tbody>
@@ -241,6 +271,20 @@ Recovered content needs provenance. Record the source record or cluster range, c
 Change journals, filesystem journals, directory indexes, prefetch or execution records, shellbags and application databases can preserve activity that the final directory state does not. They answer different questions. A USN journal entry may show that a file name changed. A directory index may preserve a deleted name. An execution artefact may show that a program ran. None alone establishes who acted or why.
 
 Collect auxiliary records before they roll over. Retention windows vary by configuration and volume activity. Export them with their schema, source path and collection time. When a record is unavailable, determine whether it was never enabled, expired, deleted or inaccessible. Missing telemetry is a finding about visibility, not proof of benign activity.
+
+### Provenance for a carved payload
+
+A deleted `payload.bin` is recovered from unallocated clusters after its MFT record has lost usable data-run information. The carving tool produces a plausible ZIP file whose SHA-256 matches an attachment recorded by the mail gateway. That match is strong content-identity evidence, but it does not reconstruct the local file's original name, creation time or deletion event. The report needs separate provenance chains for the acquisition, the filesystem extraction and the carved output.
+
+| Object | Identity to retain | What its hash or record establishes |
+| --- | --- | --- |
+| Disk image `D-01` | Source serial, acquisition method, size and SHA-256 | Integrity of the acquired volume bytes after hashing |
+| Working image `W-01` | Parent digest, creation time, verifier and transformation | Which verified copy produced the analysis |
+| MFT export `M-01` | Image digest, parser version, record number and warnings | Derived metadata, not a second independent acquisition |
+| Carved file `C-01` | Source cluster ranges, carving settings and output hash | Identity and reproducibility of the recovered bytes |
+| Mail attachment `G-01` | Gateway event ID, message ID and attachment hash | An independent sighting of the same content elsewhere |
+
+Carrier's filesystem treatment makes the distinction concrete: directory entries, metadata records and allocated content are different structures with different survival behavior. <Cite id="book-carrier-filesystem-forensics" locator="ISBN 978-0-321-26817-4, NTFS/FAT/Ext structures, deleted data and filesystem evidence" /> A defensible finding says, “content matching the gateway attachment was recovered from specified clusters of `D-01` under the recorded carving assumptions.” It does not say, “the MFT proves the user created that exact file at that time.” If a journal independently records a name change into the carved file's former path, the journal strengthens local attribution, but its timestamp semantics and clock still require separate analysis. Preserve failed carving attempts too: they can show fragmentation or false positives that explain why the recovered file is incomplete.
 
 <Figure caption="A deleted executable can remain visible through multiple filesystem and memory records. Each record supports a different claim.">
   <div className="not-prose grid gap-3 md:grid-cols-3">
@@ -344,6 +388,21 @@ A super timeline combines records from multiple sources into a common representa
 Start with a narrow window around the trigger and expand as the hypothesis requires. Join by stable identifiers first: device ID, process GUID, user ID, file ID, session ID or message ID. Use host, user and approximate time as secondary joins and record ambiguity. A shared username or an IP address that changes hands can create false relationships. Keep events that almost match so another analyst can review the join.
 
 Normalisation requires evidence. Record each source's clock offset, time zone, daylight-saving rule, timestamp precision and whether the value is event time, collection time or ingestion time. Remote logs may include both producer and receiver timestamps. If the offset is estimated, mark it as estimated and show the uncertainty range. Do not silently rewrite raw timestamps.
+
+### Build a join ledger before drawing arrows
+
+Consider three records: a file-write event at 09:12:00.100, a proxy receipt at 09:11:59.940 and an identity token issuance at 09:12:00.060. Their one-millisecond ordering is smaller than plausible clock uncertainty, so a single causal arrow would overstate precision. A join ledger records the candidate relationship, the identifiers used, the time tolerance and the reason the join is accepted, rejected or held for review.
+
+| Candidate join | Preferred key | Time role | Failure that must be tested |
+| --- | --- | --- | --- |
+| File write to process | Process GUID plus file ID | Event time on both sides | PID reuse, file rename and different event semantics |
+| Process to proxy flow | Host ID plus socket tuple | Event time versus receipt time | NAT, connection pooling and unsampled short flows |
+| Identity token to endpoint action | Session ID plus device ID | Issuance time versus action time | Token replay, refresh and stale device inventory |
+| Mail message to attachment | Message ID plus attachment hash | Gateway receipt versus host creation | Replayed message, renamed file or later copy |
+
+The ledger turns an apparent sequence into testable propositions. If only hostname and approximate time connect two records, label the relationship weak even if the narrative is plausible. If a process GUID and file ID agree but clocks differ by two seconds, the relationship may be strong while the exact ordering remains uncertain. Keep those two judgements separate: **identity confidence** concerns whether records describe the same object or action; **temporal confidence** concerns when it occurred.
+
+A response decision can then be bounded without inventing a probability. “High confidence in execution and network communication; moderate confidence that this socket carried the staged archive; low confidence in sub-second order” supports preserving the archive and expanding network review. It does not, by itself, support attributing the action to a named person or claiming every byte left the organisation. This is how provenance and timeline correlation remain connected to operational choices rather than becoming a visually convincing but evidentially loose story.
 
 ### WorkedExample
 

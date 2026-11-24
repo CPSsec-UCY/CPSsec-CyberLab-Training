@@ -113,11 +113,16 @@ const config: Config = {
         "slide-dash": {
           to: { strokeDashoffset: "-24" },
         },
+        "flow-progress": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(100%)" },
+        },
       },
       animation: {
         float: "float 7s ease-in-out infinite",
         "pulse-ring": "pulse-ring 2.8s ease-out infinite",
         "slide-dash": "slide-dash 1.4s linear infinite",
+        "flow-progress": "flow-progress 1.4s ease-in-out infinite",
       },
     },
   },

@@ -186,7 +186,7 @@ export function DetectionQueryLab() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="overflow-hidden rounded-xl border border-line">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full min-w-[760px] text-left text-[10px]">
               <caption className="sr-only">Ten deterministic process creation events and whether the generated detection matches</caption>
               <thead className="bg-mist-100 text-muted">

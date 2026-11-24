@@ -1,4 +1,5 @@
 import { ArrowRight, EyeOff, Shuffle, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function MaskingDiagram() {
   return (
@@ -31,7 +32,7 @@ export function MaskingDiagram() {
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
         <p className="text-[10px] leading-4 text-emerald-800">
           In the d-probing model, any d shares are independent of x. Masking must be paired with fresh randomness,
-          safe conversions and constant-time code; it does not make timing or faults disappear.
+          safe conversions and constant-time code; it does not make timing or faults disappear. <Cite id="nikova-rechberger-rijmen2006" locator="§3.2–3.3 and §4.2" /> <Cite id="faust2018" locator="§4–4.1" />
         </p>
       </div>
     </div>

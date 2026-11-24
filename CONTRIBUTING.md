@@ -181,7 +181,7 @@ npm run build:wasm
 npm run validate
 npm run lint
 npm run typecheck
-npm run build
+npm run build # includes exported-table and animated-diagram regression checks
 ```
 
 If you touched Rust/Wasm:

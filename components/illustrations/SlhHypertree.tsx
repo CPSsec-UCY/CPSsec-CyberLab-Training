@@ -1,4 +1,5 @@
 import { ArrowDown, GitBranch, Leaf, TreePine } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function SlhHypertree() {
   return (
@@ -47,7 +48,7 @@ export function SlhHypertree() {
         </div>
       </div>
       <p className="mt-3 text-center text-[9px] leading-4 text-muted">
-        Statelessness comes from deriving the one-time keys from a secret seed, the message and fresh randomness.
+        Statelessness comes from deriving the one-time keys from a secret seed, the message and fresh randomness. <Cite id="fips205" locator="§5, §7–8" />
       </p>
     </div>
   );

@@ -8,7 +8,7 @@ difficulty: "Advanced"
 readingTime: 85
 summary: "Interactive proofs, Schnorr, SNARKs, secret sharing, MPC threat models, trusted setup and the engineering cost of privacy-preserving computation."
 outcomes: ["Explain completeness, soundness and zero knowledge.", "Trace a Schnorr proof and its simulator.", "Compare SNARKs, STARKs, Bulletproofs and MPC building blocks.", "Analyse trusted setup, circuit correctness, side channels and output privacy."]
-citations: ["gmr1989", "yao1986", "shamir1979", "groth2016", "bulletproofs2018"]
+citations: ["gmr1989", "fiat-shamir1986", "yao1986", "shamir1979", "ben-or-goldwasser-wigderson1988", "groth2016", "bulletproofs2018", "stark2018", "kocher1996", "kocher1999"]
 tags: ["zero-knowledge", "mpc", "privacy", "cryptography"]
 prerequisites: ["asymmetric-primitives", "hashing-mac-kdf"]
 updated: "2026-11-24"
@@ -68,6 +68,18 @@ Write the model before choosing a proof system. Record the number of malicious p
 The defender's goals also include bounded work and verifiable parameter provenance. A prover should not be tricked into proving a different predicate through a reused challenge, and an MPC participant should not accept a share vector that reconstructs inconsistently. Availability is separate: an adversary can always refuse to participate even when privacy and correctness hold.
 
 Common misconceptions make the model smaller than reality. Zero knowledge does not mean the proof has no metadata; proof length, proving time and repeated statements can leak application information. MPC does not make colluding parties honest, and a threshold does not protect an output that deliberately identifies every input. Finally, privacy of intermediate values and privacy of the final answer are distinct claims. A sum can be protected during computation yet disclose a sole nonzero contributor when released.
+
+### Start with a relation and a disclosure map
+
+Let $R \subseteq X \times W$ be a relation. A statement $x\in X$ is true when there exists a witness $w\in W$ such that $(x,w)\in R$. The language $L_R$ is the set of such statements. A proof system must specify the algorithms, the security parameter and what public auxiliary information is available. “Prove the balance is below the limit” is incomplete until the balance's commitment, ownership relation, allowed range, bank identity and loan cycle are part of $x$ or the auxiliary input.
+
+In the formal distinction, a **proof** has information-theoretic soundness, while an **argument** may rely on computational soundness against efficient adversaries. A SNARK is an argument of knowledge: an efficient convincing prover is tied to a witness an extractor could recover. “Negligible” is relative to the security parameter. Zero knowledge must hide the witness from the verifier's entire view, including public inputs, messages, timing and auxiliary information.
+
+Create a disclosure map before selecting a primitive. Mark each value as public, witness-only, threshold-shared, verifier-visible or output, including intermediates and metadata. A proof may hide balances while revealing the bank; MPC may hide contributions while revealing a total; threshold signing may hide the key while revealing participants. These claims need different protocols.
+
+The adversary card should name corrupted parties, corruption timing, semi-honest or malicious behaviour, and network control. Can a verifier choose statements adaptively or retain transcripts? Can an MPC party send inconsistent inputs, abort, correlate sessions or learn the output alone? Fairness, security against abort and guaranteed delivery are separate requirements.
+
+Finally, cryptographic validity is not real-world truth. A proof can certify arithmetic over wrong source data, and MPC can correctly compute over poisoned inputs. The application still needs authenticated ingestion, policy ownership, disputes and output-release decisions. Privacy-preserving computation narrows who must be trusted; it does not remove trust in input meaning or policy correctness.
 </Lens>
 
 <Lens level={2} title="Schnorr, SNARKs, secret sharing and MPC">
@@ -81,12 +93,12 @@ For a public group with generator $g$ and public key $y = g^x$:
 3. Prover sends $s = r + c x$.
 4. Verifier checks $g^s = t y^c$.
 
-The verifier learns that the prover knows $x$, not $x$ itself. Hashing the challenge with the statement (Fiat–Shamir) makes the proof non-interactive. <Cite id="gmr1989" locator="Vol. 18, pp. 186–208" />
+The verifier learns that the prover knows $x$, not $x$ itself. Hashing the challenge with the statement (Fiat–Shamir) makes the proof non-interactive. <Cite id="fiat-shamir1986" locator="pp. 186–194" /> <Cite id="gmr1989" locator="Vol. 18, pp. 186–208" />
 
 ## Proof systems
 
 - **SNARKs** provide small proofs and fast verification, often with a trusted setup. Groth16 is a widely used pairing-based construction. <Cite id="groth2016" locator="pp. 305–326" />
-- **STARKs** avoid a trusted setup and rely on hash-based assumptions, at the cost of larger proofs.
+- **STARKs** avoid a trusted setup and rely on hash-based assumptions, at the cost of larger proofs. <Cite id="stark2018" locator="Abstract and §1–2" />
 - **Bulletproofs** provide short range proofs without a trusted setup. <Cite id="bulletproofs2018" locator="pp. 315–334" />
 - **Sigma protocols** generalise the Schnorr pattern for many relations.
 
@@ -113,7 +125,7 @@ Ask who may be malicious, how many parties may collude, whether the network is s
 
 ## The proof and MPC stack
 
-A zero-knowledge proof system has a prover, a verifier and a statement. The prover knows a witness; the verifier checks a proof. SNARKs make proofs small and verification cheap, often with a trusted setup and pairing-based assumptions. STARKs avoid the setup but produce larger proofs. Bulletproofs are useful for range and confidential-value proofs without a trusted setup. <Cite id="groth2016" locator="pp. 305–326" /> <Cite id="bulletproofs2018" locator="pp. 315–334" />
+A zero-knowledge proof system has a prover, a verifier and a statement. The prover knows a witness; the verifier checks a proof. SNARKs make proofs small and verification cheap, often with a trusted setup and pairing-based assumptions. STARKs avoid the setup but produce larger proofs. <Cite id="stark2018" locator="Abstract and §1–2" /> Bulletproofs are useful for range and confidential-value proofs without a trusted setup. <Cite id="groth2016" locator="pp. 305–326" /> <Cite id="bulletproofs2018" locator="pp. 315–334" />
 
 MPC has complementary building blocks: secret sharing distributes a value, garbled circuits evaluate a Boolean circuit between two parties, and secret-sharing protocols evaluate arithmetic or Boolean circuits among many parties. Oblivious transfer and commitments supply the glue. <Cite id="yao1986" locator="pp. 162–167" /> <Cite id="shamir1979" locator="Vol. 22, pp. 612–613" />
 
@@ -130,7 +142,7 @@ For Schnorr, choose a group of known order $p$, a generator $g$, secret exponent
 <WorkedExample
   title="Schnorr arithmetic in a small group"
   steps={[
-    "Use the toy group of order p = 23 with generator g = 11. Choose secret x = 7, so public key y = 11^7 mod 23 = 7.",
+    "Use the multiplicative group modulo 23, which has order 22, with generator g = 11. Choose secret x = 7, so public key y = 11^7 mod 23 = 7.",
     "Choose nonce r = 3 and send commitment t = 11^3 mod 23 = 20. The verifier sends challenge c = 5.",
     "Compute response s = 3 + 5 times 7 = 38 mod 22, because the group has order 22; therefore s = 16.",
     "Verify g^s = 11^16 mod 23 = 18 and t y^c = 20 times 7^5 mod 23 = 20 times 17 mod 23 = 18."
@@ -163,9 +175,42 @@ Shamir sharing chooses a random polynomial $f$ of degree at most $t$ with consta
   ]}
 />
 
-A non-interactive proof must bind the statement to the challenge. A simplified Fiat–Shamir transcript is $(t,c,s)$ with $c=H(\text{context}\|x\|t)$. Omitting $x$ allows a proof for one statement to be replayed for another. Omitting context can cross-bind a credential proof to a transaction proof with the same witness. The precise hash-to-group or hash-to-field encoding is part of the protocol, not an interchangeable utility.
-
 For MPC, translate the computation into a fixed sequence of additions and multiplications. Check that every intermediate has an owner, a sharing representation and a reconstruction point. Recovery must not request all shares from an untrusted participant. If the function includes a comparison whose result selects an output, implement that selection on shared values or prove the branch condition; do not let one party choose which private branch to execute.
+
+### Fiat–Shamir is a protocol specification, not a hash call
+
+For Schnorr, the interactive transcript is $(t,c,s)$. Fiat–Shamir replaces the verifier's challenge with a hash of a canonical byte string, for example
+
+$$
+c = H(\text{domain}\Vert\text{version}\Vert x\Vert\text{aux}\Vert t).
+$$
+
+Every public input that affects the relation must be bound. The domain tag separates authentication, credential and transaction uses; the version prevents silent interpretation changes; auxiliary input captures verifier-specific policy; and $t$ commits to the prover's first move. The encoding must be unambiguous, and the hash output must be mapped into the declared challenge set without bias. A verifier should reject non-canonical group elements and responses outside the scalar range before doing expensive checks.
+
+The random-oracle model is part of the security argument. In the reduction, the simulator programs hash responses and can sometimes answer a challenge it chose after seeing $t$, which an honest interactive verifier would not allow. The reduction guesses which programmed query corresponds to the eventual forgery and loses a factor in success probability. Challenge length, domain separation and a correct hash-to-field or hash-to-group encoding are therefore security parameters, not formatting choices. Replay protection is separate: a proof for a valid statement may remain valid forever unless the statement includes a nonce, expiry or state root that the verifier checks.
+
+Nonce freshness is equally important. If the prover reuses $r$, both proofs have the same commitment $t$. Subtracting their responses gives $s_1-s_2=(c_1-c_2)x$ in the exponent group. When $c_1-c_2$ is invertible, the secret exponent is exposed. This failure does not require breaking the hash or solving a discrete logarithm; it comes from reusing randomness. A prover must use an approved random source, bind randomness to the session, and survive crashes or rollback without repeating a nonce.
+
+<WorkedExample
+  title="One reused Schnorr nonce reveals the witness"
+  steps={[
+    "Keep x = 7, y = 7, r = 3 and t = 20 in the multiplicative group modulo 23.",
+    "For challenge c1 = 5, the response is s1 = 3 + 5 times 7 mod 22 = 16.",
+    "For a different challenge c2 = 2 with the same nonce, the response is s2 = 3 + 2 times 7 mod 22 = 17.",
+    "Subtract the responses: s1 - s2 = -1 = 21 modulo 22.",
+    "Subtract the challenges: c1 - c2 = 3, whose inverse modulo 22 is 15.",
+    "Recover x = 21 times 15 mod 22 = 7."
+  ]}
+  result="Fresh randomness is part of the witness boundary. Reusing a commitment across challenges turns two valid responses into a linear equation for the secret."
+/>
+
+### A concrete loan-proof circuit
+
+Suppose the public statement contains a domain tag, loan-cycle identifier, bank identifier, committed balance-sheet root and internal exposure cap. The witness contains individual balances and commitment openings. The circuit first verifies each opening against the committed leaf, then constrains the sum of those same balances to equal the bank's exposure. A range-checked bit decomposition proves the exposure is non-negative and does not overflow; a comparison constraint proves it is below the cap. Finally, the bank identifier and cycle are copied into the public-input vector and hashed into the Fiat–Shamir challenge.
+
+Each constraint prevents a specific false proof. Checking only the sum permits an invented exposure; checking the sum without the commitment permits unrelated balances; omitting range and overflow checks can let an out-of-range signed value satisfy an unsigned comparison. Omitting the bank identifier permits replay under another bank's name. The verifier checks the relation, canonical public inputs, parameter hashes and application state without learning the balances.
+
+For the companion MPC computation, represent the same values as shares and evaluate a fixed circuit. Comparison and selection must operate on shared values or a proved branch condition; letting one bank choose a private branch can leak information. Declare the output set—total, threshold decision or per-bank receipt—before compiling, because circuit design cannot repair an unsafe disclosure requirement.
 </Lens>
 
 <Lens level={3} title="Completeness, soundness and simulation">
@@ -229,6 +274,25 @@ For $n$ parties with a static threshold $t$, a secret-sharing MPC protocol can p
 The security argument must also cover malicious behaviour. Semi-honest security does not let the simulator invent inconsistent inputs for a corrupt party; that is precisely what a malicious adversary may do. Authenticated shares, input-consistency checks, commitments, or zero-knowledge proofs of correct local computation address this gap. Selective abort requires an additional argument that the adversary learns nothing from the shares it saw before refusing to continue. Protocol composition is not automatic: an adversary controlling parties in two invoked subprotocols may correlate their random tapes unless independence is specified.
 
 Edge cases belong in the statement. What happens when the witness is empty, the public input is duplicated, the verifier reuses randomness, or the same proof is replayed? Replay protection may require a nonce or state outside the proof. What happens when MPC output is undefined, such as division by zero? The function must define an abort or shared sentinel. None of these cases is fixed by calling the system zero knowledge or secure.
+
+### Quantifiers, extraction and corruption thresholds
+
+Completeness should state an error bound: for every valid pair $(x,w)$, an honest prover with fresh randomness makes an honest verifier accept with probability at least $1-\alpha(\lambda)$; perfect completeness sets the error to zero. Soundness quantifies over all false statements and efficient provers, including statements chosen after seeing public parameters. Knowledge soundness adds an extractor that recovers a witness whenever a convincing prover succeeds, under the stated assumptions. <Cite id="groth2016" locator="§2.2" />
+
+Zero knowledge also has gradations. Perfect zero knowledge means the simulated and real transcript distributions are identical; statistical zero knowledge allows a negligible statistical distance; computational zero knowledge allows efficient distinguishers only a negligible advantage. In every case the simulator receives the statement and permitted auxiliary information but not the witness. The definition must cover a malicious verifier that chooses challenges adaptively and may interact with many sessions. <Cite id="gmr1989" locator="Vol. 18, pp. 186–208" />
+
+MPC uses a related ideal–real argument. The real adversary controls the declared corrupt parties and sees their inputs, messages and outputs. A simulator must reproduce that view using only the same corrupt inputs and the ideal function's output. Privacy follows when the view can be simulated; correctness follows when honest parties' outputs match the function. Malicious security additionally requires input consistency, authenticated shares and safe handling of selective abort. A protocol secure against semi-honest parties does not automatically meet that standard.
+
+Thresholds are protocol-specific. In a static semi-honest secret-sharing model, perfect input privacy commonly requires an honest majority, $n>2t$, where $t$ is the corruption bound. Active malicious security can require a stricter bound and extra mechanisms; asynchronous variants may be stricter again. Never transfer a threshold between protocols or network models. <Cite id="ben-or-goldwasser-wigderson1988" locator="pp. 1–10" /> Five banks with one permitted corruption and a three-of-five reconstruction threshold are safe only if the chosen protocol&apos;s assumptions support it; the arithmetic alone does not prove malicious security.
+
+| Construction | Setup or trust | What it establishes | What remains hidden | Main operational risk |
+| --- | --- | --- | --- | --- |
+| Schnorr sigma protocol | Public group parameters; no ceremony | Knowledge of a discrete logarithm | Secret exponent | Nonce reuse, weak challenge encoding |
+| Groth16 | Circuit-specific common reference string | Succinct arithmetic-circuit argument of knowledge | Witness under zero-knowledge and setup assumptions | Trapdoor compromise, parameter mismatch, pairing assumptions |
+| Bulletproofs | No trusted setup for the range-proof construction | A committed value lies in an allowed range | Committed value | Prover cost and commitment-binding assumptions |
+| Shamir-based MPC | Threshold shares and authenticated participants | Correct evaluation of a shared arithmetic circuit | Inputs below the corruption threshold | Multiplication preprocessing, malicious shares, recovery abuse |
+| Garbled-circuit MPC | Two-party oblivious transfer and circuit labels | Correct Boolean-function evaluation | Party inputs | Label leakage, malicious circuit garbling, round complexity |
+| ZK proof plus MPC | Proof parameters plus MPC sharing assumptions | The computed output satisfies a public predicate | Witness and protected inputs, but not necessarily the output | Unsafe output policy or inconsistent circuit versions |
 </Lens>
 
 <Lens level={4} title="Circuits, proving time and side-channel reality">
@@ -311,6 +375,16 @@ Test three layers. First, unit tests compare tiny circuits against the same pred
 During operation, monitor proof acceptance rates, proving latency, participant dropout and output-query volume. A sudden rise in proof failures can mean a compiler upgrade changed the circuit encoding. Repeated tiny outputs from an MPC service can reveal a changed dataset through differencing. Rate limits and a documented release schedule are therefore security controls, not only abuse controls.
 
 When a proof fails, first verify the exact public inputs and parameter hashes, then reproduce with the known-good compiler. Do not regenerate setup parameters as a troubleshooting shortcut. When an MPC round fails, preserve authenticated logs of public metadata, identify the last committed round, and restart from a defined checkpoint without broadcasting shares. Verify-before-release is useful for signatures produced by MPC, but it does not replace checking that all required parties approved the same message.
+
+### Parameter lifecycle and leakage beyond the mathematics
+
+In Groth's formulation, setup returns a common reference string and a simulation trapdoor; possessing the trapdoor changes the security claim. <Cite id="groth2016" locator="§2.2" /> A multi-party ceremony is useful only if contributions are independently generated, authenticated and verifiable, and at least one participant destroys its secret. Record the circuit hash, compiler version, contributors, contribution hashes and final parameter hashes. Reject parameters from an unverified build even when individual proofs pass local tests.
+
+Treat the prover as a high-value process with a leakage surface larger than its algebra. Timing and memory-access patterns can depend on secret branches; power and cache behaviour can expose operations; faults or aborts can reveal which check failed. Kocher's timing work and differential-power analysis demonstrate why constant-time arithmetic alone does not protect the whole witness pipeline. <Cite id="kocher1996" locator="pp. 104–113" /> <Cite id="kocher1999" locator="pp. 388–397" /> Isolate proving workers, bound concurrency, zeroise witness buffers, disable core dumps and test error paths as carefully as successful proofs.
+
+MPC needs equivalent lifecycle controls for shares and preprocessing data. Authenticate every session and round, reject stale or inconsistent shares, regenerate compromised multiplication triples and never reconstruct merely because a participant claims to coordinate recovery. A malicious party may always abort; if fairness is required, the protocol needs a delivery or recovery mechanism rather than a promise that the network will behave.
+
+Finally, govern the output independently of the circuit. Define retention, authorised recipients, query budgets and suppression rules for small cohorts or differencing releases. A perfect proof and private computation still produce a public answer. Parameter compromise, witness exposure and unsafe output release require different incident owners, evidence and remediation; combining them into one “crypto incident” category hides the trust assumptions that actually failed.
 </Lens>
 
 <GuidedWorkshop

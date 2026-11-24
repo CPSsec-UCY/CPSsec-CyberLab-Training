@@ -127,7 +127,7 @@ export function DifferentialPrivacyLab() {
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Toy gradient vector</p>
             <span className="font-mono text-[9px] text-muted">σ = {fixed(sigma)}</span>
           </div>
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full text-left text-[10px]">
               <caption className="sr-only">Gradient coordinates before clipping, after clipping and after deterministic illustrative noise</caption>
               <thead className="text-muted">

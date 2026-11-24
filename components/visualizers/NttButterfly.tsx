@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { RotateCcw } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
+import { SequenceControls } from "@/components/visualizers/SequenceControls";
+import { useSequencePlayer } from "@/components/visualizers/useSequencePlayer";
 
 const Q = 17;
 const PSI = 2;
@@ -57,7 +60,8 @@ const STEP_LABELS = [
 
 export function NttButterfly() {
   const [input, setInput] = useState([1, 2, 3, 4]);
-  const [step, setStep] = useState(0);
+  const player = useSequencePlayer(STEP_LABELS.length, 2400);
+  const step = player.step;
 
   const stages = useMemo(() => computeStages(input), [input]);
 
@@ -66,7 +70,7 @@ export function NttButterfly() {
 
   function update(index: number, value: number) {
     setInput((values) => values.map((entry, position) => (position === index ? mod(value) : entry)));
-    setStep(0);
+    player.select(0);
   }
 
   return (
@@ -92,29 +96,24 @@ export function NttButterfly() {
             type="button"
             onClick={() => {
               setInput([1, 2, 3, 4]);
-              setStep(0);
+              player.restart();
             }}
             className="btn-ghost px-2.5 py-1.5 text-[10px]"
           >
             <RotateCcw className="h-3 w-3" /> Reset
           </button>
-          <button
-            type="button"
-            onClick={() => setStep((value) => Math.max(0, value - 1))}
-            className="btn-ghost px-2.5 py-1.5 text-[10px]"
-            disabled={step === 0}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={() => setStep((value) => Math.min(4, value + 1))}
-            className="btn-primary px-2.5 py-1.5 text-[10px]"
-          >
-            Next stage
-          </button>
         </div>
       </div>
+
+      <SequenceControls
+        label="NTT butterfly"
+        step={player.step}
+        length={STEP_LABELS.length}
+        playing={player.playing}
+        onSelect={player.select}
+        onToggle={player.toggle}
+        onRestart={player.restart}
+      />
 
       <div className="mt-5 rounded-xl border border-line bg-ink-950/50 p-4">
         <div className="flex items-center justify-between">
@@ -223,7 +222,7 @@ export function NttButterfly() {
 
       <p className="mt-3 text-[11px] leading-5 text-slate-500">
         Toy parameters make every value auditable by hand. ML-KEM uses n = 256, q = 3329 and a seven-layer
-        incomplete NTT; the same butterfly logic applies.
+        incomplete NTT; the same butterfly logic applies. <Cite id="fips203" locator="§4.3" />
       </p>
     </div>
   );

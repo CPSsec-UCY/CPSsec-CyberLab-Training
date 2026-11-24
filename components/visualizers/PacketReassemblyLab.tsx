@@ -174,7 +174,7 @@ export function PacketReassemblyLab() {
       <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-xl border border-line bg-mist-50 p-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Arrival order</p>
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full text-left text-[10px]">
               <caption className="sr-only">TCP fragment arrival order, sequence ranges and arrival times</caption>
               <thead className="text-muted">

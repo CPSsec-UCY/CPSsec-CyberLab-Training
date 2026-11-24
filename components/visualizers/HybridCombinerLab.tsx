@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { ArrowRight, KeyRound, LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
+import { SequenceControls } from "@/components/visualizers/SequenceControls";
+import { useSequencePlayer } from "@/components/visualizers/useSequencePlayer";
 import { Metric, StepButton, VisualizerShell } from "./VisualizerShell";
 
 const PHASES = [
@@ -33,12 +36,13 @@ function toyHkdf(input: string, context: string) {
 }
 
 export function HybridCombinerLab() {
-  const [phase, setPhase] = useState(0);
+  const player = useSequencePlayer(PHASES.length, 2500);
+  const phase = player.step;
   const [classicalBroken, setClassicalBroken] = useState(false);
   const [pqBroken, setPqBroken] = useState(false);
   const [context, setContext] = useState(DEFAULT_CONTEXT);
 
-  const ikm = `${CLASSICAL_SECRET}${PQ_SECRET}`;
+  const ikm = `${PQ_SECRET}${CLASSICAL_SECRET}`;
   const clientPrk = toyHkdf(ikm, context);
   const serverPrk = toyHkdf(ikm, SERVER_CONTEXT);
   const clientTrafficKey = toyHkdf(clientPrk, `${context}|client traffic`);
@@ -55,7 +59,7 @@ export function HybridCombinerLab() {
   const safe = keysMatch && unknownComponents > 0;
 
   function reset() {
-    setPhase(0);
+    player.restart();
     setClassicalBroken(false);
     setPqBroken(false);
     setContext(DEFAULT_CONTEXT);
@@ -90,7 +94,7 @@ export function HybridCombinerLab() {
           </label>
           <button
             type="button"
-            onClick={() => setPhase((value) => Math.min(value + 1, PHASES.length - 1))}
+            onClick={() => player.select(phase + 1)}
             disabled={phase === PHASES.length - 1}
             className="btn-primary px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -100,17 +104,27 @@ export function HybridCombinerLab() {
       }
       footer={
         <span>
-          <strong className="text-navy">Illustrative only.</strong> The hex values and hash function are toys, not cryptographic implementations. In a real hybrid KEM, use the standard group encoding, a reviewed combiner and HKDF labels, and bind the context to the negotiated protocol and transcript. With a sound combiner, the traffic key stays protected while at least one component secret is unknown to the adversary. If both are known, or the peers use different contexts, this safety argument fails. Never silently fall back after a hybrid error.
+          <strong className="text-navy">Illustrative only.</strong> The hex values and hash function are toys, not cryptographic implementations. In a real hybrid KEM, use the standard group encoding, a reviewed combiner and HKDF labels, and bind the context to the negotiated protocol and transcript. With a sound combiner, the traffic key stays protected while at least one component secret is unknown to the adversary. If both are known, or the peers use different contexts, this safety argument fails. Never silently fall back after a hybrid error. <Cite id="hybrid-design" locator="§3.3 and §6" /> <Cite id="rfc10024" locator="§4.1–4.3" />
         </span>
       }
     >
       <div className="flex flex-wrap gap-1.5" aria-label="Hybrid key derivation phases">
         {PHASES.map((item, index) => (
-          <StepButton key={item.name} active={phase === index} done={index < phase} onClick={() => setPhase(index)}>
+          <StepButton key={item.name} active={phase === index} done={index < phase} onClick={() => player.select(index)}>
             {item.name}
           </StepButton>
         ))}
       </div>
+
+      <SequenceControls
+        label="hybrid key derivation"
+        step={player.step}
+        length={PHASES.length}
+        playing={player.playing}
+        onSelect={player.select}
+        onToggle={player.toggle}
+        onRestart={player.restart}
+      />
 
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-center">
@@ -165,9 +179,9 @@ export function HybridCombinerLab() {
           <div className="rounded-xl border border-line bg-mist-50 p-3">
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Concatenation · IKM</p>
             <p className="mt-2 break-all font-mono text-[10px] leading-5 text-navy">{ikm}</p>
-            <p className="mt-1 text-[9px] text-muted">X25519 first, then ML-KEM; production encoding and domain separation are specified by the group.</p>
+            <p className="mt-1 text-[9px] text-muted">X25519MLKEM768 places the ML-KEM secret first, then X25519, for historical and FIPS-related reasons. Other groups can use a different order.</p>
           </div>
-          <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-[10px] leading-5 text-body" aria-live="polite">
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-[10px] leading-5 text-body" aria-live={player.playing ? "off" : "polite"}>
             <strong className="text-brand-800">{PHASES[phase].name}.</strong> {PHASES[phase].detail}
           </div>
         </div>

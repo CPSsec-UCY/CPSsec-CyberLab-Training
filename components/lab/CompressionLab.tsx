@@ -113,7 +113,7 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-line">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table className="w-full min-w-[560px] text-left font-mono text-[10px]">
           <thead className="bg-mist-100 uppercase tracking-[0.1em] text-slate-500">
             <tr>

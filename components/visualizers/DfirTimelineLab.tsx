@@ -313,7 +313,7 @@ export function DfirTimelineLab() {
             <Database className="h-3.5 w-3.5 text-brand-600" />
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-navy">Evidence sources and availability</p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full min-w-[690px] text-left text-[9px]">
               <caption className="sr-only">Four toy evidence sources, their availability and their acquisition method</caption>
               <thead className="text-muted">

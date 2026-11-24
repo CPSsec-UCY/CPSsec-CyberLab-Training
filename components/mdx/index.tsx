@@ -64,6 +64,7 @@ import { MalwareReverseLab } from "@/components/visualizers/MalwareReverseLab";
 import { RootkitBootkitLab } from "@/components/visualizers/RootkitBootkitLab";
 import { DfirTimelineLab } from "@/components/visualizers/DfirTimelineLab";
 import { BlueTeamHuntLab } from "@/components/visualizers/BlueTeamHuntLab";
+import { MdxTable } from "@/components/mdx/Table";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
   if (href.startsWith("/")) {
@@ -142,5 +143,6 @@ export const mdxComponents = {
   RootkitBootkitLab,
   DfirTimelineLab,
   BlueTeamHuntLab,
+  table: MdxTable,
   a: MdxLink,
 };

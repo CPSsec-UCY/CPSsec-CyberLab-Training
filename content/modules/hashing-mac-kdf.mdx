@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 75
 summary: "Hash properties, HMAC, HKDF, password hashing, salts, domain separation and the subtle ways hash constructions fail in real systems."
 outcomes: ["Distinguish preimage, second-preimage and collision resistance.", "Build and verify HMAC and HKDF with explicit domain separation.", "Choose and tune Argon2id parameters for password storage.", "Analyse length extension, GPU economics and constant-time tag comparison."]
-citations: ["fips180-4", "fips202", "rfc2104", "rfc5869", "rfc9106", "owasp-password-storage"]
+citations: ["fips180-4", "fips202", "rfc2104", "rfc5869", "rfc9106", "owasp-password-storage", "grover1996", "nist-sp800-63b-4"]
 tags: ["hashing", "hmac", "kdf", "passwords"]
 prerequisites: ["symmetric-crypto"]
 updated: "2026-11-24"
@@ -31,13 +31,30 @@ Confusing them is a classic source of vulnerabilities. A plain hash is not a MAC
 
 A cryptographic hash compresses arbitrary input into a fixed-size output. Good hashes are preimage-resistant, second-preimage-resistant and collision-resistant. A one-character change should flip about half the output bits.
 
+## Three properties, three different attacker tasks
+
+The properties are easiest to remember by what the attacker is given. In a **preimage** attack, the attacker receives a target digest $y$ and must find any $x$ with $H(x)=y$. In a **second-preimage** attack, the attacker receives a particular message $x$ and must find a different $x'$ with the same digest. In a **collision** attack, the attacker chooses both messages and must find any distinct pair $x,x'$ with $H(x)=H(x')$.
+
+The distinction changes both the defence and the application. A file-integrity check against a trusted digest mainly needs second-preimage resistance: the attacker should not be able to substitute different content for that specific file. A commitment or hash tree needs collision resistance: the defender may eventually publish or authenticate either member of a pair. A password verifier is not protected merely by collision resistance, because the attacker is not trying to collide with a stored digest; they are guessing the low-entropy password directly.
+
+| Task | Attacker starts with | Must produce | Generic classical work for an $n$-bit ideal hash | Typical use |
+| --- | --- | --- | --- | --- |
+| Preimage | A target digest | One matching input | About $2^n$ | Recovering input from a committed digest |
+| Second preimage | A chosen input and its digest | A different matching input | About $2^n$ | Substituting content under a trusted fingerprint |
+| Collision | Freedom to choose both inputs | Any equal-digest pair | About $2^{n/2}$ | Commitments, hash trees and signature preprocessing |
+| MAC forgery | A verification key and chosen message/tag pairs | A fresh valid tag | Depends on tag and key, not hash collision work alone | Authenticating protocol messages |
+
+These are generic attack models, not proofs that a particular hash reaches the bound. Structure-specific cryptanalysis can do better, which is why algorithm selection and migration matter. The random-looking appearance of one digest says nothing about resistance to a chosen-prefix collision.
+
+Entropy explains why a KDF cannot repair every weak input. A password with $h$ bits of min-entropy has at most $2^h$ plausible values from the defender’s perspective, even if its textual representation is long. HKDF can concentrate existing entropy into a uniform-looking key; it cannot create more of it. A password-hashing function instead makes each guess expensive, while a salt prevents one computation from being reused across many accounts. <Cite id="rfc5869" locator="§3.4, §4" />
+
 <Figure caption="SHA-256 avalanche. Change one character and compare the output bit patterns. A secure hash behaves like a random function for this test.">
   <HashAvalanche />
 </Figure>
 
 ## Passwords are not hashes
 
-Passwords are low-entropy, reused and often breached. Storing a fast hash such as SHA-256 lets an attacker test billions of guesses per second. Password storage needs a salted, memory-hard function with a tunable work factor — Argon2id is the modern default. <Cite id="owasp-password-storage" />
+Passwords are low-entropy, reused and often breached. Storing a fast hash such as SHA-256 lets an attacker test guesses at very high rates. Password storage needs a salted, memory-hard function with a tunable work factor — Argon2id is the modern default. <Cite id="owasp-password-storage" locator="Password Hashing Algorithms → Argon2id; Using Work Factors" />
 
 <Callout variant="danger" title="Never invent password storage">
 `SHA256(password + salt)` is not password hashing. Use Argon2id, scrypt or bcrypt through a vetted library, with a unique salt per password and appropriate memory/time parameters. <Cite id="rfc9106" locator="§3–4" />
@@ -61,14 +78,16 @@ Passwords are low-entropy, reused and often breached. Storing a fast hash such a
 - **Password verification:** “Does this password match the stored verifier?” This needs a salted, slow, memory-hard function, not a general-purpose hash.
 
 <Callout variant="danger" title="A hash is not a password vault">
-A SHA-256 digest of a password can be computed billions of times per second on a GPU. Salting prevents precomputation but does not make a fast hash suitable. Use Argon2id, scrypt or bcrypt with tuned parameters. <Cite id="rfc9106" locator="§3–4" />
+A SHA-256 digest of a password can be computed at very high rates on a GPU. Salting prevents precomputation but does not make a fast hash suitable. Use Argon2id, scrypt or bcrypt with tuned parameters. <Cite id="rfc9106" locator="§3–4" />
 </Callout>
 
 ## Model two different adversaries
 
 A software publisher distributes an update and publishes its digest separately. A network attacker controls a mirror and wants to replace the binary; a compromised mirror wants the replacement to look legitimate. A plain digest detects accidental corruption, but if the attacker replaces both file and digest, it proves no origin. The defender needs an authenticated channel or signature. The publisher wants cheap distribution; the attacker wants downstream code execution.
 
-A password database is different. After a breach, the attacker works offline with GPUs and dictionaries. The defender cannot observe guesses and must verify many legitimate users concurrently. A unique salt defeats one precomputed table; a costly function raises per-guess work. Defender availability and attacker hardware therefore shape the work factor. OWASP treats algorithm, salt and tuning as one decision. <Cite id="owasp-password-storage" />
+A password database is different. After a breach, the attacker works offline with GPUs and dictionaries. The defender cannot observe guesses and must verify many legitimate users concurrently. A unique salt defeats one precomputed table; a costly function raises per-guess work. Defender availability and attacker hardware therefore shape the work factor. OWASP treats algorithm, salt and tuning as one decision. <Cite id="owasp-password-storage" locator="Password Hashing Algorithms → Argon2id; Using Work Factors" />
+
+The two adversaries also imply different failure criteria. For software distribution, the defender must preserve an authentic reference across time and compromise; hashing alone is only an accidental-corruption check. For passwords, the defender assumes the verifier database will eventually be read and asks how much work each guess will cost after that event. This is why “we use SHA-256” answers neither question completely: it names a fast primitive without specifying who authenticates the digest, how the password is stretched or how the system responds when the stored verifiers leak.
 
 The prerequisites are bitstrings, XOR, fixed-size outputs and computational work. Collision work scales with the square root of output size; preimage work scales with output size. Keep three boundaries clear: a hash does not authenticate without a trusted reference; a MAC authenticates within a shared-key domain, not a person; a password hash slows guessing without adding entropy.
 
@@ -85,9 +104,35 @@ SHA-256 is specified in the Secure Hash Standard. <Cite id="fips180-4" locator="
 
 ## Hash families
 
-- **SHA-2** (SHA-256, SHA-512) is ubiquitous and hardware-accelerated on many CPUs. <Cite id="fips180-4" locator="§4–6" />
+- **SHA-2** (SHA-256, SHA-512) is standardised, widely deployed and hardware-accelerated on many CPUs.
 - **SHA-3 / Keccak** uses a sponge construction and provides SHAKE extendable-output functions. <Cite id="fips202" locator="§3, §6" />
 - **BLAKE2/3** are fast modern alternatives common in file integrity and password hashing contexts.
+
+## Padding, sponge rates and domain separation
+
+SHA-256 pads to a 512-bit boundary: append one `1` bit, then the smallest non-negative number of zero bits that makes the length congruent to 448 modulo 512, then the original message length as a 64-bit big-endian integer. SHA-256 accepts messages shorter than $2^{64}$ bits. For the three-byte message `abc`, the length is 24 bits, so padding is one `1` bit, 423 zero bits and the 64-bit encoding of 24. The length field is security-relevant metadata, not decorative framing. <Cite id="fips180-4" locator="§5.1.1, §6.2" />
+
+SHA-3 instead absorbs input into a 1,600-bit sponge state at a specified rate and squeezes output from that state. SHA3-256 uses a 512-bit capacity; SHAKE128 and SHAKE256 use capacities of 256 and 512 bits. SHAKE is an extendable-output function: the caller must specify the output length. “SHAKE128” names a security-strength parameter, not a 128-bit digest, and its collision resistance depends on the requested output length. The `01` suffix for SHA-3 and `1111` suffix for SHAKE provide domain separation inside the standardized functions. <Cite id="fips202" locator="§5.2, §6.1–6.3" />
+
+That internal separation does not replace application-level separation. Two protocols can still feed the same bytes into SHAKE and ask for the same output length. If the resulting value is used as a key, the protocol must bind its own name, version, direction and purpose before hashing. A hash function only separates domains that its input encoding distinguishes.
+
+| Interface | Fixed or caller-selected output | Critical encoding detail | Common misuse |
+| --- | --- | --- | --- |
+| SHA-256 | 256 bits | 512-bit blocks; 64-bit big-endian message length | Treating it as a password verifier |
+| SHA-512 | 512 bits | 1,024-bit blocks; 128-bit big-endian message length | Assuming a longer digest fixes low-entropy passwords |
+| SHA3-256 | 256 bits | Sponge suffix `01`; rate 1,088 bits | Confusing SHA3-256 with raw Keccak-256 |
+| SHAKE256 | Caller-selected | Output length in bits; sponge suffix `1111` | Omitting the length from the protocol contract |
+| HMAC-SHA-256 | 256 bits before optional truncation | Hash block size is 64 bytes | Prefixing the secret without the nested construction |
+| HKDF-SHA-256 | Up to $255\times32=8{,}160$ bytes | Previous block plus `info` plus one-byte counter | Omitting the previous block or allowing ambiguous `info` |
+| Argon2id | Caller-selected tag | Algorithm version, salt, memory, passes and lanes all affect output | Trusting attacker-controlled cost parameters |
+
+<WorkedExample
+  title="Check SHA-256 padding for abc"
+  steps={["The ASCII message is 24 bits long.", "Append one 1 bit: the length is now 25 bits.", "Add 423 zero bits to reach 448 bits.", "Append the 64-bit big-endian integer 24.", "The padded message is exactly one 512-bit block before the 64 compression rounds."]}
+  result="A parser that drops the length field, encodes it little-endian or adds a different number of zero bits computes a different hash. Padding is part of the algorithm’s input contract."
+/>
+
+The padding example explains why incremental hash APIs must retain the exact byte stream and length. They should not normalise text, insert separators or silently truncate input unless the enclosing protocol explicitly defines that transformation.
 
 ## MACs
 
@@ -101,7 +146,9 @@ $$
 \mathrm{HMAC}_K(M) = H\big((K \oplus \mathrm{opad}) \,\|\, H((K \oplus \mathrm{ipad}) \,\|\, M)\big).
 $$
 
-HMAC remains secure even when the underlying hash has some weaknesses, as long as it is a reasonable hash. <Cite id="rfc2104" locator="§2–3" /> Never replace HMAC with `H(K || M)`; length-extension attacks apply to many Merkle–Damgård hashes.
+HMAC remains secure even when the underlying hash has some weaknesses, as long as it is a reasonable hash. <Cite id="rfc2104" locator="§2–3, §6" /> Never replace HMAC with `H(K || M)`; length-extension attacks apply to many Merkle–Damgård hashes.
+
+The block size belongs to the hash, not to the output size. HMAC-SHA-256 and HMAC-SHA-512 use 64-byte and 128-byte blocks respectively. A key longer than the block is hashed; a shorter key is zero-padded. An implementation may precompute the compression states after the inner and outer pads, but those states are key-equivalent secrets and need the same protection as the key. <Cite id="rfc2104" locator="§2, §4" />
 
 ## KDFs
 
@@ -112,7 +159,7 @@ $$
 \mathrm{OKM} = \mathrm{HKDF\text{-}Expand}(\mathrm{PRK}, \mathrm{info}, L).
 $$
 
-The `info` field is your domain separation: protocol, direction, algorithm, version. <Cite id="rfc5869" locator="§2" />
+The `info` field is your domain separation: protocol, direction, algorithm, version. <Cite id="rfc5869" locator="§2.3, §3.2" /> It is public context, not secret key material, and RFC 5869 requires it to be independent of the IKM value. An omitted salt is defined as HashLen zero bytes, but a random or protocol-derived salt can strengthen extraction and separate uses. If a salt comes from handshake nonces, those nonces need authentication before they can serve as trusted context. <Cite id="rfc5869" locator="§2.2, §3.1, §3.4" />
 
 <Figure caption="An interactive HMAC/HKDF workbench using clearly labelled toy checksums. Inspect byte-level pad XORs, nested hashes, context-separated derived keys and the comparison-work difference between early exit and a full constant-time-style pass.">
   <HmacHkdfLab />
@@ -149,7 +196,7 @@ The inner hash processes the keyed message; the outer hash protects the result f
 HKDF has two phases:
 
 1. **Extract:** $\mathrm{PRK} = \mathrm{HMAC}_{\mathrm{salt}}(\mathrm{IKM})$. This concentrates non-uniform input into a pseudorandom key.
-2. **Expand:** derive output blocks with HMAC(PRK, info ‖ counter). The `info` string should include protocol, version, direction and purpose.
+2. **Expand:** derive output blocks with $T(0)=\epsilon$ and $T(i)=\mathrm{HMAC}(PRK,T(i-1)\|info\|i)$, where $i$ is a one-byte counter. The `info` string should include protocol, version, direction and purpose.
 
 <Cite id="rfc5869" locator="§2" />
 
@@ -177,7 +224,7 @@ A password hash stores the algorithm, parameters and salt alongside the digest. 
 
 HMAC-SHA-256 uses 64-byte blocks. Hash keys longer than 64 bytes to 32 bytes; pad shorter keys with zeros. XOR with `0x36` repeated 64 times for the inner hash, then with `0x5c` repeated 64 times for the outer hash. This nesting blocks the simple length-extension attack on a keyed prefix. <Cite id="rfc2104" locator="§2–3" />
 
-HKDF Extract turns IKM into PRK with salted HMAC. Expand computes $T(i) = \mathrm{HMAC}_{PRK}(\mathrm{info} \,\|\, i)$ using a one-byte counter, for at most 255 blocks. The counter prevents repetition; `info` separates contexts. <Cite id="rfc5869" locator="§2" />
+HKDF Extract turns IKM into PRK with salted HMAC. Expand computes $T(0)=\epsilon$ and $T(i)=\mathrm{HMAC}_{PRK}(T(i-1)\|\mathrm{info}\|i)$ using a one-byte counter, for at most 255 blocks. The previous block prevents repetition; `info` separates contexts. <Cite id="rfc5869" locator="§2.2–2.3" />
 
 <ProcessFlow
   steps={[
@@ -196,7 +243,7 @@ An empty HKDF salt is allowed but does not replace context binding. Reused passw
 
 <WorkedExample
   title="Reproduce HKDF-SHA-256 test case 1"
-  steps={["Use IKM = 0b repeated 22 times and salt = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c.", "Use info = f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 and request L = 42 bytes.", "Extract gives PRK = 077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5.", "Expand produces T1 with counter 01 and T2 with counter 02, each 32 bytes.", "Take the first 32 bytes of T1 and the first 10 bytes of T2: the 42-byte OKM is 3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865."]}
+  steps={["Use IKM = 0b repeated 22 times and salt = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c.", "Use info = f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 and request L = 42 bytes.", "Extract gives PRK = 077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5.", "Compute T1 = HMAC(PRK, info || 01), then T2 = HMAC(PRK, T1 || info || 02); each block is 32 bytes.", "Take all of T1 and the first 10 bytes of T2: the 42-byte OKM is 3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865."]}
   result="The byte-for-byte result matches RFC 5869 test case 1. Identical IKM with different info produces different OKM, demonstrating context separation under the PRF assumption."
 />
 
@@ -205,15 +252,11 @@ This is the first published HKDF-SHA-256 test vector, useful for checking extrac
 
 <Lens level={3} title="Collision bounds, PRF security and KDF assumptions">
 
-## Hash properties
+## Hash properties and quantum caveats
 
-For an $n$-bit hash, generic attacks give:
+For an ideal $n$-bit hash, generic classical preimage and second-preimage search cost about $2^n$ work, while finding a collision costs about $2^{n/2}$ because the attacker stores candidates and looks for a repeated digest. Grover’s algorithm gives a quadratic speedup for unstructured search, so a generic quantum preimage search is often described as $2^{n/2}$ work. <Cite id="grover1996" locator="pp. 212–219" />
 
-- preimage: $2^n$ classical, $2^{n/2}$ with Grover;
-- second preimage: $2^n$;
-- collision: $2^{n/2}$ classical, about $2^{n/3}$ with quantum collision search.
-
-These bounds explain why SHA-256 is often used with a 128-bit collision target and why post-quantum parameter sets increase symmetric sizes. <Cite id="fips180-4" locator="§1–3" />
+That does not justify multiplying every classical bound by the same factor. Quantum collision search, parallel hardware, memory costs and structure-specific attacks have different models. A parameter decision should cite analysis for the actual hash and security goal, not infer a universal “quantum hash strength” from the digest length. SHA-256’s 128-bit generic classical collision target is a useful design heuristic, but it is not itself a theorem stated by FIPS 180-4. <Cite id="fips180-4" locator="§1, §6.2" />
 
 ## HMAC as a PRF
 
@@ -237,31 +280,29 @@ Password hashing is an arms race between defenders and attackers. Memory-hard fu
 
 For a Merkle–Damgård hash, the digest is the internal state after processing the message. An attacker who knows `H(secret || message)` can often compute `H(secret || message || padding || suffix)` without knowing the secret. HMAC avoids this by using the secret in both an inner and an outer hash. This is why “hash the secret as a prefix” is not a MAC.
 
-## Security bounds
-
-For an $n$-bit output:
-
-- preimage resistance: about $2^n$ classical work, $2^{n/2}$ with Grover;
-- second-preimage resistance: about $2^n$;
-- collision resistance: about $2^{n/2}$ classical, roughly $2^{n/3}$ with quantum collision search.
-
-A KDF does not create entropy. HKDF assumes the input has enough min-entropy; a password has little, so password hashing must add cost. <Cite id="rfc5869" locator="§3" />
-
-<Callout variant="lab" title="Domain separation is not cosmetic">
-If two protocols derive keys from the same input without distinct `info` or salt values, a key from one context may be valid in another. Bind algorithm, version, direction and identity into the derivation, and keep the encoding unambiguous.
-</Callout>
+A KDF does not create entropy. HKDF assumes the input has enough min-entropy; a password has little, so password hashing must add cost. <Cite id="rfc5869" locator="§3.4, §4" />
 
 ## Define the properties as attacker advantages
 
-Preimage resistance means finding any input for a given digest; second-preimage resistance means finding a different input for a given input; collision resistance means finding any distinct equal-hash pair. These games have generic classical costs $2^n$, $2^n$ and $2^{n/2}$. Finding a pair from scratch is easier than inverting a chosen digest. <Cite id="fips180-4" locator="§1–3" />
+Preimage resistance means finding any input for a given digest; second-preimage resistance means finding a different input for a given input; collision resistance means finding any distinct equal-hash pair. These games have generic classical costs $2^n$, $2^n$ and $2^{n/2}$. Finding a pair from scratch is easier than inverting a chosen digest.
 
-For a MAC, the adversary queries chosen messages and wins by verifying a fresh candidate. Constant-time full-tag comparison prevents a prefix oracle. HMAC’s proof treats the compression function as a PRF: distinguishing HMAC would require distinguishing a keyed inner or outer evaluation. Its nesting blocks simple length extension. <Cite id="rfc2104" locator="§2–3" />
+For a MAC, the adversary queries chosen messages and wins by verifying a fresh candidate. Constant-time full-tag comparison prevents a prefix oracle. HMAC’s proof treats the compression function as a PRF: distinguishing HMAC would require distinguishing a keyed inner or outer evaluation. Its nesting blocks simple length extension. <Cite id="rfc2104" locator="§2–3, §6" />
 
-HKDF correctness requires agreement on hash, `info`, counter encoding and length. With sufficient input min-entropy, Extract should produce a computationally uniform PRK; Expand should then act as a PRF for distinct contexts within query and length bounds. HKDF never turns a dictionary password into high entropy. <Cite id="rfc5869" locator="§3" />
+Formally, if $\mathcal A$ outputs a pair $(m^*,\tau^*)$ not among its tagging queries, its forgery advantage is $\Pr[\mathsf{Verify}(K,m^*,\tau^*)=1]$. Truncating to $t$ bits changes the per-attempt guessing term to roughly $2^{-t}$; making $v$ attempts changes the union bound to about $v2^{-t}$ when that product is small. Verification must still process the full expected tag, because a fast inequality exit reveals how many leading bytes matched.
+
+HKDF correctness requires agreement on hash, `info`, counter encoding and length. With sufficient input min-entropy, Extract should produce a computationally uniform PRK; Expand should then act as a PRF for distinct contexts within query and length bounds. The salt should be independent of the IKM, and `info` must not be derived from the secret IKM value. HKDF never turns a dictionary password into high entropy. <Cite id="rfc5869" locator="§2.2–2.3, §3.1–3.4" />
+
+<WorkedExample
+  title="Find the HKDF-SHA-256 output ceiling"
+  steps={["HashLen is 32 bytes.", "RFC 5869 permits at most 255 expand blocks.", "The maximum output is therefore 255 × 32 = 8,160 bytes.", "A request for 8,161 bytes must fail before expansion.", "Counter byte 0xff is valid for the final block; a 0x00 counter is not part of the scheme."]}
+  result="The counter is one byte, not a four-byte integer. An implementation that accepts longer outputs or wraps the counter can repeat key material or diverge from peers."
+/>
+
+The ceiling is a correctness and interoperability rule as well as a security boundary. Check the requested length and the implementation’s protocol-specific ceiling before allocating output buffers or entering the expansion loop. <Cite id="rfc5869" locator="§2.3" />
 
 If a password has about 10 bits of entropy and each guess costs $C$, budget $B$ permits roughly $B/C$ candidates. Memory and iteration costs reduce guesses until online limits, reuse or pepper compromise dominates. Verification recomputes Argon2id with the stored salt and parameters and compares without early exit. <Cite id="rfc9106" locator="§3–4" />
 
-Given `H(secret || amount=10)` and its length, an attacker may append Merkle–Damgård padding and a suffix, then continue compression from the digest. HMAC’s outer keyed hash prevents this. SHA-3 avoids this particular extension behaviour, but still should not be used as an ad-hoc prefix-MAC. <Cite id="fips202" locator="§3" />
+Given `H(secret || amount=10)` and its length, an attacker may append Merkle–Damgård padding and a suffix, then continue compression from the digest. HMAC’s outer keyed hash prevents this. SHA-3’s sponge construction does not expose the same extendable chaining-state interface, but it still should not be used as an ad-hoc prefix-MAC. <Cite id="fips202" locator="§3.4–3.5" />
 
 Finally, handle empty inputs deliberately. Hashing the empty string is well-defined. HMAC accepts an empty key and normalises it through the pad construction. HKDF accepts an omitted salt and omitted `info`, both of which have specified empty encodings, but protocol use should make the context explicit. None of these edge cases permits ambiguous concatenation or an unchecked output length.
 
@@ -318,9 +359,38 @@ GPU and ASIC attackers excel at fast, low-memory hashes. Memory-hard functions c
 
 ## Make parameters, capacity and failure behaviour explicit
 
-Store a versioned verifier with algorithm, Argon2 version, memory, iterations, parallelism, output length, salt and digest. Reject unsupported versions rather than falling back to a fast hash. Validate parameter ceilings before allocation, verify with stored values, and rehash below the policy floor. Argon2id is preferred by the RFC and OWASP guidance. <Cite id="rfc9106" locator="§3–4" /> <Cite id="owasp-password-storage" />
+Store a versioned verifier with algorithm, Argon2 version, memory, iterations, parallelism, output length, salt and digest. Reject unsupported versions rather than falling back to a fast hash. Validate parameter ceilings before allocation, verify with stored values, and rehash below the policy floor. Argon2id is preferred by the RFC and OWASP guidance. <Cite id="rfc9106" locator="§3–4" /> <Cite id="owasp-password-storage" locator="Password Hashing Algorithms → Argon2id; Using Work Factors" />
 
 Estimate concurrency as arrival rate times mean service time, then add burst headroom. Cap simultaneous expensive operations and return retryable overload rather than spawning unbounded work. Run a comparable dummy verification for inactive usernames to resist enumeration.
+
+## Treat the verifier record as untrusted input
+
+A breached or modified database is not a trusted configuration file. Before allocating memory, validate the algorithm identifier, Argon2 version, tag length, salt length, memory cost, passes and lane count against policy ceilings. In Argon2, memory is expressed in KiB and rounded down to a multiple of $4p$; the specified minimum is $8p$. The RFC fixes version `0x13` and defines broad parameter ranges, but those ranges are not a safe deployment policy. A record claiming an enormous memory cost must be rejected before the library call. <Cite id="rfc9106" locator="§3.1–3.2" />
+
+Store enough information to reproduce the verifier exactly, normally in a standard encoded string: algorithm and version, $m$, $t$, $p$, salt, output length and digest. Salts and parameters are public; passwords, peppers, IKM and derived keys are not. When a successful login finds a verifier below the current policy floor, recompute it with a fresh salt and approved parameters, then atomically replace the old record. Concurrent logins need compare-and-swap or an equivalent guard so two upgrades cannot race.
+
+| Threat | Primary control | Residual risk |
+| --- | --- | --- |
+| Offline dictionary attack on database only | Unique salt plus tuned Argon2id | Passwords already exposed before migration remain compromised |
+| Precomputed rainbow tables | Fresh CSPRNG salt per verifier | A reused or predictable salt restores cross-account amortisation |
+| Database and application compromise | Separately stored pepper or HSM-backed keyed step | Pepper rotation may require every user to reset their password |
+| Online credential stuffing | Per-account and per-source limits, MFA, monitoring | Distributed attempts can evade coarse source limits |
+| Username enumeration | Comparable dummy verification and one generic failure | Traffic analysis and response-time noise can still leak clues |
+| Login-flood denial of service | Bounded worker pool, queue limits, overload response | Legitimate users may experience delay during an attack |
+| Malformed verifier record | Strict grammar and parameter ceilings | Legacy records may need a bounded compatibility reader |
+| Secret leakage through telemetry | Structured logging that excludes passwords and key material | Crash dumps and debug builds need separate review |
+
+A pepper changes the threat boundary rather than making a weak password strong. If an attacker steals only the database, a separately protected pepper can prevent offline guessing. If the attacker also compromises the pepper or the application process that uses it, that advantage disappears. OWASP therefore treats peppering as defence in depth and requires the pepper to be stored separately from the password database. <Cite id="owasp-password-storage" locator="Methods for Enhancing Password Storage → Peppering" />
+
+Password policy and password hashing solve different problems. NIST’s current verifier guidance emphasizes length, blocklists of compromised or common values, rate limiting and avoiding arbitrary composition rules or periodic changes absent evidence of compromise. A slow hash does not make a known-breached password safe again. <Cite id="nist-sp800-63b-4" locator="§3.1.1.2, §3.2.2" />
+
+<WorkedExample
+  title="Estimate bulk guessing without inventing hardware speeds"
+  steps={["Assume a hypothetical password distribution with 10 bits of min-entropy, so at most 1,024 plausible passwords per account.", "An attacker tests a 2^20-entry candidate list against each verifier.", "Under a uniform model, the chance of containing a given password is 2^20 / 2^10 = 2^-10.", "Across 2^21 accounts, the expected number of hits is 2^21 × 2^-10 = 2^11 = 2,048.", "The hash cost determines how long those tests take; it does not change the probability model by itself."]}
+  result="Salts force the attacker to evaluate the candidate list separately for each account, but they do not reduce the expected number of weak passwords found. This is a model-based estimate, not a claim about any real password corpus."
+/>
+
+Argon2id’s first half of the first pass uses data-independent addressing and the remainder uses data-dependent addressing. This hybrid is intended to trade side-channel exposure against time–memory trade-off resistance; it is not a promise that every implementation is safe against a co-resident attacker. RFC 9106 recommends enabling memory wiping when side channels are a viable threat. <Cite id="rfc9106" locator="§1, §3.4.1.3, §4" /> Benchmark the complete service under burst load, because a configuration that is safe for one verification can still be weaponised into memory exhaustion by concurrency.
 
 <WorkedExample
   title="Size an Argon2id login worker pool"
@@ -388,7 +458,7 @@ Review parameters as hardware improves and retain versions needed for old record
   takeaway="Password migration combines a cryptographically expensive verifier with capacity control, breach response and a measurable path away from weak legacy hashes."
 />
 
-Argon2id parameter selection and password-storage practice follow the cited RFC and OWASP guidance. <Cite id="rfc9106" locator="§3–4" /> <Cite id="owasp-password-storage" />
+Argon2id parameter selection and password-storage practice follow the cited RFC and OWASP guidance. <Cite id="rfc9106" locator="§3–4" /> <Cite id="owasp-password-storage" locator="Password Hashing Algorithms → Argon2id; Using Work Factors" />
 
 <KnowledgeCheck
   question="Why should a password verifier record include its algorithm and parameters?"

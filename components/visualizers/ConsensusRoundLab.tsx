@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { ArrowRight, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
+import { SequenceControls } from "@/components/visualizers/SequenceControls";
+import { useSequencePlayer } from "@/components/visualizers/useSequencePlayer";
 import { Metric, StepButton, VisualizerShell } from "./VisualizerShell";
 
 const PHASES = [
@@ -59,15 +62,21 @@ function point(index: number) {
 }
 
 export function ConsensusRoundLab() {
-  const [phase, setPhase] = useState(0);
+  const player = useSequencePlayer(PHASES.length, 2600);
+  const phase = player.step;
   const [lying, setLying] = useState(false);
   const edges = phaseEdges(phase);
   const messages = PHASES.slice(0, phase + 1).reduce((total, item) => total + item.messages, 0);
   const finished = phase === PHASES.length - 1;
 
   function reset() {
-    setPhase(0);
+    player.restart();
     setLying(false);
+  }
+
+  function setLyingMode(value: boolean) {
+    setLying(value);
+    player.select(0);
   }
 
   return (
@@ -81,14 +90,14 @@ export function ConsensusRoundLab() {
             <input
               type="checkbox"
               checked={lying}
-              onChange={(event) => setLying(event.target.checked)}
+              onChange={(event) => setLyingMode(event.target.checked)}
               className="accent-rose-500"
             />
             R3 lies
           </label>
           <button
             type="button"
-            onClick={() => setPhase((value) => Math.min(value + 1, PHASES.length - 1))}
+            onClick={() => player.select(phase + 1)}
             disabled={finished}
             className="btn-primary px-3 py-1.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -98,17 +107,27 @@ export function ConsensusRoundLab() {
       }
       footer={
         <span>
-          <strong className="text-navy">Quorum arithmetic:</strong> safety needs n ≥ 3f + 1, so four replicas tolerate one Byzantine fault. A quorum is 2f + 1 = 3; any two quorums intersect in at least 3 + 3 − 4 = 2 replicas, including an honest one. Honest replicas never vote for conflicting values at the same position, so conflicting decisions are not possible within this fault bound. This simplified model assumes authenticated point-to-point messages, known membership and a working primary; it illustrates safety, not view-change liveness.
+          <strong className="text-navy">Quorum arithmetic:</strong> safety needs n ≥ 3f + 1, so four replicas tolerate one Byzantine fault. A quorum is 2f + 1 = 3; any two quorums intersect in at least 3 + 3 − 4 = 2 replicas, including an honest one. Honest replicas never vote for conflicting values at the same position, so conflicting decisions are not possible within this fault bound. This simplified model assumes authenticated point-to-point messages, known membership and a working primary; it illustrates safety, not view-change liveness. <Cite id="castro-liskov1999" locator="§1–4" />
         </span>
       }
     >
       <div className="flex flex-wrap gap-1.5" aria-label="Consensus phases">
         {PHASES.map((item, index) => (
-          <StepButton key={item.name} active={phase === index} done={index < phase} onClick={() => setPhase(index)}>
+          <StepButton key={item.name} active={phase === index} done={index < phase} onClick={() => player.select(index)}>
             {item.name}
           </StepButton>
         ))}
       </div>
+
+      <SequenceControls
+        label="Byzantine consensus round"
+        step={player.step}
+        length={PHASES.length}
+        playing={player.playing}
+        onSelect={player.select}
+        onToggle={player.toggle}
+        onRestart={player.restart}
+      />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-xl border border-line bg-mist-50 p-3">
@@ -182,7 +201,7 @@ export function ConsensusRoundLab() {
             <Metric label="Minimum overlap" value="2 replicas" tone="gold" />
             <Metric label="Conflicting decisions" value="Impossible" tone="teal" />
           </div>
-          <div className={`rounded-xl border p-3 ${lying ? "border-rose-200 bg-rose-50" : "border-brand-200 bg-brand-50"}`} aria-live="polite">
+          <div className={`rounded-xl border p-3 ${lying ? "border-rose-200 bg-rose-50" : "border-brand-200 bg-brand-50"}`} aria-live={player.playing ? "off" : "polite"}>
             <div className="flex items-start gap-2">
               {lying ? <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" /> : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
               <div>

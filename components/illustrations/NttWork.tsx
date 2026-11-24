@@ -1,3 +1,5 @@
+import { Cite } from "@/components/citations/Cite";
+
 export function NttWork() {
   const products = 256 * 256;
   const butterflies = (256 / 2) * 8;
@@ -24,7 +26,7 @@ export function NttWork() {
         </div>
       </div>
       <p className="sm:col-span-2 text-center text-[9px] leading-4 text-muted">
-        The shapes are illustrative. Real cost depends on reductions, memory traffic, twiddle loads and vector width.
+        The shapes are illustrative. Real cost depends on reductions, memory traffic, twiddle loads and vector width. <Cite id="fips203" locator="§4.3" /> <Cite id="longa2016" locator="pp. 124–139" />
       </p>
     </div>
   );

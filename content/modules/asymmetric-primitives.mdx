@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 85
 summary: "Learn the difference between encryption and encapsulation, why IND-CCA2 is the relevant target, and how signatures, KEMs and PQC families fit together."
 outcomes: ["Explain PKE, KEM and signature APIs and their different failure modes.", "Analyse IND-CCA2 and EUF-CMA attacker games.", "Trace the Fujisaki–Okamoto transform and implicit rejection.", "Evaluate hybrid combiners, serialization and implementation requirements."]
-citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012"]
+citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "rfc10024", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012", "shor1994", "nist-ir8547", "hybrid-design", "castryck-decru2023", "rfc7748", "langlois-stehle2015", "boneh1997"]
 tags: ["foundations", "kem", "signatures", "security-models"]
 prerequisites: []
 updated: "2026-11-24"
@@ -40,6 +40,24 @@ The shared secret then keys a symmetric AEAD scheme. This is the hybrid encrypti
 
 A scheme is only meaningful relative to an attack model. For encryption, the strong target is **IND-CCA2**: the attacker can ask for decryptions of arbitrary ciphertexts, even after receiving a challenge ciphertext, but cannot decrypt that exact challenge. For signatures, the target is **EUF-CMA**: the attacker can request signatures on chosen messages but cannot forge one for a new message. <Cite id="fips203" locator="§3" /> <Cite id="fips186-5" locator="§4" />
 
+## Map each adversary to the property it threatens
+
+Security notions are not a ladder where one label automatically includes every operational concern. IND-CPA models a passive observer of honestly generated ciphertexts. IND-CCA2 adds adaptive chosen-ciphertext access and is the relevant target for reusable public-key encryption or KEMs. EUF-CMA models forgery after chosen signing queries. None of these games, by itself, authenticates the public key used by the protocol, prevents a stolen private key from signing, or guarantees availability under malformed input.
+
+| Adversary capability | Relevant property or control | What remains outside the primitive |
+| --- | --- | --- |
+| Passive recording of key exchange | IND-CPA confidentiality; hybrid migration for long-lived data | Endpoint compromise and traffic metadata |
+| Active modification and decapsulation queries | IND-CCA2 KEM plus AEAD | Identity binding unless the protocol authenticates keys |
+| Chosen-message signing queries | EUF-CMA signature | Trust in the certificate or key-selection path |
+| Quantum attack on factoring or discrete logs | Post-quantum KEM and signature migration | Quantum-safe does not mean implementation-safe |
+| Stolen decapsulation key | Incident response and key retirement | Past confidentiality under that static key |
+| Faulty or malicious signing device | Fault-aware implementation and policy | EUF-CMA alone does not model fault extraction |
+| Malformed network input | Length checks, canonical decoding and uniform failure | Denial-of-service if parsing precedes bounds checks |
+
+The quantum row is about a different computational model. Shor’s algorithm threatens factoring and discrete-logarithm problems used by widely deployed public-key systems, while generic quantum search changes symmetric-key cost estimates. That asymmetry motivates post-quantum key establishment and signatures rather than merely doubling RSA key sizes. <Cite id="shor1994" locator="pp. 124–134" />
+
+“Harvest now, decrypt later” changes the time horizon. An attacker can record ciphertext today and attempt to decrypt it after a future cryptanalytic or quantum advance. A protocol that is acceptable for a short-lived session may therefore be unacceptable for ten-year medical or research archives. NIST’s transition guidance treats the sensitivity and required lifetime of information as migration inputs, not as an argument to wait for a quantum computer. <Cite id="nist-ir8547" locator="§1, §3.2" />
+
 <Callout variant="warning" title="Textbook RSA is not a KEM">
 Raw RSA is malleable and deterministic. Real schemes need randomness, encoding and a CCA-secure transform. Post-quantum KEMs make the transform explicit with the Fujisaki–Okamoto construction.
 </Callout>
@@ -60,6 +78,8 @@ Raw RSA is malleable and deterministic. Real schemes need randomness, encoding a
 A common design mistake is to treat public-key encryption as a universal tool. Encryption does not authenticate the sender: anyone can encrypt under a public key. A signature does not hide the message: anyone can verify it. A hash does not prove who produced a file, and a key exchange does not by itself authenticate the peer.
 
 Protocols compose primitives with identities, transcripts and policy. A KEM gives a shared key; the protocol must decide which identity is allowed to establish it and what happens on failure. A signature proves a private-key operation; the verifier must decide which key and certificate chain it trusts.
+
+A reduction has the same layered structure: an attacker against the protocol yields an attacker against the KEM or signature; an attacker against the primitive yields a solver for a hardness problem. Each step can lose advantage, require extra queries or rely on a modelling assumption. “Reduces to Module-LWE” is therefore not the same statement as “this exact parameter set, API and protocol achieves 192-bit security against every implementation attack.” Read the reduction’s model, the parameter table and the integration specification together.
 
 ## Model the sender, recipient and attacker
 
@@ -90,10 +110,10 @@ The sizes are fixed by FIPS 203; the AEAD division follows HPKE. <Cite id="fips2
 | --- | --- | --- | --- | --- |
 | Lattice | Module-LWE / Module-SIS | Fast, compact, versatile | Newer assumptions, implementation complexity | ML-KEM, ML-DSA, FN-DSA track |
 | Hash-based | Hash function security | Very conservative assumptions | Large signatures, slower signing | SLH-DSA, XMSS/LMS |
-| Code-based | Decoding random/structured codes | Long track record | Very large public keys | Classic McEliece, HQC |
-| Isogeny | Finding isogenies | Small keys (historically attractive) | SIKE broken in 2022 | Research / cautionary tale |
+| Code-based | Decoding random/structured codes | Long track record | Very large public keys | Classic McEliece reference; HQC selected for standardisation |
+| Isogeny | Finding isogenies | Small keys (historically attractive) | SIDH key recovery broke SIKE | Research / cautionary tale |
 
-NIST's fourth-round report documents the additional KEM selection and the ongoing signature work. <Cite id="nist-ir8545" locator="§3–4" /> The standardized signature schemes are ML-DSA <Cite id="fips204" locator="§1" /> and SLH-DSA <Cite id="fips205" locator="§1" />; FN-DSA remains on the standards track <Cite id="nist-pqc" />. Classic McEliece is the conservative code-based reference point. <Cite id="mceliece-spec" locator="§2–3" /> <Cite id="mceliece1978" locator="pp. 114–116" />
+NIST's fourth-round report documents the additional KEM selection and the ongoing signature work. <Cite id="nist-ir8545" locator="§3–4" /> The standardized signature schemes are ML-DSA <Cite id="fips204" locator="§1" /> and SLH-DSA <Cite id="fips205" locator="§1" />; FN-DSA remains on the standards track <Cite id="nist-pqc" locator="Selected algorithms; Additional digital signature schemes" />. Classic McEliece is the conservative code-based reference point. <Cite id="mceliece-spec" locator="§2–3" /> <Cite id="mceliece1978" locator="pp. 114–116" /> The isogeny row is a warning about deployment assumptions: efficient key recovery against SIDH removed SIKE as a viable option. <Cite id="castryck-decru2023" locator="pp. 423–447" />
 
 <Figure caption="Compare public-key, secret-key and ciphertext/signature sizes across the standardised families and Classic McEliece. Bars are logarithmic.">
   <ParameterExplorer />
@@ -149,11 +169,28 @@ The failure behaviour is part of the interface. A KEM that returns an error on a
 
 ## Key and ciphertext sizes
 
-Sizes are not an afterthought. An ML-KEM-768 encapsulation key is 1,184 bytes and a ciphertext is 1,088 bytes; an ML-DSA-65 signature is 3,309 bytes. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="§4" /> Protocol buffers, certificate chains, HSMs and firmware update formats must all accommodate those sizes before deployment.
+Sizes are not an afterthought. An ML-KEM-768 encapsulation key is 1,184 bytes and a ciphertext is 1,088 bytes; an ML-DSA-65 signature is 3,309 bytes. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="Table 2" /> Protocol buffers, certificate chains, HSMs and firmware update formats must all accommodate those sizes before deployment.
+
+| Parameter set | Security category | Public / encapsulation key | Secret / decapsulation key | Ciphertext or signature |
+| --- | --- | --- | --- | --- |
+| ML-KEM-512 | 1 | 800 bytes | 1,632 bytes | 768-byte ciphertext |
+| ML-KEM-768 | 3 | 1,184 bytes | 2,400 bytes | 1,088-byte ciphertext |
+| ML-KEM-1024 | 5 | 1,568 bytes | 3,168 bytes | 1,568-byte ciphertext |
+| ML-DSA-44 | 2 | 1,312-byte public key | 2,560-byte private key | 2,420-byte signature |
+| ML-DSA-65 | 3 | 1,952-byte public key | 4,032-byte private key | 3,309-byte signature |
+| ML-DSA-87 | 5 | 2,592-byte public key | 4,896-byte private key | 4,627-byte signature |
+| SLH-DSA-SHA2-128s | 1 | 32-byte public key | Seed-based secret state | 7,856-byte signature |
+| SLH-DSA-SHA2-128f | 1 | 32-byte public key | Seed-based secret state | 17,088-byte signature |
+
+The ML-KEM and ML-DSA sizes are fixed by their standards; every ML-KEM shared secret is 32 bytes. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="Table 2" /> SLH-DSA illustrates a different trade-off: its `s` and `f` variants prioritise smaller signatures and faster signing respectively, not a different security category. <Cite id="fips205" locator="§11, Table 2" /> Do not infer an algorithm or parameter set from object length alone. Carry an explicit identifier and version, and make every buffer limit depend on the largest supported encoding plus framing overhead.
 
 ## Walk an HPKE-style hybrid exchange
 
 Start by fixing a suite: a KEM, a KDF and an AEAD. Then fix the HPKE mode, because base mode authenticates neither party, authentication mode binds the recipient to a public key, and the other modes add sender authentication or pre-shared-key material. The names are part of the protocol state; never select them from untrusted bytes without an allow-list. <Cite id="rfc9180" locator="§5" />
+
+HPKE’s four mode bytes are `0x00` for base, `0x01` for PSK, `0x02` for auth and `0x03` for auth-PSK. A setup operation creates a context containing the AEAD key, a base nonce, sequence number zero and an exporter secret. Each seal or open computes the nonce as `base_nonce XOR I2OSP(seq, Nn)`, then increments the sequence number only after success. Overflow must fail, and the application must preserve ordering so sender and receiver sequence numbers align. A multi-message context is therefore stateful even though the KEM ciphertext is sent only once. <Cite id="rfc9180" locator="§5.1–5.2" />
+
+Sender authentication in HPKE auth mode proves possession of a sender KEM private key, not possession of an arbitrary identity string. The application should bind its chosen identity into `info`. KEMs that do not implement `AuthEncap` and `AuthDecap` cannot support auth or auth-PSK modes, regardless of what the application labels the mode. <Cite id="rfc9180" locator="§5.1.3, §7.1.5" /> Static recipient keys enable stored messages but do not provide forward secrecy by themselves; an ephemeral exchange is needed for that property. <Cite id="rfc9180" locator="§9.7.4" />
 
 <ProcessFlow
   steps={[
@@ -166,7 +203,9 @@ Start by fixing a suite: a KEM, a KDF and an AEAD. Then fix the HPKE mode, becau
   ]}
 />
 
-Serialise a labelled 32-byte classical value and a labelled 1,088-byte ML-KEM ciphertext in the negotiated order. The derived key comes from the protocol’s combiner and key schedule, not from choosing the longer secret. AAD carries the suite, mode, key identifiers and immutable headers; otherwise the same sealed body may be reinterpreted in another context.
+In the TLS hybrid construction, an X25519 public value is 32 bytes and an ML-KEM-768 ciphertext is 1,088 bytes. They are concatenated in the order fixed by the negotiated group, without extra internal length fields, because each component has a fixed length for that group. The standardized X25519MLKEM768 group places the 1,184-byte ML-KEM encapsulation key before the 32-byte X25519 share on the client, and the ML-KEM ciphertext before the X25519 share on the server; its 64-byte shared secret is also ML-KEM first. The name order is not the wire order. <Cite id="rfc10024" locator="§4.1–4.3" /> The two 32-byte shared secrets are inserted into the TLS 1.3 key schedule. HPKE uses its own labelled KDF construction; the TLS combiner is not interchangeable with it. <Cite id="rfc7748" locator="§5–6" /> <Cite id="hybrid-design" locator="§3.1–3.3, §6" />
+
+Fixed lengths are a security assumption, not a formatting luxury. With variable-length secrets, the same concatenated bytes can represent different component boundaries, and hashing time can depend on secret length. The TLS construction therefore requires fixed-length public values, ciphertexts and shared secrets after the algorithm identifier is fixed; a different combiner would need an unambiguous encoding. <Cite id="hybrid-design" locator="§3.2–3.3, §6" /> AAD still carries the suite, mode, authenticated key identifiers and immutable headers, so a valid transcript cannot be reinterpreted in another context.
 
 A static recipient key permits stored messages but increases compromise impact and lifetime. An ephemeral key can provide forward secrecy with a suitable exchange, at the cost of another message. ML-KEM-768 saves bandwidth relative to ML-KEM-1024 while targeting a lower category. <Cite id="fips203" locator="Table 3" />
 
@@ -211,15 +250,13 @@ $$
 
 A signature scheme is EUF-CMA secure if an adversary with a signing oracle cannot produce $(m^*, \sigma^*)$ for a message $m^*$ it did not query, with non-negligible probability. Lattice signatures use Fiat–Shamir with aborts: sample a masking value, compute a challenge hash, form a candidate signature, and reject if it falls outside a norm bound. Rejection sampling ensures the output distribution is independent of the secret. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
 
+EUF-CMA is not the same as strong unforgeability or message binding. Strong unforgeability also rejects a new signature on a previously signed message. Message binding asks whether one public key and signature can be valid for two different messages, a property needed by some proof-of-possession and multi-signature designs. FIPS 205 explicitly notes that its assigned EUF-CMA categories do not by themselves guarantee message-bound signatures. ML-DSA’s hint decoding is also security-critical: accepting a malformed hint can destroy strong unforgeability. <Cite id="fips205" locator="§11" /> <Cite id="fips204" locator="§3.6.2, Appendix D.3" />
+
+ML-DSA exposes a context string of at most 255 bytes and a hedged signing variant that mixes fresh randomness into the signature. The randomness supports resistance to side-channel and fault attacks on deterministic signing; deterministic signing is allowed but changes the implementation threat model. Both signer and verifier must encode the context, pre-hash choice and parameter set identically. <Cite id="fips204" locator="§3.6.1, §5.2–5.4" />
+
 ## The assumptions underneath
 
-Lattice schemes reduce to variants of Learning With Errors and Short Integer Solutions. Regev's LWE reduction connects worst-case lattice problems to average-case LWE. <Cite id="regev2009" locator="Vol. 56, Article 34" /> Ring and module variants add algebraic structure for efficiency, with their own reductions and caveats. <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="peikert2016" locator="pp. 283–424" />
-
-<Callout variant="lab" title="Proofs are conditional">
-An IND-CCA2 proof says: if you can break the KEM, you can solve Module-LWE with a related advantage. It does not rule out a future algorithm for Module-LWE. Security is always relative to the best known cryptanalysis and the stated model (classical ROM, quantum ROM, standard model).
-</Callout>
-
-
+Lattice schemes reduce to variants of Learning With Errors and Short Integer Solutions. Regev's LWE reduction connects worst-case lattice problems to average-case LWE. <Cite id="regev2009" locator="Vol. 56, Article 34" /> Ring and module variants add algebraic structure for efficiency, with their own reductions and caveats. <Cite id="lpr2010" locator="pp. 1–23" /> <Cite id="peikert2016" locator="pp. 283–424" /> Module-lattice worst-case-to-average-case results support the family’s assumptions, but the concrete ML-KEM and ML-DSA security estimates also depend on parameter choice, attack cost models and implementation boundaries. <Cite id="langlois-stehle2015" locator="Vol. 75, pp. 565–599" />
 
 ## The games in more detail
 
@@ -233,17 +270,19 @@ The FO theorem and signature proofs are reductions: a successful attacker yields
 
 ## Hybrid combiners
 
-A hybrid KEM concatenates two shared secrets and feeds them into a KDF. The combiner must be unambiguous and domain-separated; otherwise an attacker may be able to swap components or replay a secret across protocols. Use the combiner defined by the protocol (for example the TLS hybrid design) rather than inventing one. <Cite id="rfc9180" locator="§4" />
+Hybrid key exchange combines outputs from components based on different assumptions. The TLS construction concatenates fixed-length shared secrets in the negotiated order and passes the result into the TLS key schedule; its hybrid guarantee depends on that schedule and on at least one component remaining secure. A different protocol may use a labelled KDF combiner, but the encoding, order and domain separation must be specified. Never transplant one protocol’s combiner into another merely because both accept two secrets. <Cite id="hybrid-design" locator="§3.1–3.3, §6" />
 
 ## Formalise the KEM contract and its edge cases
 
-For every key pair and Encaps random tape, Decaps must return exactly the Encaps shared secret:
+For every key pair and Encaps random tape, Decaps should return the Encaps shared secret except with the scheme’s bounded correctness failure:
 
 $$
-\Pr[K' = K \mid (ek,dk) \leftarrow \mathsf{KeyGen};\ (c,K) \leftarrow \mathsf{Encaps}(ek)] = 1.
+\Pr[K' = K \mid (ek,dk) \leftarrow \mathsf{KeyGen};\ (c,K) \leftarrow \mathsf{Encaps}(ek)] \ge 1-\delta.
 $$
 
-Decapsulation is deterministic and total: malformed ciphertexts also map to 32 bytes. ML-KEM re-encrypts the recovered message and compares it with the supplied ciphertext. Success derives $K = \mathsf{KDF}(m' \,\|\, H(c))$; mismatch derives a rejection value from $z$ and $H(c)$. <Cite id="fips203" locator="§7.1" /> The proof charges the underlying PKE’s small failure probability rather than assuming zero.
+For ML-KEM, $\delta$ is negligible but not assumed to be zero. FIPS 203 defines the decapsulation-failure event as $K'\ne K$ for well-formed inputs and successful randomness generation. <Cite id="fips203" locator="§3.2, Table 1" /> This differs from an explicitly rejected malformed length: the former is a rare honest decryption error, while the latter fails input checking before the KEM core runs.
+
+ML-KEM decapsulation is deterministic for checked inputs and returns 32 bytes. The external function first checks ciphertext length, decapsulation-key length and the embedded hash of the encapsulation key. Those checks can reject an ill-typed input before Algorithm 21 runs; a protocol should map such parse failures to the same external outcome as a later AEAD failure. Within the well-formed ciphertext domain, ML-KEM re-encrypts the recovered message and compares it with the supplied ciphertext. It first derives $(K', r') = G(m' \,\|\, H(ek))$; equality returns $K'$, while mismatch returns the implicit-rejection value $J(z \,\|\, c)$. The comparison flag is secret intermediate data and must not be exposed or retained. <Cite id="fips203" locator="§6.3, §7.3" /> The proof charges the underlying PKE’s small failure probability rather than assuming zero.
 
 For an IND-CCA2 adversary $\mathcal A$, define its advantage as
 
@@ -253,6 +292,16 @@ $$
 $$
 
 The reduction simulates the public key and random oracle. A successful distinction between the challenge key and rejection either distinguishes FO re-encryption or breaks derived-key pseudorandomness. Decryption failure is charged to the PKE error bound. The attacker becomes a weaker solver, so parameters must control the advantage loss. <Cite id="fujisaki-okamoto2013" locator="Vol. 26, pp. 80–101" /> <Cite id="hofheinz2017" locator="pp. 341–371" />
+
+Read the FO proof as a case split. For an adversary’s decapsulation query, decrypt to $m'$, derive $(K',r')$, re-encrypt and compare. If the ciphertext matches, return the derived key exactly as honest decapsulation would. If it does not, return the pseudorandom rejection key. A challenger ciphertext that distinguishes these branches either violates the PKE’s correctness/re-encryption relation or distinguishes the derived key from the rejection value. Random-oracle programming supplies consistent hash responses, and the proof pays for each oracle query and the small decryption-failure probability. That is why deterministic re-encryption and implicit rejection must be implemented as specified rather than replaced by a convenient error return.
+
+<WorkedExample
+  title="Classify three ML-KEM-768 decapsulation inputs"
+  steps={["A 1,088-byte ciphertext with one flipped bit has the correct type and length, so it reaches the KEM core.", "Decryption produces some m-prime; re-encryption almost certainly differs, so Decaps returns J(z || c), a 32-byte rejection value.", "A 1,087-byte or 1,089-byte ciphertext fails the external ciphertext type check before the core runs.", "The protocol maps both the well-formed rejection value and the malformed-length error to one generic failure after the AEAD check."]}
+  result="Implicit rejection hides plausibility inside the well-formed ciphertext domain. It does not require a parser to accept impossible lengths, but the surrounding protocol must not turn those parser errors into a distinguishable oracle."
+/>
+
+The distinction prevents two opposite mistakes. Returning a distinct “invalid lattice ciphertext” error for every re-encryption mismatch creates the oracle FO is designed to remove. Accepting arbitrary lengths and padding them into a ciphertext invents a non-standard encoding and may create memory-safety or malleability problems. Validate the type, then collapse the observable outcome. <Cite id="fips203" locator="§7.3" />
 
 Replaying a valid ciphertext returns the same secret, so the protocol needs its own nonce or sequence number. A wrong secret key usually produces rejection, with failure visible only at the later AEAD tag. Malformed lengths must share that observable path. Never reuse encapsulation randomness: deterministic encapsulation to a static key relates messages even with fresh AEAD nonces.
 
@@ -265,7 +314,7 @@ EUF-CMA does not authenticate the intended signer if a protocol selects keys thr
 
 ## The code around the maths is part of the primitive
 
-A production KEM must define byte encodings for keys and ciphertexts, rejection behaviour for malformed inputs, and constant-time comparison. FIPS 203 makes these requirements explicit, including constant-time decapsulation and implicit rejection. <Cite id="fips203" locator="§3.3" />
+A production KEM must define byte encodings for keys and ciphertexts, rejection behaviour for malformed inputs, and constant-time comparison. FIPS 203 specifies input checking, implicit rejection, destruction of the secret comparison flag and destruction of sensitive intermediate values. Constant-time execution is an implementation requirement for preserving that behaviour in practice, but a standards-conformant output sequence alone does not prove side-channel resistance. <Cite id="fips203" locator="§3.3, §6.3" />
 
 Common implementation hazards:
 
@@ -275,16 +324,20 @@ Common implementation hazards:
 - **Memory reuse** without zeroisation leaves keys in heap or stack dumps.
 - **Unchecked lengths** turn a decoder into an out-of-bounds read.
 
+The risky operations are often ordinary implementation details. ML-KEM samples noise, decompresses coefficients and multiplies polynomials through a number-theoretic transform. Secret-dependent table lookups, variable-time division, data-dependent branches in decoding or compiler-introduced shortcuts can leak information even when the algebra is correct. FIPS 203 prohibits floating-point arithmetic in its algorithms because rounding can produce incorrect results, and it requires sensitive intermediate data to be destroyed when no longer needed. <Cite id="fips203" locator="§3.3, §4.3" /> These rules constrain the implementation, not just the API signature.
+
+Fault attacks need independent treatment. A fault that skips the re-encryption comparison or corrupts a rejection branch can make decapsulation return a meaningful key for an invalid ciphertext. A fault during signing can expose information about the secret or produce a signature with a biased distribution. Fault-tolerant protocol checks and protected hardware reduce risk, but correctness tests on honest inputs do not exercise these paths. Cryptographic protocols have recognised fault-sensitive operations since early public-key deployments. <Cite id="boneh1997" locator="pp. 37–51" /> ML-DSA’s hedged randomness and SLH-DSA’s implementation guidance explicitly consider side-channel and fault concerns. <Cite id="fips204" locator="§3.6.1, §3.6.3" /> <Cite id="fips205" locator="§3.2" />
+
 ## Serialization is a protocol contract
 
-ML-KEM encapsulation keys and ciphertexts have fixed sizes by parameter set. ML-DSA signatures include a hint encoding whose validity must be checked. SLH-DSA has a fixed structure but variable internal tree paths. If two implementations disagree on canonical encoding, one may accept ciphertexts the other rejects — a recipe for cross-protocol confusion. Use the standard test vectors.
+ML-KEM encapsulation keys and ciphertexts have fixed sizes by parameter set. ML-DSA signatures include a hint encoding whose validity must be checked. SLH-DSA has a fixed structure but variable internal tree paths. If two implementations disagree on canonical encoding, one may accept ciphertexts the other rejects — a recipe for cross-protocol confusion. Use the standard test vectors. <Cite id="fips204" locator="§3.6.2, §6.2–6.3" /> <Cite id="fips205" locator="§4, §9–10" />
 
 ## Libraries versus reference code
 
-Reference implementations are written for clarity, not necessarily for side-channel resistance. Production deployments should use maintained, audited libraries and hardware where available. Open Quantum Safe's `liboqs` provides reference implementations and a test harness for experimentation, but the project itself warns that it is not a production-hardened library. <Cite id="liboqs" />
+Reference implementations are written for clarity, not necessarily for side-channel resistance. Production deployments should use maintained, audited libraries and hardware where available. Open Quantum Safe's `liboqs` provides reference implementations and a test harness for experimentation, but the project itself warns that it is not a production-hardened library. <Cite id="liboqs" locator="README → Limitations and Security" />
 
 <Callout variant="warning" title="Do not roll your own KEM combiner">
-Hybrid constructions need domain separation and a sound combiner. Follow RFC 9180 or the TLS hybrid design draft rather than concatenating secrets ad hoc. <Cite id="rfc9180" locator="§4" />
+Hybrid constructions need a specified combiner and sound assumptions. Follow the TLS hybrid construction in RFC 9954 or the KEM interface and key schedule defined by HPKE rather than concatenating secrets ad hoc. <Cite id="hybrid-design" locator="§3.1–3.3, §6" /> <Cite id="rfc9180" locator="§4–5" />
 </Callout>
 
 ## A checklist before shipping
@@ -320,9 +373,13 @@ An adapter should own parameter validation, canonical serialisation and backend 
 
 Benchmark the limiting operation. Boot may care about verification, a certificate authority about signing, and a relay about decapsulation memory. Measure cold and warm paths, allocation, queueing and failure cost. Polynomial arithmetic and its number-theoretic transform strongly affect speed and memory. <Cite id="fips203" locator="§4.3" /> A fast backend is not automatically safe.
 
-Test positive vectors, truncated and extended inputs, swapped fields, non-canonical coefficients, wrong keys, duplicates and random fuzzing. Cross-check two independent implementations. Interrupt signing and decapsulation to detect partial-secret or distinguishable-result leaks. Measure timing and, where warranted, power or electromagnetic traces; constant-time source alone does not prove resistance. <Cite id="fips203" locator="§3.3" /> <Cite id="fips204" locator="§3.6" />
+Test positive vectors, truncated and extended inputs, swapped fields, non-canonical coefficients, wrong keys, duplicates and random fuzzing. Cross-check two independent implementations. Interrupt signing and decapsulation to detect partial-secret or distinguishable-result leaks. Measure timing and, where warranted, power or electromagnetic traces; constant-time source alone does not prove resistance. <Cite id="fips203" locator="§3.3" /> <Cite id="fips204" locator="§3.6.3" />
 
 Pin a reviewed provider and record its validation evidence, while keeping a switchable second implementation. Retain old decapsulation keys until dependent archives expire, and old verification keys for their artifacts’ authenticity lifetime.
+
+Crypto agility must cover data, not just code. Inventory where each key is generated, how its algorithm and parameter set are identified, which certificates or pinned keys depend on it and how long the protected data must remain usable. A migration that can verify ML-DSA but cannot issue or route certificates for it is incomplete. A migration that deploys hybrid key exchange but leaves a downgrade path to classical-only exchange may fail its confidentiality goal. NIST’s transition guidance frames this as an inventory and prioritisation problem driven by data sensitivity and system lifetime. <Cite id="nist-ir8547" locator="§3.1–3.2, §4" />
+
+Use explicit transition states rather than a single feature flag. During dual support, both peers must negotiate a suite from an allow-list and authenticate that choice in the transcript. Keep old decapsulation keys for archive reads but remove them from new encapsulation directories. Keep old verification keys only as long as needed to validate retained artifacts, and record compromise separately from scheduled retirement. A static KEM key exposes past captured ciphertexts if it is later stolen; an ephemeral hybrid exchange can provide forward secrecy when the protocol is designed for it. <Cite id="rfc9180" locator="§9.7.4" /> That is why key lifetime and protocol mode are migration decisions, not library configuration details.
 
 <Callout variant="warning" title="A KEM is not a drop-in RSA replacement">
 Protocols must define how the ciphertext and shared secret are carried, how identities are bound and how failures are handled. A library swap is not a protocol migration.
@@ -379,7 +436,7 @@ Protocols must define how the ciphertext and shared secret are carried, how iden
   takeaway="The security notion determines the composition; realistic object sizes and failure behaviour determine whether that composition can ship."
 />
 
-The sizes used in the workshop follow the standardised ML-KEM-768 and ML-DSA-65 parameter sets, and the KEM-plus-AEAD pattern follows HPKE. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="§4" /> <Cite id="rfc9180" locator="§4–5" />
+The sizes used in the workshop follow the standardised ML-KEM-768 and ML-DSA-65 parameter sets, and the KEM-plus-AEAD pattern follows HPKE. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="Table 2" /> <Cite id="rfc9180" locator="§4–5" />
 
 
 ## Key takeaways

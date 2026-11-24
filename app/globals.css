@@ -157,11 +157,15 @@ a {
 }
 
 .prose-cyber :where(table) {
-  @apply overflow-hidden rounded-xl border border-line text-sm;
+  @apply m-0 w-full min-w-full table-auto border-collapse text-left text-sm;
 }
 
 .prose-cyber :where(thead) {
   @apply bg-mist-100;
+}
+
+.prose-cyber :where(th, td) {
+  overflow-wrap: anywhere;
 }
 
 .prose-cyber :where(blockquote) {

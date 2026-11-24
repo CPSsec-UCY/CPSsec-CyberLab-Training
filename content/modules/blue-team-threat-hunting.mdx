@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 95
 summary: "Design hypothesis-driven threat hunts, choose and validate telemetry, build and tune detection queries, measure precision and recall, map evidence to ATT&CK and convert findings into safe response."
 outcomes: ["Write falsible threat-hunting hypotheses tied to assets, behaviours and telemetry.", "Build reproducible queries against normalised data with explicit baselines and limitations.", "Evaluate detections with precision, recall, coverage and benign fixtures.", "Map observed behaviour to ATT&CK and choose proportionate, auditable response actions."]
-citations: ["book-murdoch-blue-team-handbook", "book-white-clark-btfm", "book-costa-gazcon-threat-hunting", "book-bollinger-infosec-playbook", "mitre-attack", "sigma", "sp800-92"]
+citations: ["book-murdoch-blue-team-handbook", "book-white-clark-btfm", "book-costa-gazcon-threat-hunting", "book-bollinger-infosec-playbook", "mitre-attack", "sigma", "sp800-92", "pyramid-of-pain"]
 tags: ["blue-team", "threat-hunting", "detection-engineering", "sigma", "mitre-attack", "soc"]
 prerequisites: ["soc-operations", "deep-packet-inspection"]
 updated: "2026-11-24"
@@ -50,6 +50,18 @@ Hunts can start from threat intelligence, a recent incident, an attack-path asse
 Valentina Costa-Gazcón's *Practical Threat Intelligence and Data-Driven Threat Hunting* connects ATT&CK-driven hypotheses with data models and open-source hunting. <Cite id="book-costa-gazcon-threat-hunting" locator="ATT&CK-driven hypotheses, data models and open-source hunting" /> Use intelligence to generate questions, not to copy indicators blindly. An attacker can change a hash, domain or IP address cheaply. Behaviour such as a document spawning a scripting host or a service account creating an unexpected child process is often more durable.
 
 Prioritise hunts by impact and feasibility. Impact includes asset criticality, data sensitivity, blast radius and the consequence of missing the behaviour. Feasibility includes telemetry availability, query cost, analyst skill and the expected prevalence of benign look-alikes. A high-impact hypothesis with no relevant telemetry may justify an instrumentation project rather than an immediate search.
+
+### Competing hypotheses for a 63-second DNS cadence
+
+A workstation queries a newly observed domain every 63 seconds, usually receiving the same answer. One hunt should not collapse this observation into “beaconing.” Write at least three hypotheses and the observation that would discriminate among them:
+
+- **H1, malicious beacon:** the process generating queries is unsigned or unexpected, the destination lacks a documented business purpose, and repeated sessions or payload-bearing connections corroborate command-and-control activity.
+- **H2, legitimate updater:** a signed application, installed package and change record explain the process; the domain resolves to an approved content-delivery service, and query timing changes with update checks rather than remaining strictly periodic.
+- **H3, telemetry retry:** a monitoring agent is retrying a failed enrichment service. The query source, destination and interval should match the agent's documented configuration, and an outage ticket should align with the start of the pattern.
+
+The discriminating evidence is not merely another suspicious field. Process identity separates H1 from H2; configuration and incident records distinguish H2 from H3; flow duration and connection content can support H1 while a fixed small response and repeated identical request can indicate polling. Before searching, estimate which result would change a decision. If every outcome leads to “keep looking,” the hypothesis is not ready.
+
+This approach also improves intelligence handling. Hashes and domains are cheap for an adversary to replace, while behaviours such as service-account process ancestry or document-spawned scripting are costlier to avoid. The Pyramid of Pain frames that difference in terms of the cost imposed on the adversary. <Cite id="pyramid-of-pain" locator="Indicator value versus adversary cost" /> Costa-Gazcón's data-driven approach similarly uses ATT&CK to structure questions rather than to supply a prefabricated verdict. <Cite id="book-costa-gazcon-threat-hunting" locator="ISBN 978-1-83855-637-2, ATT&CK-driven hypotheses, data models and open-source hunting" />
 
 ## The threat model includes the environment
 
@@ -223,6 +235,22 @@ Before interpreting results, check source heartbeat, ingestion lag, parser succe
 
 Create a hunt-specific data-quality statement. For example: “Endpoint coverage is 94% of managed workstations; six hosts last reported more than six hours ago; command-line fields are present in 99.2% of process events.” This statement bounds the conclusion. Without it, a negative hunt result overstates visibility.
 
+### Coverage is a denominator, not a badge
+
+Suppose the hunt population contains 600 finance workstations. Of these, 570 have a fresh endpoint heartbeat, 540 emit a parent-process identifier and only 508 retain command-line text. Identity coverage is excellent, but a query requiring all three fields can test at most 508 hosts even if the SIEM dashboards show 95% “source coverage.” The effective coverage is the intersection of the required fields, not the average of independent percentages.
+
+| Quality measure | Toy result | Effect on this hunt |
+| --- | --- | --- |
+| Fresh endpoint heartbeat | 570 / 600 = 95% | Thirty hosts cannot support a current endpoint conclusion |
+| Parent-process field present | 540 / 600 = 90% | Sixty events cannot establish Office-to-PowerShell ancestry |
+| Command-line field present | 508 / 600 ≈ 84.7% | Encoded-argument predicates are invisible on 92 hosts |
+| All three conditions | 508 / 600 ≈ 84.7% | The correlated hunt's strongest negative claim covers 508 hosts |
+| Median ingestion lag | 47 seconds, p95 6 minutes | A short window can split one action across query boundaries |
+
+A field being present is not enough; it must be populated with a meaningful value. A parent PID of zero, a command line containing only an executable name, or an ingestion timestamp substituted for event time can satisfy a null check while defeating the hypothesis. Measure validity within the relevant asset class and compare observed event rates with the expected rate from agent configuration. Duplicate events also matter: replaying the same process-creation event twice inflates match counts and can make a broken pipeline look like a burst of malicious activity.
+
+NIST's log-management guidance treats infrastructure, retention and review as connected concerns. <Cite id="sp800-92" locator="§3–5 (log infrastructure, retention, review)" /> Operationally, record both numerator and denominator, the freshness cut-off and the exact required fields in the hunt record. If the intersection is too small, split the hypothesis into separately answerable questions rather than lowering the threshold until the incomplete data produces a match.
+
 Protect log data as sensitive information. Authentication records, command lines and DNS queries can contain personal data, credentials or business information. Apply access control, retention and redaction to working views while preserving originals under policy. NIST's log-management guidance connects protection and retention with effective operational use. <Cite id="sp800-92" locator="§3–5 (log infrastructure, retention, review)" />
 
 ### KnowledgeCheck
@@ -262,6 +290,22 @@ A rule that produces ten matches per day may be excellent or unusable depending 
 
 Track false-positive reduction alongside recall. A 90% reduction in false positives is not an improvement if recall falls from 95% to 20%. Report both, plus the absolute number of missed malicious events and the assets affected. Use expected-loss reasoning when consequences are asymmetric. Missing ransomware on a critical file server and investigating a benign scanner event do not have the same cost.
 
+### From a fixture to an expected-loss decision
+
+Imagine a monthly evaluation population of 100,000 sessions containing 100 malicious sessions. Three candidate policies produce the following counts. The costs are deliberately simple teaching values: 20 units to investigate a benign alert and 10,000 units for a missed malicious session. They are not calibrated organisational probabilities.
+
+| Policy | True positives | False positives | False negatives | Recall | Illustrative loss |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Low threshold | 97 | 600 | 3 | 97% | 600 × 20 + 3 × 10,000 = 42,000 |
+| Current threshold | 90 | 100 | 10 | 90% | 100 × 20 + 10 × 10,000 = 102,000 |
+| High threshold | 75 | 10 | 25 | 75% | 10 × 20 + 25 × 10,000 = 250,200 |
+
+The low-threshold policy has the smallest modelled loss, but it creates 697 alerts. If analysts can investigate only 50 distinct cases per month, it is operationally impossible without case correlation, automation or additional staff. The current threshold creates 190 alerts and still exceeds that capacity. Raising the threshold makes the queue smaller by destroying more value than it saves in investigation cost. This is why precision alone cannot select a response policy.
+
+Uncertainty also changes the decision. Ninety true positives out of 100 malicious sessions is encouraging, but the fixture is small; a confidence interval is wide, and a separate production sample may contain different attacker procedures. Event-level counts can overstate independence when ten alerts arise from one compromised host. Report case-level counts, label quality and the population from which prevalence was estimated. Bollinger and colleagues frame detection engineering as an operational product with tuning and monitoring responsibilities, not merely a query that scores well. <Cite id="book-bollinger-infosec-playbook" locator="ISBN 978-1-49194-940-5, detection engineering, SIEM tuning and security monitoring operations" />
+
+The decision record should therefore state the loss model, queue constraint and acceptable missed behaviours before choosing a threshold. If the missed events are ransomware staging on a critical server, even the low-threshold policy may require a second high-recall rule aimed specifically at that population rather than a global compromise.
+
 Jeff Bollinger, Brandon Enright and Matthew Valites, in *Crafting the InfoSec Playbook*, connect detection engineering with SIEM tuning and security-monitoring operations. <Cite id="book-bollinger-infosec-playbook" locator="Detection engineering, SIEM tuning and security monitoring operations" /> The operational lesson is that a rule is a product: it needs an owner, tests, documentation, a runbook, performance targets and a retirement path.
 
 ## Build labelled fixtures deliberately
@@ -273,7 +317,7 @@ Benign fixtures should come from representative environments, with privacy revie
 Replay fixtures through the production parser and query compiler. A rule that works on hand-written JSON may fail when the SIEM normalises fields differently. Version fixtures with the detection so a parser change triggers re-evaluation. Record the dataset version, query version, environment and metrics with every result.
 
 <Figure caption="Detection evaluation combines quality, coverage and operational cost. No single metric establishes that a rule is ready for response automation.">
-  <div className="not-prose overflow-x-auto">
+  <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
     <table className="w-full min-w-[780px] text-left text-[10px]">
       <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Measure</th><th className="px-3 py-2">Question</th><th className="px-3 py-2">Common mistake</th><th className="px-3 py-2">Companion measure</th></tr></thead>
       <tbody>
@@ -360,6 +404,22 @@ Review hunt outcomes regularly. Look for repeated visibility gaps, recurring fal
 ## Choose response by evidence and impact
 
 A hunt result is not automatically a containment order. The responder considers confidence, asset criticality, active harm, business impact, evidence preservation and authority. Low-confidence matches may warrant collection and monitoring. High-confidence malicious execution may justify endpoint isolation. Credential misuse may require session revocation and credential rotation. A malicious destination may justify a scoped block while the team hunts for alternate infrastructure.
+
+### A response ladder for payroll valid-account use
+
+A finance identity signs in from a newly enrolled laptop and reads the payroll share. The device is managed, MFA succeeds and no malicious process is observed. Six endpoint agents are stale, so absence of endpoint corroboration is weak evidence. The immediate objective is to reduce uncertainty without punishing a possibly legitimate payroll run.
+
+| Action | Evidence gate | Business and evidence cost | Reversibility and rollback |
+| --- | --- | --- | --- |
+| Enrich and monitor | New-device sign-in plus sensitive access | Low disruption; preserves normal session telemetry | Reversible; stop if approved payroll workflow is confirmed |
+| Step-up authentication | Device or token context remains unexplained | May interrupt the user; retains provider audit trail | Reversible through help-desk exception with review |
+| Revoke sessions and rotate credentials | Token replay, impossible travel with device contradiction, or confirmed unauthorised access | Ends active access but interrupts work and destroys live session context | Credentials can be reissued; preserve audit records first |
+| Isolate endpoint | Malicious process, persistence or active exfiltration evidence | Payroll workflow stops; memory and sockets may change | Reconnect only after evidence preservation and health checks |
+| Block destination | Reliable malicious infrastructure evidence | May affect shared services or other users | Scoped expiry and alternate-destination hunt required |
+
+Here, the defensible first step is preservation and enrichment: export identity, enrolment and file-access records; confirm the laptop with its owner; compare the access pattern with the approved payroll schedule. If token telemetry shows replay from a second device, session revocation becomes proportionate even without endpoint proof. If the endpoint later shows malicious execution, isolation moves up the ladder. If the device owner and change record explain the activity, close with a narrow exclusion rather than a global geography rule.
+
+Murdoch's field workflow is valuable because it turns triage into explicit next actions under time pressure. <Cite id="book-murdoch-blue-team-handbook" locator="ISBN 978-1-50073-475-6, triage, containment and incident responder field workflow" /> The response ladder makes those actions auditable: it records which new evidence would justify escalation and which evidence would justify standing down. A team that only asks “contain or not?” loses that intermediate decision space.
 
 Murdoch's field-oriented approach to triage and containment is useful here: responders need clear next actions, not vague instructions to investigate. <Cite id="book-murdoch-blue-team-handbook" locator="Triage, containment and incident responder field workflow" /> A response playbook should name the trigger, validation queries, evidence to preserve, approving role, action, rollback and closure criteria. It should also state when not to act.
 

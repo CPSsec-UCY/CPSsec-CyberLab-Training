@@ -1,4 +1,5 @@
 import { CheckCircle2, XCircle } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 const REPLICAS = [
   { id: "R1", honest: true },
@@ -40,7 +41,7 @@ export function ByzantineQuorum() {
         </div>
       </div>
       <p className="mt-2 text-center text-[9px] leading-4 text-muted">
-        The quorums overlap in two replicas, including at least one honest replica. That overlap prevents two conflicting decisions.
+        The quorums overlap in two replicas, including at least one honest replica. That overlap prevents two conflicting decisions. <Cite id="castro-liskov1999" locator="§1–4" />
       </p>
     </div>
   );

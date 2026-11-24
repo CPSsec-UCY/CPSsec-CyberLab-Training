@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 80
 summary: "Trace ML-KEM and ML-DSA through a TLS 1.3 handshake, then follow the operational consequences into X.509, HSMs, middleboxes and crypto agility."
 outcomes: ["Trace a TLS 1.3 handshake with hybrid PQC key exchange.", "Explain transcript binding, key schedule and certificate path validation.", "Calculate certificate and handshake size impacts.", "Plan PKI, HSM, firmware and protocol migration with crypto agility."]
-citations: ["rfc8446", "rfc9180", "rfc5280", "hybrid-design", "nist-ir8547", "fips203", "fips204", "fips205", "fips186-5", "rfc7748", "liboqs"]
+citations: ["rfc9846", "rfc10024", "rfc9180", "rfc5280", "hybrid-design", "nist-ir8547", "fips203", "fips204", "fips205", "fips186-5", "rfc7748", "rfc5869", "sp800-57pt1r5", "liboqs"]
 tags: ["tls", "pki", "deployment", "migration"]
 prerequisites: ["asymmetric-primitives", "symmetric-crypto"]
 updated: "2026-11-24"
@@ -21,7 +21,7 @@ import { HybridCombinerLab } from "../../components/visualizers/HybridCombinerLa
 
 ## The familiar picture
 
-When you open a secure website, your browser and the server agree on keys, authenticate the server, and start encrypting. TLS 1.3 does this in one round trip for a new connection. <Cite id="rfc8446" locator="§2" />
+When you open a secure website, your browser and the server agree on keys, authenticate the server, and start encrypting. TLS 1.3 does this in one round trip for a new connection. <Cite id="rfc9846" locator="§2" />
 
 Two separate jobs are happening:
 
@@ -40,7 +40,7 @@ The maths is not the hard part in deployment. The hard part is every assumption 
 
 ## Why hybrid is the safe first step
 
-A hybrid group remains secure if either X25519 or ML-KEM is secure. That protects against a surprise in the new component without betting the connection on a single assumption. It also gives the ecosystem time to find implementation bugs while traffic is already protected against harvest-now attacks. <Cite id="hybrid-design" locator="§3–4" />
+A hybrid group remains secure if either X25519 or ML-KEM is secure. That protects against a surprise in the new component without betting the connection on a single assumption. It also gives the ecosystem time to find implementation bugs while traffic is already protected against harvest-now attacks. <Cite id="hybrid-design" locator="§1.2 and §3.1–3.3" />
 
 ## What users should notice
 
@@ -72,6 +72,23 @@ A bank introducing hybrid TLS faces pressure from attackers seeking classical fa
 Three misconceptions are dangerous. **Hybrid is not a vote for the weaker algorithm**: the combiner aims to retain security if either component survives. **A PQ certificate is not automatically trustworthy**: X.509 path and identity validation still apply. **Standards compliance is not deployability**: middleboxes, HSMs and firmware carry legacy limits. Most failures occur in devices and processes that assumed classical sizes, not in the mathematics.
 
 Separate time horizons: protect ephemeral session keys against future decryption, CA and firmware signing keys against future forgery, and trust stores and upgrades against present compromise.
+
+## Two migration clocks and four inventories
+
+A TLS key-share secret is normally discarded with its connection. Its migration clock is driven by how long recorded ciphertext must remain confidential. A leaf certificate is replaced on an issuance schedule; an intermediate or root can remain a trust anchor for years; a firmware verifier may outlive the product that shipped it. Calling all four objects “the certificate migration” conceals the dependency that eventually strands a device: its trust store supports the old root, but its fixed parser or verifier cannot process the replacement.
+
+| Object | Main exposure | Operational clock | Rollback boundary |
+| --- | --- | --- | --- |
+| Ephemeral key share | Recorded traffic decrypted later | Data-confidentiality lifetime | Negotiation policy for new sessions |
+| Leaf certificate | Server-key compromise or mis-issuance | Short renewal cycle | Reissue without changing the trust anchor |
+| Intermediate and root | Forged certificates beneath the anchor | Multi-year hierarchy lifetime | Path construction and distributed trust stores |
+| Firmware signing key | Forged updates for deployed devices | Field-device support lifetime | Boot-ROM or secure-boot trust configuration |
+
+The final October 2026 NIST IR 8547 sets a risk-prioritised transition rather than a single switch: it describes deprecation of quantum-vulnerable public-key cryptography after 2030 and disallowance under NIST standards after 2035, with earlier deadlines for specified federal high-value and high-impact systems. Those are policy milestones, not predictions of when a cryptanalytic quantum computer will exist. An enterprise should translate them through its own data lifetime, contractual obligations and device-support inventory. <Cite id="nist-ir8547" locator="§4 and Tables 2–5" />
+
+Consider a clinic that migrates browser key exchange this quarter, pilots an ML-DSA-signed leaf next quarter and expects infusion-pump firmware to remain supported for a decade. The browser change protects newly recorded sessions; it does nothing to make an old pump trust a new root. The clinic therefore needs a session inventory, a server-certificate inventory, a CA hierarchy plan and a firmware verifier inventory, each with an owner and an acceptance test. The final report specifically identifies PKI issuance, validation and revocation, as well as cryptographic hardware, as infrastructure that must change alongside protocols. <Cite id="nist-ir8547" locator="§2.2.3–2.2.4" />
+
+Key-management guidance treats generation, distribution, activation, deactivation and destruction as lifecycle states, not a one-time key-generation event. Apply that model to HSM objects, root ceremonies, backups and emergency material. <Cite id="sp800-57pt1r5" locator="§5–6" /> Cross-signing can provide two validation paths during a root transition, but it adds a path to analyse rather than erasing the old trust relationship. Rollback must be rehearsed at the layer that actually controls acceptance—negotiation policy, issuance policy or trust-store distribution—not by assuming that deleting a local configuration reverses every certificate already issued. <Cite id="rfc5280" locator="§3.2 and §6" />
 </Lens>
 
 <Lens level={2} title="The TLS 1.3 flight, with PQC inserted">
@@ -88,10 +105,10 @@ Separate time horizons: protect ephemeral session keys against future decryption
 
 ## Key exchange details
 
-- The client advertises groups in `supported_groups` and sends one or more `key_share` entries. <Cite id="rfc8446" locator="§4.2.1" />
-- For X25519MLKEM768, the client sends an X25519 public value (32 B) and an ML-KEM-768 encapsulation key (1,184 B).
-- The server selects the group and returns an X25519 public value plus an ML-KEM ciphertext (1,088 B).
-- Both sides derive a classical shared secret (X25519 is specified in RFC 7748 <Cite id="rfc7748" locator="§5" />) and a PQ shared secret, concatenate them, and feed the result into the TLS key schedule.
+- The client advertises groups in `supported_groups` and sends one or more `key_share` entries. <Cite id="rfc9846" locator="§4.3.7 (supported_groups) and §4.3.8 (key_share)" />
+- For X25519MLKEM768, the client sends a 1,216-byte key share: the 1,184-byte ML-KEM-768 encapsulation key followed by the 32-byte X25519 public value. The name order is historical; the wire order is ML-KEM first. <Cite id="rfc10024" locator="§4.1" />
+- The server selects the group and returns a 1,120-byte share: the 1,088-byte ML-KEM ciphertext followed by the 32-byte X25519 public value. <Cite id="rfc10024" locator="§4.2" />
+- Both sides derive a 32-byte X25519 shared secret (specified in RFC 7748 <Cite id="rfc7748" locator="§5" />) and a 32-byte ML-KEM shared secret. X25519MLKEM768 concatenates the ML-KEM secret first and the X25519 secret second, then feeds the resulting 64 bytes into the TLS key schedule. <Cite id="rfc10024" locator="§4.3" />
 
 ## Authentication details
 
@@ -114,7 +131,7 @@ For a rough planning model:
 Compression, shorter chains and cross-signing strategies can help, but they do not change the order of magnitude.
 
 <Callout variant="note" title="Crypto agility is a protocol feature">
-Algorithm identifiers, certificate extensions and negotiated groups must be able to change without a new protocol version. NIST IR 8547 treats agility as a central migration requirement. <Cite id="nist-ir8547" locator="§4" />
+Algorithm identifiers, certificate extensions and negotiated groups must be able to change without a new protocol version. NIST IR 8547 treats agility as a central migration requirement. <Cite id="nist-ir8547" locator="§1.1 and §4" />
 </Callout>
 
 
@@ -152,7 +169,7 @@ CertificateVerify signs a context string and transcript hash, authenticating the
   title="Key-share bytes in a hybrid ClientHello"
   steps={[
     "A classical X25519 key-share entry contains a 2-byte group identifier, a 2-byte length and a 32-byte public value, totalling 36 bytes.",
-    "The hybrid entry contains a 2-byte group identifier, a 2-byte length, 32 X25519 bytes and 1,184 ML-KEM-768 encapsulation-key bytes.",
+    "The hybrid entry contains a 2-byte group identifier, a 2-byte length, 1,184 ML-KEM-768 encapsulation-key bytes and then 32 X25519 bytes.",
     "The hybrid entry totals 1,220 bytes, an increase of 1,184 bytes over the classical entry.",
     "Adding ClientHello overhead and extensions typically yields a hybrid hello around 1.3 to 1.5 KB rather than a few hundred bytes.",
     "With an effective TCP payload limit of 1,460 bytes, most hybrid hellos fit one segment, but larger extension sets or MTU reductions can change that."
@@ -172,6 +189,36 @@ CertificateVerify signs a context string and transcript hash, authenticating the
   result="Certificate signatures, not just KEM ciphertexts, dominate the server flight. A two-certificate ML-DSA chain can exceed common fixed certificate buffers even when the key exchange itself succeeds."
 />
 
+## Account for every layer, not only the algorithm
+
+A TLS handshake message has a one-byte type and a three-byte length before its body. A `key_share` entry adds a two-byte group and a two-byte length around the component values. The hybrid construction deliberately concatenates fixed-length component values without adding internal lengths, so the selected group definition determines the component order and boundaries. For X25519MLKEM768, ML-KEM precedes X25519 despite the group&apos;s name. <Cite id="rfc9846" locator="§4 (Handshake) and §4.3.8 (KeyShare)" /> <Cite id="hybrid-design" locator="§3.1–3.3" /> <Cite id="rfc10024" locator="§4.1–4.3" /> A decoder that assumes one length field for the whole hybrid value, reverses the components, or accepts a shorter ML-KEM key is already incompatible even if its buffer is large enough.
+
+The following planning budget is intentionally explicit about assumptions. ML-DSA-65 contributes a 1,952-byte public key and 3,309-byte signature; those figures are fixed by the parameter set. Certificate names, extensions and DER overhead are not fixed, so the table reserves an engineering allowance rather than claiming a measured certificate size. <Cite id="fips204" locator="§4 (parameter sets)" /> The budget assumes a SHA-256 cipher suite, hence a 32-byte Finished verifier; SHA-384 increases the hash and verifier length. <Cite id="rfc9846" locator="§7.1" />
+
+| Flight component | Planning bytes | Basis |
+| --- | ---: | --- |
+| ServerHello | 1,200 | Assumed complete message for this exercise |
+| EncryptedExtensions | 100 | Assumed complete message |
+| Two ML-DSA-65 certificates | 12,022 | Two times 5,261 bytes of key/signature plus 750 bytes each for encoding and extensions |
+| Certificate message overhead | 6 | Three-byte handshake header, three-byte certificate-list length, two three-byte certificate lengths |
+| CertificateVerify | 3,317 | 3,309-byte signature, two-byte algorithm, two-byte signature length, four-byte handshake header |
+| Finished | 36 | Four-byte handshake header plus assumed 32-byte verifier |
+
+<WorkedExample
+  title="Budget a two-certificate flight over a reduced-MTU path"
+  steps={[
+    "Sum the handshake bodies: 1,200 + 100 + 12,028 + 3,317 + 36 = 16,681 bytes.",
+    "Assume five records: add five five-byte record headers and 16-byte AEAD tags to the four records after ServerHello, giving 16,770 TLS bytes on the wire before TCP/IP headers.",
+    "With a 1,200-byte path MTU and 40 bytes of IPv4/TCP header, TCP can carry at most 1,160 bytes per segment; ceil(16,770 / 1,160) = 15 segments.",
+    "With a 1,500-byte MTU, the 1,460-byte TCP payload gives ceil(16,770 / 1,460) = 12 segments.",
+    "The reduced path adds three segments and 120 bytes of TCP/IP headers in this no-loss model, before any retransmission, option or record-alignment effect.",
+    "A certificate message can fit within the 16,384-byte TLS plaintext record limit while the complete server flight still spans many TCP segments; these are different limits."
+  ]}
+  result="A roughly 16.8 KB planning flight becomes a 15-segment transfer on a 1,200-byte MTU path. Buffer, reassembly and latency tests must use the full flight and the real path, not only the KEM ciphertext or one certificate."
+/>
+
+This calculation does not imply that every implementation emits exactly five records. TLS permits handshake messages to span records, and a sender may coalesce or fragment differently. <Cite id="rfc9846" locator="§5.1" /> The invariant is that record-layer limits, TCP segmentation and application reassembly are separate. A middlebox that parses only the first segment sees neither the complete certificate message nor its final DER bytes. Measure record count, maximum segment size, retransmissions and the reassembly timeout on the production path; a lower MTU can expose a state bug that a laboratory 1,500-byte path never exercises.
+
 Choose the preferred hybrid group, key-share prediction, chain order and signature algorithms deliberately. A guessed key share can save a round trip but wastes bandwidth when unsupported. Shorter chains require valid issuer paths; cross-signing adds compatibility and another algorithm. Compress only when the full path supports it.
 
 A middlebox may drop a large ClientHello; a load balancer may fail to reassemble segments; an HSM may reject a long signature; a revocation service may time out. Test each boundary with the exact production chain and extensions, not a minimal laboratory chain.
@@ -181,9 +228,9 @@ A middlebox may drop a large ClientHello; a load balancer may fail to reassemble
 
 ## The TLS 1.3 key schedule
 
-TLS 1.3 uses HKDF with SHA-256 or SHA-384. The early secret, handshake secret and master secret are derived by `HKDF-Extract` and `HKDF-Expand-Label`. The transcript hash binds the handshake messages, including the key shares and certificates. <Cite id="rfc8446" locator="§4.4" />
+TLS 1.3 uses HKDF with SHA-256 or SHA-384. The early secret, handshake secret and main secret are derived by `HKDF-Extract` and `HKDF-Expand-Label`. The transcript hash binds the handshake messages, including the key shares and certificates. <Cite id="rfc9846" locator="§7.1" /> HKDF's extract and expand steps, including the role of contextual `info`, are defined separately. <Cite id="rfc5869" locator="§2" />
 
-For a hybrid group, the input keying material is a concatenation of the component shared secrets. The hybrid design draft specifies how the group is encoded and how the combined secret is formed, including domain separation. <Cite id="hybrid-design" locator="§3–4" />
+For a hybrid group, the input keying material is a concatenation of the component shared secrets. The hybrid key-exchange design specifies how the group is encoded and how the combined secret is formed, including domain separation. <Cite id="hybrid-design" locator="§1.2 and §3.1–3.3" />
 
 <Figure caption="Break either KEM component, or change one peer's context label, to see when a hybrid traffic key remains protected and when the peers derive different keys.">
   <HybridCombinerLab />
@@ -217,7 +264,7 @@ CRLs and OCSP responses grow with certificate size and signature size. Certifica
 
 ## The key schedule and hybrid security
 
-TLS 1.3 derives handshake and application secrets with HKDF. The hybrid group supplies input keying material containing both the classical and PQ shared secrets. The hybrid design must define the encoding, ordering and domain separation so both peers derive the same value and an attacker cannot splice components across groups.
+TLS 1.3 derives handshake and application secrets with HKDF. The hybrid group supplies input keying material containing both the classical and PQ shared secrets. The group definition fixes encoding, ordering and domain separation: X25519MLKEM768 uses ML-KEM then X25519 for both its key shares and its shared secret. <Cite id="rfc10024" locator="§4.1–4.3" />
 
 A reduction for a hybrid combiner typically argues that if the derived key is distinguishable, then either the KDF is broken or at least one component secret is distinguishable. This is why the protocol must not silently fall back or accept a mismatched group.
 
@@ -238,13 +285,13 @@ $$
 \text{HandshakeSecret}=\operatorname{Extract}(\text{DerivedSecret},\text{IKM}),
 $$
 
-where IKM is the key-exchange output and a zero PSK means no early data. Labelled HKDF expansions derive master and directional traffic secrets, preventing purpose collisions. <Cite id="rfc8446" locator="§4.4" /> Exact context strings and ordering are normative; this notation only explains the structure.
+where IKM is the key-exchange output and a zero PSK means no early data. Labelled HKDF expansions derive main and directional traffic secrets, preventing purpose collisions. <Cite id="rfc9846" locator="§7.1" /> Exact context strings and ordering are normative; this notation only explains the structure.
 
 The transcript hash commits to ClientHello, ServerHello, key shares, certificates, CertificateVerify and Finished. Record sequence numbers distinguish records within a connection. Fresh ephemeral secrets provide forward secrecy: compromising a long-term authentication key does not automatically reveal past session keys.
 
 ### Hybrid security argument
 
-Let $Z_c$ and $Z_p$ be classical and post-quantum shared secrets. The group maps them into IKM with specified encoding and domain separation. If at least one component remains unknown to the adversary, the combiner should leave derived keys indistinguishable from random; a reduction attacks either the KDF or a component secret. <Cite id="hybrid-design" locator="§3–4" />
+Let $Z_c$ and $Z_p$ be classical and post-quantum shared secrets. The group maps them into IKM with specified encoding and domain separation; for X25519MLKEM768 the order is $Z_p \,\|\, Z_c$, not the order suggested by the group&apos;s name. If at least one component remains unknown to the adversary, the combiner should leave derived keys indistinguishable from random; a reduction attacks either the KDF or a component secret. <Cite id="hybrid-design" locator="§3.3 and §6" /> <Cite id="rfc10024" locator="§4.3" />
 
 This requires correct negotiation, valid key shares, transcript binding and no silent fallback. It does not protect compromised endpoints, stolen server keys or accepted classical-only downgrades, nor does it make both components equally strong.
 
@@ -255,6 +302,26 @@ ML-KEM uses implicit rejection to avoid a decapsulation oracle. Timing differenc
 A verifier builds a path to a trust anchor, checking signatures, validity, name constraints, key usage, policy and revocation. <Cite id="rfc5280" locator="§4" /> PQ changes sizes and identifiers, not these semantics. A cryptographically valid chain can still authenticate the wrong identity.
 
 For $m$ transmitted ML-DSA-65 certificates, keys and signatures alone contribute $m(1,952+3,309)$ bytes. The root usually stays in the trust store, so a three-certificate hierarchy normally sends two. Include extensions, names, CertificateVerify, Finished and record headers in capacity plans; size revocation and transparency pipelines separately.
+
+## Read the transcript like a state machine
+
+The key schedule is not one hash of “the handshake”. With no pre-shared key, the early secret is extracted from zeros; the handshake secret then absorbs the negotiated shared secret; a second `derived` step precedes extraction of the main secret. The cipher-suite hash selects SHA-256 or SHA-384, and `HKDF-Expand-Label` prefixes labels with `tls13 ` and encodes length and context. Labels such as `c hs traffic`, `s hs traffic`, `c ap traffic` and `s ap traffic` keep client and server purposes distinct. <Cite id="rfc9846" locator="§7.1" /> This is why reusing a derived secret for both directions, or omitting the label context, is not an equivalent implementation.
+
+The transcript hash covers each included handshake message together with its type and length, but not record-layer headers. Changing TCP segmentation therefore need not change the transcript; changing a length field, a group identifier or any certificate byte does. A HelloRetryRequest is also special: the original ClientHello is represented in the continuing transcript by a synthetic `message_hash` message, so retrying negotiation does not discard the first offer. <Cite id="rfc9846" locator="§4.2.4" />
+
+`CertificateVerify` proves possession of the certificate's private key and authenticates the negotiation. The signed input is 64 bytes of space, an ASCII context string, a zero separator and the transcript hash through the Certificate message. Server and client contexts differ, which prevents a signature made for one role from being replayed as the other. `Finished` then provides key confirmation and handshake integrity using a verifier derived from the directional handshake traffic secret. Both application traffic secrets use the transcript through the server's Finished; the resumption main secret extends through the client's Finished. <Cite id="rfc9846" locator="§4.5.2–4.5.3 and §7.1" />
+
+| Observation | Object that fails | First discriminator | Security consequence |
+| --- | --- | --- | --- |
+| Certificate signature invalid | Issuer-to-subject binding | Verify DER `tbsCertificate` with the issuer key | Reject the path; a valid handshake MAC cannot repair it |
+| Hostname or constraint mismatch | Identity or policy | Compare reference identity and constrained subtrees | A genuine certificate can still authenticate the wrong service |
+| CertificateVerify invalid | Private-key possession or transcript | Verify the exact context, transcript hash and algorithm | Reject before releasing application data |
+| Finished mismatch | Derived key or transcript state | Compare negotiated group, hash, labels and both transcripts | Abort; never retry with a weaker group automatically |
+| Revocation unavailable | Status policy | Inspect AIA/CRL metadata, cache age and configured failure mode | Apply the documented fail-open or fail-closed policy |
+
+RFC 5280 separates basic path processing from wrap-up and revocation handling. A signature-valid chain can still fail on validity, basic constraints, key usage, name constraints or policy, and a relying party must apply its revocation inputs rather than treating expiry as the only invalidation condition. <Cite id="rfc5280" locator="§6.1–6.3" /> CRLs trade publication latency and download size against repository independence; online status can reduce propagation delay but introduces a service that the validator must trust and reach. <Cite id="rfc5280" locator="§3.3" /> Record which branch of that policy failed so that an outage is not misdiagnosed as a bad PQC signature.
+
+Finally, a certificate or HSM key has lifecycle state independent of any one handshake. Revocation ends reliance on a certificate; deactivation ends new key use; destruction addresses residual copies and backups. Those transitions need separate authority, logging and recovery procedures, especially when the same hardware protects both short-lived TLS keys and a root ceremony. <Cite id="sp800-57pt1r5" locator="§5–6" />
 </Lens>
 
 <Lens level={4} title="Buffers, middleboxes, HSMs and firmware">
@@ -264,7 +331,7 @@ For $m$ transmitted ML-DSA-65 certificates, keys and signatures alone contribute
 PQC in TLS fails in the same places classical TLS fails, only sooner:
 
 - **TCP segmentation and MTU:** a 4–10 KB handshake spans multiple segments. Some middleboxes assume one segment.
-- **Record fragmentation:** TLS records have a plaintext limit of $2^{14}$ bytes; handshake messages can span records, but implementations must reassemble correctly. <Cite id="rfc8446" locator="§5.1" />
+- **Record fragmentation:** TLS records have a plaintext limit of $2^{14}$ bytes; handshake messages can span records, but implementations must reassemble correctly. <Cite id="rfc9846" locator="§5.1" />
 - **Buffer limits:** 2 KB ClientHello buffers, 4 KB certificate buffers and fixed-size HSM command buffers are common.
 - **Parsers:** length fields and extensions must be checked; a larger certificate is a larger attack surface.
 - **Hardware:** HSMs and secure elements need firmware support for ML-KEM and ML-DSA, plus enough command-buffer space.
@@ -293,7 +360,7 @@ A server that reveals whether a PQ key share was malformed, or that falls back o
 
 ## Interoperability
 
-Use standard test vectors and independent implementations. `liboqs` and the Open Quantum Safe provider ecosystem are useful for experimentation, but production deployment needs audited protocol stacks and hardware. <Cite id="liboqs" /> <Cite id="fips204" locator="§3.6" />
+Use standard test vectors and independent implementations. `liboqs` and the Open Quantum Safe provider ecosystem are useful for experimentation, but production deployment needs audited protocol stacks and hardware. <Cite id="liboqs" locator="README (experimental status) and provider test harness" /> <Cite id="fips204" locator="§3.6" />
 
 <KnowledgeCheck
   question="Why can a larger TLS handshake break a connection that works with classical cryptography?"
@@ -339,6 +406,24 @@ Budget both directions. Larger ClientHellos consume constrained uplink; certific
 Test independent implementations across groups, chains, TLS versions, middleboxes, MTUs and proxy modes. Use known-answer vectors plus protocol negatives: unknown groups, malformed shares, bad signatures, expired certificates and missing intermediates. None may trigger fallback.
 
 Instrument failures by stage: ClientHello rejection, no shared group, path failure, signature failure, reassembly timeout or Finished mismatch. Aggregate by release, client family and network without retaining sensitive handshake contents. Alert on negotiation, chain-size and fallback shifts.
+
+## Capacity, failure and rollback are one design
+
+A buffer sized for one certificate is not necessarily sized for the complete handshake state. The parser may retain the ClientHello while requesting a key share, accumulate a fragmented Certificate message, hold a transcript hash and keep separate directional write state. Under connection churn, the relevant memory is per-concurrent-handshake, not per-second throughput. As an arithmetic illustration, retaining 20 KB of handshake state for 1,000 simultaneous connections consumes about 20 MB before allocator overhead, alternative certificate chains and retry state. That is not a universal requirement; it shows why a capacity test must record both peak concurrency and bytes retained per connection.
+
+Hardware limits need the same treatment. An HSM command carries framing, algorithm identifiers, key handles and attributes in addition to the 3,309-byte ML-DSA-65 signature. A device that can generate a large key may still reject a signing command or return it in fragments that the caller cannot reassemble. NIST's final transition report calls out firmware or hardware changes for larger keys and different computational requirements, not merely a software-library upgrade. <Cite id="nist-ir8547" locator="§2.2.3" /> Test key generation, signing, verification where supported, command fragmentation, backup and restore with the exact firmware release and production role.
+
+Rollback must preserve the security property being migrated. Restoring a previous load balancer is useful only if its policy still requires hybrid key exchange on protected routes. Conversely, retrying every failed hybrid handshake with classical-only X25519 can turn a parser limit or transient decapsulation failure into a downgrade mechanism. TLS 1.3 already defines a HelloRetryRequest for an unacceptable or missing key share, and the transcript remains bound across that retry; a retry is not permission to negotiate a different, weaker security policy. <Cite id="rfc9846" locator="§2.1 and §4.2.4" /> ML-KEM's implicit rejection returns a pseudorandom shared secret on invalid ciphertext rather than a distinct error, so external logs should not expose a decapsulation oracle. <Cite id="fips203" locator="§7.3 (Decapsulation)" />
+
+| Rollout control | Measure before enforcement | Safe response to regression | Unsafe response |
+| --- | --- | --- | --- |
+| Hybrid offer | Negotiation rate and failure stage by client family | Pause expansion; retain policy on protected routes | Retry the same request classically |
+| Certificate chain | DER size, record count and path-validation result | Restore a previously tested valid chain | Strip constraints or trust an unknown issuer |
+| HSM signing | Command duration, fragmentation and error class | Fail over to a tested compatible module | Export the private key to software |
+| Trust-anchor change | Device update success and old/new path acceptance | Continue dual trust within the approved window | Remove the old anchor from unreachable devices |
+| Parser release | Malformed-message and reassembly test results | Roll back the parser build | Treat parse failure as benign traffic |
+
+Use standard test vectors and independent implementations as a starting point, not as proof that a protocol integration is correct. `liboqs` and the Open Quantum Safe provider ecosystem are useful for algorithm experimentation; production needs an audited protocol stack, explicit key lifecycle and hardware whose behaviour has been measured under failure. <Cite id="liboqs" locator="Reference implementations and KEM/signature test harness" /> A staged rollout is complete only when the telemetry can distinguish a cryptographic rejection, a size-related parser rejection and a policy-enforced downgrade refusal—and when the tested rollback does not erase that distinction.
 
 Operate PKI as a lifecycle. Inventory certificate owners, algorithms, expiry, issuance and revocation dependencies. Test CA failover, HSM firmware, root rotation and emergency revocation. Long-lived code-signing migration must cover spares, field updates and offline recovery.
 

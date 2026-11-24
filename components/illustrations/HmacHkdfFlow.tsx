@@ -1,4 +1,5 @@
 import { ArrowRight, Fingerprint, KeyRound } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function HmacHkdfFlow() {
   return (
@@ -24,6 +25,7 @@ export function HmacHkdfFlow() {
             <p className="text-emerald-700">tag · constant-time compare</p>
           </div>
         </div>
+        <p className="mt-3 text-[9px] text-muted"><Cite id="rfc2104" locator="§2–3" /></p>
       </div>
 
       <div className="rounded-xl border border-coral-200 bg-coral-50/60 p-4">
@@ -47,6 +49,7 @@ export function HmacHkdfFlow() {
             <div className="rounded-lg border border-line bg-white p-2 text-center text-[9px] font-semibold text-navy">MAC key</div>
           </div>
         </div>
+        <p className="mt-3 text-[9px] text-muted"><Cite id="rfc5869" locator="§2–3" /></p>
       </div>
     </div>
   );

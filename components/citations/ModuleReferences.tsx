@@ -1,7 +1,7 @@
 import { getCitations, citationHref, formatAuthors } from "@/lib/citations";
 import { Cite } from "@/components/citations/Cite";
 
-export function ModuleReferences({ ids }: { ids: string[] }) {
+export function ModuleReferences({ ids, title = "Primary sources for this module" }: { ids: string[]; title?: string }) {
   const citations = getCitations(ids);
   if (citations.length === 0) return null;
 
@@ -9,7 +9,7 @@ export function ModuleReferences({ ids }: { ids: string[] }) {
     <section className="mt-12 rounded-2xl border border-line bg-ink-850/50 p-5" aria-labelledby="module-sources">
       <div className="flex items-center justify-between gap-4">
         <h2 id="module-sources" className="font-mono text-xs uppercase tracking-[0.18em] text-cyber-cyan">
-          Primary sources for this module
+          {title}
         </h2>
         <span className="chip">{citations.length} refs</span>
       </div>

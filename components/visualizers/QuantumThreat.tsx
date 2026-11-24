@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Cite } from "@/components/citations/Cite";
 
 const DATA = [
   { name: "RSA-2048 / DH-2048", classical: 112, quantum: 0, reason: "Shor · factoring & discrete log" },
@@ -84,7 +85,8 @@ export function QuantumThreat() {
       </div>
       <p className="mt-3 text-[11px] leading-5 text-slate-500">
         Estimates are coarse and assume a cryptographically relevant quantum computer. They explain the
-        migration logic, not a precise attack budget.
+        migration logic, not a precise attack budget. Sources: <Cite id="shor1994" locator="pp. 124–134" />{" "}
+        <Cite id="grover1996" locator="pp. 212–219" /> <Cite id="nist-ir8105" locator="§4" />
       </p>
     </div>
   );

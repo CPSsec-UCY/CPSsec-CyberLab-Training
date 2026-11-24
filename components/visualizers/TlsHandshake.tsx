@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeftRight, Server, User } from "lucide-react";
+import { SequenceControls } from "@/components/visualizers/SequenceControls";
+import { useSequencePlayer } from "@/components/visualizers/useSequencePlayer";
+import { Cite } from "@/components/citations/Cite";
 
 const FLIGHT = [
   {
     side: "client" as const,
     title: "ClientHello",
     detail:
-      "Offers the hybrid group X25519MLKEM768 in supported_groups and sends an X25519 share (32 B) plus an ML-KEM-768 encapsulation key (1,184 B). It also advertises ML-DSA-65 for authentication.",
+      "Offers the hybrid group X25519MLKEM768 in supported_groups and sends a 1,216-byte key share: the ML-KEM-768 encapsulation key (1,184 B) followed by the X25519 share (32 B). It also advertises ML-DSA-65 for authentication.",
     size: 1300,
   },
   {
     side: "server" as const,
     title: "ServerHello",
     detail:
-      "Selects the hybrid group, returns an X25519 share (32 B) and an ML-KEM-768 ciphertext (1,088 B). Both sides derive a combined secret from the two shared secrets.",
+      "Selects the hybrid group and returns a 1,120-byte key share: the ML-KEM-768 ciphertext (1,088 B) followed by the X25519 share (32 B). Both sides form the 64-byte shared secret in the same ML-KEM-then-X25519 order.",
     size: 1200,
   },
   {
@@ -43,7 +45,8 @@ const FLIGHT = [
 ];
 
 export function TlsHandshake() {
-  const [active, setActive] = useState(0);
+  const player = useSequencePlayer(FLIGHT.length, 2800);
+  const active = player.step;
   const item = FLIGHT[active];
 
   return (
@@ -56,7 +59,7 @@ export function TlsHandshake() {
             <button
               key={step.title}
               type="button"
-              onClick={() => setActive(index)}
+              onClick={() => player.select(index)}
               className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                 isActive
                   ? "border-cyber-cyan/40 bg-cyber-cyan/[0.07]"
@@ -93,10 +96,23 @@ export function TlsHandshake() {
         <p className="mt-2 text-sm leading-6 text-slate-300">{item.detail}</p>
       </motion.div>
 
+      <SequenceControls
+        label="TLS handshake"
+        step={player.step}
+        length={FLIGHT.length}
+        playing={player.playing}
+        onSelect={player.select}
+        onToggle={player.toggle}
+        onRestart={player.restart}
+      />
+
       <div className="mt-4 rounded-lg border border-cyber-amber/25 bg-cyber-amber/[0.06] p-3 text-[11px] leading-5 text-slate-400">
         A classical TLS 1.3 handshake often fits comfortably below common path MTUs. PQC keys and signatures
         can push the first flight past 4 KB, exposing fragmentation bugs and middlebox assumptions. Hybrid
-        groups keep a classical fallback while the ecosystem matures.
+        groups can retain a negotiated classical fallback during staged rollout, but it must be
+        policy-controlled, observable and retired. Never silently downgrade after a PQ error.{" "}
+        <Cite id="rfc9846" locator="§4.3.7–4.3.8" /> <Cite id="hybrid-design" locator="§3.1–3.3" />{" "}
+        <Cite id="rfc10024" locator="§4.1–4.3" />
       </div>
     </div>
   );

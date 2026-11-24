@@ -1,4 +1,5 @@
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 const ROWS = [
   { field: "source / destination IP", plain: true, tls: true },
@@ -31,7 +32,7 @@ export function DpiVisibility() {
         ))}
       </div>
       <p className="mt-3 text-center text-[9px] leading-4 text-muted">
-        Visibility depends on the protocol version, extensions and deployment. SNI may be hidden by encrypted client hello in some configurations.
+        Visibility depends on the protocol version, extensions and deployment. Do not treat client-hello metadata as universally observable. <Cite id="rfc9846" locator="§4.2" />
       </p>
     </div>
   );

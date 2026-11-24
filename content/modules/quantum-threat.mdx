@@ -8,7 +8,7 @@ difficulty: "Introductory"
 readingTime: 75
 summary: "Separate the two quantum algorithms that matter, map them onto real primitives, and turn an uncertain timeline into a concrete migration plan."
 outcomes: ["Distinguish Shor’s structural break from Grover’s quadratic speed-up.", "Map quantum risk onto RSA, ECC, symmetric ciphers, hashes and deployed protocols.", "Prioritise assets using confidentiality lifetime and migration lead time.", "Design a hybrid migration with crypto agility and measurable rollback criteria."]
-citations: ["shor1994", "grover1996", "nist-ir8105", "nist-ir8547", "nist-ir8545", "nist-pqc", "castryck-decru2023", "mceliece-spec", "fips203"]
+citations: ["shor1994", "grover1996", "brassard-hoyer-tapp1998", "mosca2018", "gidney-ekera2021", "roetteler2017", "nist-ir8105", "nist-ir8547", "nist-ir8545", "nist-pqc", "castryck-decru2023", "mceliece-spec", "fips203", "fips197", "fips180-4", "rfc9846", "hybrid-design", "rfc10024"]
 tags: ["quantum", "migration", "threat-model"]
 prerequisites: []
 updated: "2026-11-24"
@@ -55,13 +55,28 @@ The 2022 break of SIKE is a useful antidote to complacency: a scheme that surviv
 
 A hospital archives genomic records with a 25-year confidentiality requirement. The adversary records today's TLS sessions and waits. If a cryptographically relevant quantum computer arrives in 15 years, the data still has a decade of sensitivity left. The attack does not need to succeed today; it only needs the ciphertext and time.
 
-This is why “we will migrate when the quantum computer exists” is not a plan. The relevant deadline is the point at which the protected data stops being sensitive, minus the time required to inventory, procure, deploy and validate the replacement. <Cite id="nist-ir8547" locator="§4" />
+This is why “we will migrate when the quantum computer exists” is not a plan. The relevant deadline is the point at which the protected data stops being sensitive, minus the time required to inventory, procure, deploy and validate the replacement. NIST discusses this timeline logic alongside its transition schedule. <Cite id="nist-ir8547" locator="§3–4" />
 
 ## Build the threat model from the asset
 
 Start with a bounded question: which adversary can obtain which ciphertext, how long can they retain it, and what would success be worth? A passive observer may record clinical transfers cheaply and wait; a compromised backup operator may obtain ciphertext in bulk. Neither needs to break TLS today. Their incentive is the future value of the data. NIST separates cryptographic impact from operational transition because these are different risk calculations. <Cite id="nist-ir8105" locator="§4–5" />
 
 The defender faces costly gateway, device and archive upgrades. Spend effort where confidentiality lifetime, migration lead time and retrospective-disclosure cost are all high. A short public web session and a 25-year genomic archive may use the same TLS library but have different quantum deadlines. Record those lifetimes before choosing an algorithm.
+
+### Sensitivity is a date range, not a single label
+
+An archive does not have one exposure deadline. If records arrive continuously, each cohort has its own creation date, retention rule and migration route. Let a record created at time $C$ need secrecy until $E$, and suppose the replacement becomes available at time $T$. An adversary who records traffic at time $C$ and can decrypt at time $B$ obtains the plaintext when $C \le B < E$. Upgrading at $T$ protects later traffic but cannot retroactively protect earlier ciphertext.
+
+Consider a five-year collection of genomic records, each retained for ten years, with a four-year migration. Under a twelve-year quantum-arrival scenario, the first cohort stops being sensitive at year 15 and the last at year 20. Completing migration at year 4 protects traffic created afterwards, but ciphertext captured in years 0–4 remains exposed from year 12 until its own expiry: three years for the first cohort and eight years for the last. The planning question is therefore not only “when do we finish?” but “which already-recorded cohorts can we tolerate exposing, and can we re-wrap or selectively destroy them?”
+
+This changes the inventory. Store the creation time, required sensitivity end date, storage cipher, key-wrapping key and feasible re-encryption route for each cohort. Authenticity has a different clock: a forged firmware update can cause harm immediately and can remain dangerous for the device's service life, so signature migration cannot borrow the confidentiality calculation unchanged. NIST distinguishes these use cases and stresses that past migrations have taken over a decade. <Cite id="nist-ir8547" locator="§3 and §3.1.1" />
+
+| Asset cohort | Relevant clock | Useful action before quantum arrival |
+| --- | --- | --- |
+| Fresh interactive traffic | Session lifetime plus future replay value | Negotiate hybrid key establishment now |
+| Historical encrypted archive | Latest sensitivity date of any retained record | Prioritise re-wrapping, key rotation or verified deletion |
+| Firmware signing root | Lifetime of every device that trusts it | Build a second verification path before rotating |
+| Published signed manifest | Authenticity and non-repudiation policy | Plan cross-signing and timestamped re-issuance |
 
 ### Prerequisites and boundaries
 
@@ -74,6 +89,8 @@ Three misconceptions cause bad decisions. A quantum computer is not a universal 
   steps={["Let X = 25 years of required confidentiality for a genomic record created today.", "Let Y = 5 years to inventory, procure, test and complete the hospital migration.", "For planning scenarios Z = 15 years or Z = 25 years until a cryptographically relevant quantum computer.", "Apply Mosca’s condition X + Y > Z and compute the latest start as Z - Y."]}
   result="With Z = 15, the inequality is 30 > 15, and migration should start within 10 years. With Z = 25, the margin is only 5 years. Reducing Y through early inventory and pilot deployments is useful under either forecast."
 />
+
+This is Mosca's migration-timing condition. It is a planning heuristic for choosing when to start, not a method for predicting $Z$; its value is that reducing $Y$ helps under every arrival scenario. <Cite id="mosca2018" locator="Vol. 16, No. 5, pp. 38–41" />
 </Lens>
 
 <Lens level={2} title="Mapping the damage across deployed primitives">
@@ -89,7 +106,7 @@ Three misconceptions cause bad decisions. A quantum computer is not a universal 
 | Hashing | SHA-256/384/512 | Grover/BHT reduce margins | Use standard PQC parameter sets |
 | Code-based KEM | Classic McEliece | No known efficient quantum attack | Candidate / niche deployments |
 
-NIST finalised the first three post-quantum standards in August 2024: ML-KEM for key encapsulation, ML-DSA for signatures, and SLH-DSA for stateless hash-based signatures. <Cite id="fips203" locator="§1" /> <Cite id="nist-pqc" /> HQC was selected in 2025 as an additional code-based KEM, and additional signature schemes remain on the standardisation track. <Cite id="nist-ir8545" locator="§3–4" />
+NIST finalised the first three post-quantum standards in August 2024: ML-KEM for key encapsulation, ML-DSA for signatures, and SLH-DSA for stateless hash-based signatures. <Cite id="fips203" locator="§1" /> <Cite id="nist-pqc" locator="Selected algorithms and migration resources" /> HQC was selected in 2025 as an additional code-based KEM, and additional signature schemes remain on the standardisation track. <Cite id="nist-ir8545" locator="§3–4" />
 
 ## Security categories, not bit counts
 
@@ -100,6 +117,24 @@ NIST's PQC categories compare schemes to familiar symmetric targets:
 - **Category 5** — roughly AES-256.
 
 These are comparison points, not proofs, and they apply to the whole scheme rather than to a single parameter. A category-3 KEM and a category-3 signature can have very different key sizes and failure modes.
+
+### From a category label to an attack budget
+
+A category is useful for procurement, but it is not an instruction to count all attacks in the same units. Generic quantum search, collision search and Shor's polynomial-time algorithms occupy different cost models. The table below uses idealised query counts; it deliberately excludes gate costs, parallelism, error correction and implementation constants.
+
+| Operation | Classical generic model | Quantum generic model | Planning consequence |
+| --- | --- | --- | --- |
+| AES-128 key recovery | $2^{128}$ trial keys | About $2^{64}$ Grover iterations | Do not describe AES-128 as retaining 128 quantum bits |
+| AES-256 key recovery | $2^{256}$ trial keys | About $2^{128}$ Grover iterations | A common quantum margin for long-lived bulk data |
+| SHA-256 preimage | $2^{256}$ trials | About $2^{128}$ oracle calls | Hashing is weakened, not eliminated |
+| SHA-256 collision | About $2^{128}$ work | About $2^{85}$ in the balanced BHT query model | Collision resistance has a smaller quantum margin than preimage resistance |
+| RSA or elliptic-curve key recovery | Subexponential or exponential classical models | Polynomial-time order finding | Increasing the classical bit length is not a durable repair |
+
+The AES values follow from Grover's search bound, not from a benchmark of a quantum AES implementation. <Cite id="grover1996" locator="pp. 212–219" /> <Cite id="fips197" locator="§4–6" /> The hash rows distinguish preimage and collision properties; NIST's impact analysis treats them separately. <Cite id="nist-ir8105" locator="§4" /> <Cite id="fips180-4" locator="§4–6" />
+
+Two mistakes follow from reading this table too literally. First, $2^{64}$ oracle calls is not $2^{64}$ CPU cycles: each call must run a reversible cipher predicate coherently, and the complete circuit may be vastly more expensive. Second, a PQC category is not automatically obtained by halving an AES bit count. Lattice attacks are not unstructured key search, and their estimates use different algorithms and security criteria. Record the category, the best-known attack model and the date of the assessment as separate fields.
+
+For hybrid transport, the protocol's combiner and transcript binding matter as much as either component's category. TLS 1.3 defines the key schedule into which a negotiated group's output is placed; it does not make arbitrary concatenation safe. <Cite id="rfc9846" locator="§7.1" />
 
 <Figure caption="A short migration timeline. The dates are proposals and standardisation milestones, not a prediction of when a cryptographically relevant quantum computer will exist.">
   <QuantumTimeline />
@@ -118,7 +153,7 @@ The practical order is usually:
 3. **Protocols with baked-in algorithms** — proprietary VPNs, smart-card protocols, industrial systems.
 4. **Data-at-rest and archives** — often symmetric and less urgent, but key-wrapping layers still need review.
 
-NIST IR 8547 sketches a transition in which 112-bit classical algorithms are deprecated after 2030 and disallowed after 2035 for federal use; it is a draft proposal, but a useful planning signal. <Cite id="nist-ir8547" locator="§4–5" />
+NIST IR 8547 (final, October 2026) deprecates quantum-vulnerable public-key cryptography after 2030 and disallows it under NIST standards and guidelines after 2035. Federal high-value and high-impact systems face earlier deadlines: post-quantum key establishment by 31 December 2030 and digital signatures by 31 December 2031. <Cite id="nist-ir8547" locator="§4 and Tables 2–5" />
 
 <Callout variant="note" title="Hybrid is the default, not a compromise">
 Combining X25519 with ML-KEM means traffic stays secure if either component survives. It also gives the ecosystem time to find implementation bugs in the new component without betting everything on it.
@@ -126,20 +161,20 @@ Combining X25519 with ML-KEM means traffic stays secure if either component surv
 
 ## A hybrid handshake, field by field
 
-Consider an X25519MLKEM768-style group. The client generates an ephemeral X25519 key pair and an ML-KEM-768 key pair. It sends the 32-byte X25519 public key and the 1,184-byte ML-KEM encapsulation key. The server sends its 32-byte X25519 public key plus a 1,088-byte ML-KEM ciphertext. Both sides now have a classical shared secret and a 32-byte ML-KEM shared secret. The sizes are fixed by the ML-KEM parameter set, not guessed from the name. <Cite id="fips203" locator="Table 3" /> NIST’s transition guidance supports hybrid deployment as a way to retain classical protections while the new ecosystem matures. <Cite id="nist-ir8547" locator="§4" />
+Consider the standardized X25519MLKEM768 group. The client generates an ephemeral X25519 key pair and an ML-KEM-768 key pair. Its 1,216-byte key share is the 1,184-byte ML-KEM encapsulation key followed by the 32-byte X25519 public key; the reversed name order is a historical convention, not the wire order. The server&apos;s 1,120-byte share is the 1,088-byte ML-KEM ciphertext followed by its 32-byte X25519 public key. Both sides obtain a 32-byte secret from each component and form the 64-byte shared secret in the same ML-KEM-then-X25519 order. <Cite id="rfc10024" locator="§4.1–4.3" /> The sizes are fixed by the selected group and parameter set, not guessed from the name. <Cite id="fips203" locator="Table 3" /> NIST’s final transition guidance supports hybrid deployment as a hedge against cryptanalytic or implementation failure, while stressing that hybrids add complexity and are usually temporary. <Cite id="nist-ir8547" locator="§3.2–3.2.1" />
 
 <ProcessFlow
   steps={[
     {title: "Offer", detail: "Client advertises the hybrid group alongside a classical fallback policy.", tone: "brand"},
     {title: "Generate", detail: "Client creates fresh X25519 and ML-KEM key pairs from approved randomness.", tone: "brand"},
-    {title: "Send shares", detail: "ClientHello carries 32 X25519 bytes and 1,184 ML-KEM bytes.", tone: "brand"},
-    {title: "Encapsulate", detail: "Server produces its X25519 share and a 1,088-byte ML-KEM ciphertext.", tone: "brand"},
+    {title: "Send shares", detail: "ClientHello carries 1,184 ML-KEM bytes followed by 32 X25519 bytes.", tone: "brand"},
+    {title: "Encapsulate", detail: "Server produces a 1,088-byte ML-KEM ciphertext followed by its 32-byte X25519 share.", tone: "brand"},
     {title: "Combine", detail: "The protocol-defined KDF binds both secrets and the handshake context.", tone: "brand"},
     {title: "Authenticate", detail: "Certificate verification and the Finished exchange bind the negotiated keys.", tone: "brand"}
   ]}
 />
 
-The transcript and key schedule are protocol-defined. Do not replace them with `concat(secret1, secret2)`. Label both components and bind the group and transcript through the existing KDF. A server must not silently select the classical half because a large ClientHello was inconvenient; that lets an attacker steer clients away from PQC. Rollback is a controlled action, not a negotiation outcome.
+The transcript and key schedule are protocol-defined. RFC 9954&apos;s TLS construction concatenates fixed-length component secrets in the group-defined order and passes the result into the TLS key schedule; the security argument depends on that exact encoding and transcript binding. Do not invent a different order, add ambiguous length fields, or bypass the labelled HKDF schedule. <Cite id="hybrid-design" locator="§3.2–3.3 and §6" /> A server must not silently select the classical half because a large ClientHello was inconvenient; that lets an attacker steer clients away from PQC. Rollback is a controlled action, not a negotiation outcome.
 
 ML-KEM-768 is a common general-purpose balance; ML-KEM-1024 costs more bandwidth but targets a higher category. <Cite id="fips203" locator="Table 3" /> Use a hybrid when at least one component is independently trustworthy and the protocol specifies a sound combiner. PQC-only may suit a jointly upgraded closed fleet. Classical fallback needs an explicit retirement date, owner and telemetry signal.
 
@@ -191,19 +226,70 @@ $$
 \text{Grover preimage} \approx 2^{n/2}.
 $$
 
-## Interpreting the algorithms precisely
+## Shor's hidden engineering parameters
 
-For Shor’s factoring reduction, order finding does not return a factor directly. It returns the period $r$ of the map $x \mapsto a^x \bmod N$. Factoring succeeds when $r$ is even and $a^{r/2} \not\equiv \pm 1 \pmod N$, because the two greatest-common-divisor calculations then reveal non-trivial factors. In the toy modulus $N = 15$, choose $a = 7$. Since $7^2 = 49 \equiv 4 \pmod {15}$, the period is $4$; $\gcd(4-1,15)=3$ and $\gcd(4+1,15)=5$. This illustrates the algebra, not the resources needed for a real RSA modulus. <Cite id="shor1994" locator="pp. 124–134" />
+For factoring, order finding does not return a factor directly. It returns the period $r$ of $x \mapsto a^x \bmod N$. Factoring succeeds when $r$ is even and $a^{r/2} \not\equiv \pm1 \pmod N$; the two gcd calculations then reveal non-trivial factors. For $N=15$ and $a=7$, the period is $4$, because $7^2 \equiv4 \pmod{15}$, and $\gcd(4-1,15)=3$ while $\gcd(4+1,15)=5$. This checks the algebra, not the resources needed for RSA. <Cite id="shor1994" locator="pp. 124–134" />
 
-The quantum part estimates the period through phase estimation and continued fractions, with repetition for ambiguous measurements. The algorithm is polynomial in $\log N$, but hides constants, circuit depth, logical-qubit count and error-correction overhead. Those quantities determine whether a relevant machine exists; they do not change the structural conclusion once it does.
+Let $n=\lceil\log_2 N\rceil$. A straightforward reversible implementation repeatedly performs modular exponentiation using schoolbook modular multiplication. Multiplication of two $n$-bit integers uses $O(n^2)$ elementary reversible operations, and exponentiation invokes it $O(n)$ times, giving $O(n^3)$ operations before the phase-estimation circuit, continued-fraction processing and error-correction overhead. That is an implementation model, not a universal lower bound: optimized arithmetic changes the constants and the trade between qubits and depth, while Shor's structural conclusion remains polynomial time.
 
-For Grover, the idealised success probability after one full iteration cycle is high, and repeated oracle calls recover a marked item with $O(\sqrt{N})$ work. The usual constant is about $\pi/4$ cycles for one marked item. A 128-bit key therefore presents roughly $2^{64}$ quantum search work rather than $2^{128}$; a 256-bit key presents roughly $2^{128}$. These are security comparisons, not benchmarks of a particular implementation. Quantum hardware must implement a coherent reversible cipher oracle and sustain enough error-corrected operations for the attack to be practical. <Cite id="grover1996" locator="pp. 212–219" />
+### Anatomy of a resource estimate
+
+“Polynomial time” does not say whether an attack fits on a machine. A useful estimate separates quantities that are often conflated:
+
+| Quantity | What it measures | Why changing it changes the answer |
+| --- | --- | --- |
+| Logical qubits | Qubits after error correction | Arithmetic workspace, QFT registers and factories all contribute |
+| Logical operations | Gate count at the error-corrected level | Toffoli counts and rotation synthesis are not interchangeable |
+| Circuit depth | Longest dependency chain | Deep circuits need long coherence; wide circuits need more hardware |
+| Physical error model | Gate, measurement, idle and correlated errors | Determines code distance and logical failure probability |
+| Code cycle time | Time for one error-correction round | Converts logical depth into elapsed time |
+| Reaction time | Time to detect and correct a fault | Slower correction requires more redundancy |
+| Factories and routing | Magic-state supply and qubit movement | Can dominate area and wall-clock time despite a small core circuit |
+
+A schematic footprint is logical workspace multiplied by the spatial cost of the chosen code, plus routing and factory area. A schematic runtime is logical depth multiplied by code-cycle time, plus refresh, factory and classical-control overhead. Neither formula is a prediction until the code, hardware, arithmetic, parallelism and success probability are fixed. Two estimates are comparable only when they state those assumptions and count the same end-to-end task.
+
+A concrete example shows why the assumptions belong next to the headline. Gidney and Ekerå estimate that factoring RSA-2048 could take eight hours using 20 million noisy physical qubits, assuming a planar nearest-neighbour superconducting architecture, physical gate error rate $10^{-3}$, a one-microsecond surface-code cycle and a ten-microsecond reaction time. Their construction accounts for noise, repeated attempts and spacetime layout. In the abstract circuit model it uses $3n+0.002n\log_2 n$ logical qubits and $0.3n^3+0.0005n^3\log_2 n$ Toffoli gates for an $n$-bit modulus. These are conditional engineering estimates, not a demonstration that such a machine exists. <Cite id="gidney-ekera2021" locator="Vol. 5, Article 433, abstract and §2–4" />
+
+Elliptic-curve estimates expose a different tradeoff. Roetteler and colleagues give an abstract-circuit bound of $9n+2\lceil\log_2 n\rceil+10$ qubits and $448n^3\log_2 n+4090n^3$ Toffoli gates for discrete logarithms over an $n$-bit prime field. That is a gate-level resource model, not a physical-qubit count or wall-clock forecast. Comparing it directly with Gidney–Ekerå's 20 million physical qubits would compare unlike quantities. <Cite id="roetteler2017" locator="LNCS 10625, pp. 241–270" />
+
+This is why an estimate is evidence with an expiry date, not an arrival announcement. A smaller logical circuit can still be slower if it requires a deeper computation; a faster clock can be negated by worse error rates; and a low logical-gate count can hide expensive non-Clifford factories. Keep the estimate's source, target modulus, success probability, error model, cycle time and parallelism alongside any date derived from it.
+
+### What a resource estimate can and cannot settle
+
+An estimate can compare architectures under explicit assumptions and show which bottleneck matters most. It cannot establish a firm arrival date, because physical error rates, fabrication yield, routing, compiler quality and factory throughput are engineering forecasts rather than cryptographic constants. Algorithmic improvements can also change the circuit after publication. Treat a headline date as the output of a scenario, not as a measurement.
+
+Shor's discrete-logarithm reduction uses the same order-finding idea in a cyclic group, but the group-operation circuit differs between a finite field and an elliptic curve. Polynomial asymptotic complexity applies to both; gate cost, qubit layout and available parallelism do not transfer unchanged. This is another reason to keep “broken in principle” separate from “breakable by this machine by this date.” <Cite id="shor1994" locator="pp. 124–134" />
+
+For migration decisions, use ranges and triggers. A range might combine an early architectural scenario, a central estimate and a delayed-correction scenario. Triggers include a published circuit improvement, a demonstrated logical-gate milestone or a standards-policy deadline. Each trigger has an owner and a pre-agreed action, such as accelerating a pilot or retiring a fallback. This preserves the value of technical forecasts without making the security programme depend on predicting one exact year.
+
+## Grover as a bounded coherent search
+
+Suppose a search space has size $N$ and $M$ marked items. Set $\theta=\arcsin\sqrt{M/N}$. Starting from the standard uniform superposition, the probability of observing a marked item after $j$ full Grover iterations is $\sin^2((2j+1)\theta)$. For one marked item, the first maximum is near $\pi/4$ iterations; the cost is $O(\sqrt{N/M})$, not a promise that any fixed iteration count succeeds with certainty. <Cite id="grover1996" locator="pp. 212–219" />
+
+For key recovery, the oracle must coherently test a candidate key against a known plaintext-ciphertext relation. The query count is only the outer loop. A resource model must also count the reversible AES circuit in each query, the ancillas it needs, the uncomputation that restores workspace, and whether independent oracle evaluations can be parallelised. Trading more physical qubits for less depth can reduce runtime without reducing total gate work; quoting only the minimum of either number overstates what a machine can do.
 
 <Figure caption="Step through illustrative Shor order finding for factoring and discrete log, then compare it with Grover search. Toy values show the algorithmic structure and security-bit impact, not hardware resource estimates.">
   <QuantumAttackLab />
 </Figure>
 
-Collision search needs a different analysis. In the ideal random-oracle model, quantum algorithms trade depth against memory and achieve a generic cost around $2^{n/3}$ for an $n$-bit output. This is not a universal lower bound, nor a reason to replace SHA-256 immediately. It explains why hash-based signature parameters preserve a quantum margin. NIST distinguishes these attack settings rather than treating every hash property as preimage search. <Cite id="nist-ir8105" locator="§4" />
+## Collision search needs a memory model
+
+For an ideal random function with an $n$-bit output, the BHT family trades quantum oracle queries against stored quantum data. In its balanced regime, query time $q$ and memory $r$ satisfy the heuristic relation
+
+$$
+q^2 r \gtrsim 2^n,
+$$
+
+with the standard BHT operating point $q \approx r \approx 2^{n/3}$. For SHA-256 this gives the familiar query-model scale $2^{256/3}\approx2^{85.3}$. It is not a universal lower bound for every structured hash or every implementation, and memory retrieval is not free. It does explain why NIST treats collision resistance as a distinct quantum risk. <Cite id="brassard-hoyer-tapp1998" locator="LNCS 1380, pp. 163–169" /> <Cite id="nist-ir8105" locator="§4" />
+
+| Cost model | What a number means | What it omits |
+| --- | --- | --- |
+| Oracle queries | Calls to an idealised primitive | Cipher/hash circuit cost and workspace |
+| Logical gates | Error-corrected computational work | Physical code overhead and routing |
+| Circuit depth | Sequential dependency length | Available parallelism and factories |
+| Wall-clock estimate | Time under stated hardware assumptions | Forecast uncertainty and future optimisation |
+
+The security conclusion survives these omissions: Shor attacks the structure of factoring and discrete logarithms, whereas Grover and BHT change generic search margins. The omissions matter when deciding whether an attack is feasible on a particular machine, which is why migration policy should not wait for a single headline resource number.
 
 
 ## What a security category means
@@ -216,18 +302,6 @@ For lattice KEMs, the chain is roughly: break IND-CCA2 of the KEM $\Rightarrow$ 
 ## The honest uncertainty
 
 We do not know when a cryptographically relevant quantum computer will exist, and we do not have a proof that lattices are hard for quantum computers. What we do have is a large body of cryptanalysis, multiple independent families, and a standardisation process designed to avoid a single point of failure. Planning under uncertainty is exactly what hybrid deployment and crypto agility are for.
-
-
-
-## Mosca's inequality
-
-A useful planning heuristic is Mosca's inequality: if $X$ is the time your data must stay secret, $Y$ is the time needed to migrate, and $Z$ is the time until a quantum computer can break the cryptography, then you have a problem when
-
-$$
-X + Y > Z.
-$$
-
-The uncertainty in $Z$ is exactly why hybrid deployment and crypto agility matter. You do not need to predict $Z$ precisely to start reducing $Y$. <Cite id="nist-ir8547" locator="§4–5" />
 </Lens>
 
 <Lens level={4} title="Turning uncertainty into an engineering schedule">
@@ -243,7 +317,7 @@ A PQC transition touches more than a library call:
 
 ## Hybrid key exchange in practice
 
-A hybrid group such as X25519MLKEM768 combines an ephemeral X25519 share with an ML-KEM-768 encapsulation. Both shared secrets are fed into the TLS 1.3 key schedule. The connection remains secure if either component is secure, and the classical component preserves compatibility during rollout. <Cite id="fips203" locator="§8" /> <Cite id="nist-ir8547" locator="§4" />
+A hybrid group such as X25519MLKEM768 combines an ephemeral X25519 share with an ML-KEM-768 encapsulation. For this standardized group, both the key shares and the 64-byte shared secret place ML-KEM first and X25519 second; other hybrid groups can choose another order. The combined secret is fed into the TLS 1.3 key schedule. <Cite id="rfc10024" locator="§4.1–4.3" /> The combiner is designed to preserve security if either component is secure, while the classical component preserves compatibility during rollout. <Cite id="rfc9846" locator="§7.1" /> NIST’s final transition guidance supports hybrid deployment as a hedge against cryptanalytic or implementation failure, while stressing that hybrids add complexity and are usually temporary. <Cite id="nist-ir8547" locator="§3.2–3.2.1" />
 
 <Callout variant="warning" title="Size is a protocol parameter">
 A 1.2 KB key share and a 1.1 KB ciphertext can push a ClientHello past common buffer assumptions. Test fragmentation, middlebox behaviour, record limits and HSM command sizes before turning hybrid groups on by default.
@@ -263,13 +337,23 @@ New arithmetic creates side-channel surfaces: secret-dependent lookups, variable
 Maintain two trust hierarchies during transition. Exercise the new PQC root before it is required; retain old roots only for tracked legacy paths. Rehearse issuance, revocation, offline signing and recovery with larger objects. Instrument negotiated groups so retirement follows measured adoption. Standardisation defines interfaces, but not ownership, change windows or recovery plans. <Cite id="nist-pqc" locator="Selected algorithms and migration resources" />
 
 
-## A practical sequence
+## Schedule evidence gates, not a single switch-over date
 
-1. **Inventory** every use of RSA, DH, ECDH, ECDSA and EdDSA, including firmware and certificates.
-2. **Prioritise** long-lived confidentiality and long-lived signing keys.
-3. **Deploy hybrids** where the protocol supports them; keep classical fallbacks until interoperability is proven.
-4. **Instrument** sizes, timings and failure modes; add crypto-agility tests to CI.
-5. **Review** the implementation layer: constant-time code, fault checks, key zeroisation, and hardware acceleration.
+A migration duration is a distribution, not a constant. Break it into inventory, protocol design, procurement, interoperability, staged rollout and retirement. The critical path is often the slowest vendor or least replaceable device, while the earliest deadline belongs to the longest-lived asset. Record both a latest completion date and the confidence interval for each phase.
+
+Suppose a programme needs six years and a particular trust anchor remains sensitive for twenty-five years. A ten-year arrival scenario leaves only four years to start; fifteen years leaves nine; twenty years leaves fourteen. Under the earliest scenario, even starting now consumes most of the margin. These are not forecasts. They are stress tests that reveal which procurement or certification delays would force a risk-acceptance decision.
+
+| Gate | Evidence required | Decision it supports |
+| --- | --- | --- |
+| Inventory complete | Algorithm, parameter set, owner, data lifetime and update path recorded | Which assets cannot wait for a perfect forecast |
+| Protocol pilot | Production-size handshakes, fragmentation and downgrade tests pass | Whether the target framing is deployable |
+| Trust transition | New root issued, overlap tested and recovery rehearsed | When old roots can stop signing |
+| Fleet rollout | Coverage by hardware generation, not just endpoint count | Which cohorts may retire classical-only mode |
+| Retirement | Fallback disabled by policy and telemetry confirms adoption | Whether migration debt is actually closed |
+
+Keep quantum-arrival assumptions in a versioned risk register. An updated resource estimate should trigger a recalculation of deadlines, not an automatic panic switch. Conversely, a slower estimate should not restore a retired classical path: procurement, interoperability and incident recovery all have memories that a spreadsheet forecast does not.
+
+Rollback needs the same discipline. A rollback bundle should restore a complete, compatible set of library, key encoding, certificate and trust policy. It should not silently re-enable classical-only negotiation or resurrect a retired root. Exercise failure of the PQC component, malformed large messages and loss of a new trust anchor separately. The useful outcome is a controlled return to an approved state with an alert, not an attacker-influenced downgrade.
 
 <KnowledgeCheck
   question="Why is hybrid key exchange useful even if ML-KEM is believed secure?"
@@ -341,7 +425,7 @@ Certificate authorities, code-signing infrastructure, backups and embedded devic
   scenario="A regional railway exchanges tunnel telemetry and maintenance diagnostics over 800 links. Some records must remain confidential for 25 years. The control protocol has a 2 KiB message limit, 15 percent of field units are replaced each year, and the certificate root is valid until 2056. Management wants a single switch-over date and asks whether AES-256 alone solves the problem."
   tasks={["Build an asset inventory that separates confidentiality, authenticity and availability lifetimes.", "Compute a migration window under 12-year and 20-year quantum-arrival scenarios with a six-year programme.", "Choose a target key-establishment design and explain the role of X25519, ML-KEM and ML-DSA.", "Resolve the 2 KiB constraint without silently weakening negotiation or dropping PQC.", "Define pilot telemetry, rollback criteria, root transition and the final retirement gate."]}
   hints={["Inventory includes field gateways, depot tools, vendor support contracts and offline trust anchors, not just links.", "Use latest start = quantum-arrival estimate minus migration duration, then compare with the 25-year data lifetime.", "AES-256 addresses only the symmetric-margin part of the problem.", "The ML-KEM-768 client share and ML-DSA-65 signature do not fit the same fixed message as ordinary headers.", "Treat compatibility fallback as measured technical debt, not as the permanent target state."]}
-  solution={["The inventory separates three questions. Tunnel telemetry has a 25-year confidentiality need; command authentication may need to outlive each controller; availability dominates routine status messages. The 800 links group by hardware generation, update channel, vendor and trust store. The 2056 root is critical because its lifetime exceeds many field units.", "With a six-year programme, the 12-year scenario leaves six years to start; the 20-year scenario leaves fourteen. For a record protected for 25 years, X + Y is 31 years, so both scenarios create a harvest-now window. Begin inventory and dual-stack pilots now, then use adoption and standards policy to set a dated retirement decision.", "Use hybrid X25519 plus ML-KEM so failure of either component does not immediately expose sessions. Use ML-DSA for new certificate hierarchies, with an independently managed hash-based or classical cross-signing path if needed. AES-256 remains suitable for bulk telemetry, but cannot replace key establishment or peer authentication.", "Revise the 2 KiB framing. Carry the 32-byte classical share and 1,184-byte ML-KEM key in one message and the server’s 1,088-byte ciphertext in another. A 3,309-byte ML-DSA signature also needs a fragmented or separate envelope. Bind every fragment to the transcript and enforce reassembly limits. Isolate incapable peers behind a controlled gateway instead of silently downgrading.", "Pilot one depot and one field generation through a replacement cycle. Track negotiation, fragmentation, p99 latency, decapsulation failures, fallback and recovery. Roll back on correctness or availability thresholds, while preserving forced-downgrade alerts. Exercise the new root, revocation and offline recovery, then retire a field class only after measured coverage. Success means remaining old equipment has a funded replacement date."]}
+  solution={["The inventory separates three questions. Tunnel telemetry has a 25-year confidentiality need; command authentication may need to outlive each controller; availability dominates routine status messages. The 800 links group by hardware generation, update channel, vendor and trust store. The 2056 root is critical because its lifetime exceeds many field units.", "With a six-year programme, the 12-year scenario leaves six years to start; the 20-year scenario leaves fourteen. For a record protected for 25 years, X + Y is 31 years, so both scenarios create a harvest-now window. Begin inventory and dual-stack pilots now, then use adoption and standards policy to set a dated retirement decision.", "Use hybrid X25519 plus ML-KEM so failure of either component does not immediately expose sessions. Use ML-DSA for new certificate hierarchies, with an independently managed hash-based or classical cross-signing path if needed. AES-256 remains suitable for bulk telemetry, but cannot replace key establishment or peer authentication.", "Revise the 2 KiB framing. Carry the 1,184-byte ML-KEM encapsulation key followed by the 32-byte X25519 share in one message and the server&apos;s 1,088-byte ML-KEM ciphertext in another. A 3,309-byte ML-DSA signature also needs a fragmented or separate envelope. Bind every fragment to the transcript and enforce reassembly limits. Isolate incapable peers behind a controlled gateway instead of silently downgrading.", "Pilot one depot and one field generation through a replacement cycle. Track negotiation, fragmentation, p99 latency, decapsulation failures, fallback and recovery. Roll back on correctness or availability thresholds, while preserving forced-downgrade alerts. Exercise the new root, revocation and offline recovery, then retire a field class only after measured coverage. Success means remaining old equipment has a funded replacement date."]}
   takeaway="Migrate the lifetime of the system and its trust anchors, not merely the algorithm advertised by its newest endpoint."
 />
 

@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowDown, CheckCircle2, ShieldAlert } from "lucide-react";
+import { SequenceControls } from "@/components/visualizers/SequenceControls";
+import { useSequencePlayer } from "@/components/visualizers/useSequencePlayer";
+import { Cite } from "@/components/citations/Cite";
 
 const STEPS = [
   {
@@ -28,8 +31,14 @@ const STEPS = [
 ];
 
 export function FoTransform() {
-  const [step, setStep] = useState(0);
+  const player = useSequencePlayer(STEPS.length + 1, 2100);
+  const step = player.step;
   const [tampered, setTampered] = useState(false);
+
+  function selectCiphertext(value: boolean) {
+    setTampered(value);
+    player.select(0);
+  }
 
   const accepted = !tampered;
   const terminal = step >= STEPS.length;
@@ -42,7 +51,7 @@ export function FoTransform() {
           <div className="flex overflow-hidden rounded-lg border border-line">
             <button
               type="button"
-              onClick={() => setTampered(false)}
+              onClick={() => selectCiphertext(false)}
               aria-pressed={!tampered}
               className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.1em] ${!tampered ? "bg-emerald-400/15 text-emerald-300" : "text-slate-400"}`}
             >
@@ -50,7 +59,7 @@ export function FoTransform() {
             </button>
             <button
               type="button"
-              onClick={() => setTampered(true)}
+              onClick={() => selectCiphertext(true)}
               aria-pressed={tampered}
               className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.1em] ${tampered ? "bg-cyber-rose/15 text-cyber-rose" : "text-slate-400"}`}
             >
@@ -58,25 +67,17 @@ export function FoTransform() {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setStep(0)} className="btn-ghost px-3 py-1.5 text-[10px]">Reset</button>
-          <button
-            type="button"
-            onClick={() => setStep((value) => Math.max(0, value - 1))}
-            className="btn-ghost px-3 py-1.5 text-[10px]"
-            disabled={step === 0}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={() => setStep((value) => Math.min(STEPS.length, value + 1))}
-            className="btn-primary px-3 py-1.5 text-[10px]"
-          >
-            {terminal ? "Restart" : "Next step"}
-          </button>
-        </div>
       </div>
+
+      <SequenceControls
+        label="Fujisaki–Okamoto transform"
+        step={player.step}
+        length={STEPS.length + 1}
+        playing={player.playing}
+        onSelect={player.select}
+        onToggle={player.toggle}
+        onRestart={player.restart}
+      />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {STEPS.map((item, index) => {
@@ -86,7 +87,7 @@ export function FoTransform() {
             <div key={item.title} className="relative">
               <button
                 type="button"
-                onClick={() => setStep(index)}
+                onClick={() => player.select(index)}
                 className={`h-full w-full rounded-xl border p-3 text-left transition ${
                   active
                     ? "border-cyber-cyan/50 bg-cyber-cyan/10 shadow-glow"
@@ -108,7 +109,7 @@ export function FoTransform() {
         })}
       </div>
 
-      <div className="mt-4 rounded-xl border border-line bg-ink-950/50 p-4" aria-live="polite">
+      <div className="mt-4 rounded-xl border border-line bg-ink-950/50 p-4" aria-live={player.playing ? "off" : "polite"}>
         {!terminal ? (
           <>
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyber-cyan">
@@ -149,7 +150,8 @@ export function FoTransform() {
 
       <p className="mt-3 text-[11px] leading-5 text-slate-500">
         The check must be constant-time: comparing ciphertexts with an early-exit <code className="rounded bg-mist-200 px-1 font-mono">memcmp</code>{" "}
-        leaks how many bytes an attacker guessed correctly.
+        leaks how many bytes an attacker guessed correctly. <Cite id="fips203" locator="§7.3" />{" "}
+        <Cite id="fujisaki-okamoto2013" locator="pp. 80–101" />
       </p>
     </div>
   );

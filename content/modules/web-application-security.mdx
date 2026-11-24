@@ -84,6 +84,21 @@ For each important route, write a compact record: caller, credential, input sour
 
 Do not turn this into documentation theatre. The record should drive tests. A negative test for object ownership, a query-binding test and an outbound-destination test correspond directly to rows in the review. When a design changes, update the flow and the tests together.
 
+## Model the authority changes between components
+
+HTTPS usually authenticates a transport hop, not the meaning of every value forwarded through it. A gateway that strips `/api`, a cache that omits a tenant header from its key and a worker that reparses an archived URL can each preserve valid bytes while changing the authority attached to them. These are boundary failures even when no parser throws an error.
+
+Consider a report link that passes through a CDN, a reverse proxy, the application and an asynchronous renderer. A useful review records what each component believes it is handling:
+
+| Boundary | Convenient assumption | Concrete failure | Required invariant and test |
+| --- | --- | --- | --- |
+| CDN to application | A private-looking route is never cached | A response authorised for one tenant is reused for another | Cache keys must represent every authorisation-relevant input; test two tenants through the deployed cache |
+| Proxy to router | Both components decode the path identically | The proxy resolves `%252F` once while the application decodes twice | Define the decoding contract; send encoded and doubly encoded paths through the whole chain |
+| API to worker | The API already made the security decision | A queued job runs after permission or object state changes | Re-evaluate authority at execution or carry a bounded, revocable grant |
+| Worker to storage | A stored filename still names the same object | A symlink or replacement changes containment between validation and open | Resolve and open safely in one component; test replacement and symlink cases |
+
+The important question is not which component is “trusted”. It is which invariant survives the hand-off. A control demonstrated only inside the application is not proven for a request that reached the sink through a cache, proxy or queue. Deployment-level tests should assert the final observable effect: the correct tenant's representation, the intended object and no unauthorised side effect.
+
 </Lens>
 
 <Lens level={2} title="Four attack families, four different sinks">
@@ -137,6 +152,21 @@ Start with the strongest design: accept an identifier for a known resource rathe
 Path traversal occurs when untrusted path data escapes the directory or object namespace the application intended to expose. Concatenating a base directory and a filename is not containment proof. Parent-directory segments, encoded separators, platform-specific roots, symlinks and races between a check and an open can all break the assumption.
 
 Prefer opaque object identifiers mapped to server-side paths. Decode input once according to the interface contract, canonicalise using platform-aware routines, resolve it beneath a fixed root and verify containment on the resulting path. Reject absolute paths and unexpected separators. Where symlinks or concurrent replacement are possible, use directory-relative, no-follow filesystem operations or a storage layer with atomic semantics. Finally, authorise the resolved object rather than only the supplied identifier.
+
+## Read an exploit as a chain of transitions
+
+A payload is only one link. The useful analysis names the transition it forces and the invariant that must hold. The same report title can be inert in a database row, become executable in an analyst's dashboard and become a misleading link in an email. Defences fail when they protect a different link from the one the attacker uses.
+
+| Family | Transition the attacker seeks | Defence that can look sufficient | Stronger verification |
+| --- | --- | --- | --- |
+| SQL injection | Data becomes query grammar | Reject a list of SQL keywords or quotes | Assert the final query structure and parameter list against the real driver |
+| Stored XSS | Persisted data becomes browser markup or script | Sanitise when the title is first stored | Render in each output context and inspect the resulting DOM; re-check after transformations |
+| SSRF | An attacker-chosen name becomes a server-side socket | Match the URL text against a prefix allowlist | Instrument the transport and prove rejected resolved addresses and redirects never connect |
+| Path traversal | A relative name becomes an object outside the approved namespace | Reject `..` before canonicalisation | Test the resolved object, symlinks, platform roots and replacement races at the open boundary |
+
+Second-order cases make this distinction sharper. An attacker may store `&lt;img src=x onerror=...&gt;` in a report title, relying on a later component to decode entities before rendering. A downloader may pass a safe-looking URL that redirects to a loopback address. A filename may contain no parent segment but resolve through a symlink. In each case the dangerous representation is created downstream, so an input-only test can pass while the sink remains vulnerable.
+
+A practical exploit hypothesis therefore states the entry point, transformations, privilege gained and evidence expected. For example: “A tenant stores an HTML entity-encoded title; the dashboard decodes it and inserts the result into HTML; script executes in the support origin.” That claim suggests tests at storage, transformation and rendering. A generic assertion that “XSS was tested” does not identify which transition was actually blocked.
 
 <Figure caption="Safe simulation: choose an attack family, edit an inert toy payload and disable defences. Compare vulnerable and defended flows across the trust boundary; patterns are teaching heuristics, never a production scanner.">
   <WebSecurityLab />
@@ -198,6 +228,23 @@ Build a negative matrix for each route. Change one condition at a time: another 
 
 Regression tests must include benign edge cases. Apostrophes in names, internationalised text and legitimate nested paths should not be rejected merely because a toy detector matched. Track blocked-request reasons by route and control version. Repeated false positives can pressure operators to disable a control, so tuning needs evidence and an owner.
 
+## Put state-changing operations inside a transaction boundary
+
+Not every web attack forges syntax. Some abuse the gap between checking a state and committing a new one. Authorisation may be correct for the state the server saw moments earlier while the write applies to a different state by the time it reaches the database.
+
+Consider a report-ownership transfer. Two requests arrive concurrently from the current owner: one transfers the report to a collaborator, the other to an external archive service. Both controllers read the same owner and pass authorisation. Without a version check, both writes succeed, two notifications are sent and the last commit silently wins. The fix is not a second role check. The update must be conditional on the expected ownership and state, such as an optimistic version, and the side effects must follow the committed result. An idempotency key can prevent retries from repeating an action, but it does not resolve two distinct concurrent requests.
+
+| Primitive | Missing invariant | Structural control | Decisive test |
+| --- | --- | --- | --- |
+| Mass assignment | Only approved fields may change | Map the request to an explicit command with no privilege-bearing fields | Submit `role=admin` or `tenant_id=other` and inspect the persisted object |
+| Concurrent state change | Check and write refer to the same version | Conditional update, transaction and unique constraints where appropriate | Race two legal-looking operations and assert only the intended transition commits |
+| Replayed side effect | One business action is applied once | Idempotency key scoped to the operation and authenticated actor | Retry the same request after a lost response and verify one external effect |
+| Stale workflow | A later step cannot exceed an earlier grant | Revalidate object state and grant close to execution | Queue a step, revoke access, then process it and confirm denial |
+
+Request-shape validation is still useful, but it should define the accepted command rather than merely reject suspicious characters. For example, a profile update should not bind directly to a database entity that also contains `is_admin`, `tenant_id` and `email_verified`. A narrow command object makes accidental privilege changes harder and gives tests a precise contract.
+
+Design error handling around the transaction too. If a database commit succeeds but a notification fails, retrying the whole request may duplicate the notification. Use an outbox or another durable hand-off, and make the consumer idempotent. Security tests should cover the failure window, not only the happy path: commit succeeds, response is lost and the client retries.
+
 <Callout variant="warning" title="Escaping is contextual">
 A value safe in an HTML text node may be unsafe in an unquoted attribute or a JavaScript string. A value safe as a URL path segment may be unsafe when the URL is fetched by a server. Name the context in the code and test the exact sink.
 </Callout>
@@ -230,6 +277,21 @@ A useful verification package contains the route inventory, threat model, policy
 Security telemetry should answer which control made a decision, for which route and policy version, and whether execution reached the sink. Record request identifiers, subject identifiers where lawful, object class, reason code, control outcome and latency. Avoid logging raw payloads, session cookies, access tokens, full document bodies or secrets by default. Parameter values may contain personal data even when they are not credentials.
 
 Monitor authorisation denials separately from malformed requests. A spike can indicate an attack, a broken client or a policy rollout error. Monitor outbound fetch destinations, redirect counts and timeouts. Monitor template-rendering failures and sanitizer rejections. Correlate application events with gateway and database evidence, while preserving access controls and retention limits for the logs themselves.
+
+## Require prevention evidence as well as exposure evidence
+
+A detection that says an attack was blocked does not prove the sink was protected. A gateway might log a blocked `SELECT` while the application still executes a differently tokenised query. An alert might describe a sanitizer rejection while the original unsanitised value is rendered elsewhere. Incident evidence must connect the control decision to what the sensitive component actually did.
+
+| Suspected failure | Prevention evidence | Exposure evidence | Recovery gate |
+| --- | --- | --- | --- |
+| SQL injection | Query builder records a fixed structure and bound parameters | Database audit shows the executed statement and affected rows | Regression test fails on the vulnerable query and passes on the fix |
+| Stored XSS | Renderer identifies the encoding context and sanitizer policy | Persisted content search, response capture and affected viewer sessions | Each rendering context produces inert output in a DOM test |
+| SSRF | Transport log shows destination rejected before connection | Outbound connection and data-service access logs | Forbidden address and redirect fixtures never open a socket |
+| Path traversal | File operation uses the resolved, contained object identifier | Storage or filesystem audit shows which objects were opened | Encoded path, absolute path and symlink fixtures stay inside the root |
+
+Correlate these sources with a request identifier where possible, but do not assume one identifier crosses every boundary. A preview request may become a queue message and then an outbound fetch. Carry a correlation field through the application and worker, and record the object identifier rather than only a display filename. If a component cannot emit a sink event, treat that as a telemetry gap and add a testable side effect instead of claiming the control worked.
+
+During response, preserve the deployed code version, configuration and policy version alongside the event window. A clean log after a fix is weaker evidence than a before-and-after reproduction. State the residual uncertainty plainly: sampling may miss a low-volume read, retention may have expired or an asynchronous worker may use a different code path. Recovery should combine the regression test, production canary and targeted log review; no single signal proves the entire route is safe.
 
 HTTP status codes provide a shared vocabulary. A malformed request, an authentication failure and an authorisation denial are not interchangeable. RFC 9110 defines the relevant status-code semantics, including client-error and server-error classes. <Cite id="rfc9110" locator="§15.3–15.5" /> Use consistent, minimal errors and a correlation identifier; do not expose stack traces, SQL fragments, internal paths or whether a hidden object exists.
 

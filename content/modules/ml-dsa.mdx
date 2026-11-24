@@ -70,19 +70,27 @@ Defender goals include message binding, canonical encoding, rejection discipline
 Misconceptions are dangerous in a signing API. A signature does not encrypt the manifest or keep it secret. A deterministic signing mode is not the same as reusing an arbitrary nonce: repeating the same standard-compliant deterministic operation on the same message can repeat a signature, but nonce derivation must still bind the message. Hedged signing adds fresh randomness and can reduce some fault risks; it does not excuse repeated nonces or leaky arithmetic. Rejection is not merely a way to produce a nicer-looking signature; it is part of the simulation-based security argument.
 
 Availability and latency deserve explicit budgets. The rejection loop has a data-dependent number of attempts, so signing time is naturally variable. Set a service deadline appropriate for the expected attempt distribution, but never bypass the norm check to meet it. If a deadline expires, return a retryable internal error without releasing a partial candidate. Monitor high-percentile latency and rejection rate; a sudden change can signal a bad random source, a changed parameter set or a faulted device.
+
+### What a signature claim does and does not promise
+
+ML-DSA's EUF-CMA goal says that an attacker cannot produce a valid signature on a new message after requesting signatures on chosen messages. It does not promise that every syntactically valid signature is acceptable to an application, nor that a signer is available whenever a caller asks. Certificate path validation, key usage, release identity and revocation remain protocol policy. Likewise, internal verification before release is a fault check, not a nonce-uniqueness detector: two signatures made with a repeated masking vector can both verify.
+
+The signing service should expose three separate outcomes: a canonical signature, a retryable local failure such as an expired deadline or unhealthy random source, and a policy rejection before signing begins. Conflating them encourages callers to retry in ways that replay a bad request or pressure the signer into weakening rejection. A returned signature should be accompanied by the exact parameter set and public-key identifier so that it cannot be attached to the wrong verification context.
+
+A useful service budget records the expected main-loop repetitions from the standard's analysis and the measured tail on the target device. For ML-DSA-65 the informational expectation is 5.1 attempts, so a timeout chosen for one arithmetic pass is far too short. The tail matters more than the mean under concurrent load: a bounded queue and retryable timeout preserve the acceptance checks, while an unbounded loop or “accept anyway” fallback destroys them. <Cite id="fips204" locator="§3.4, §5.2 and Table 1" />
 </Lens>
 
 <Lens level={2} title="Key generation, signing loop and verification">
 
 ## The parameter sets
 
-| Parameter set | NIST category | Public key | Secret key | Signature |
-| --- | --- | --- | --- | --- |
-| ML-DSA-44 | 2 | 1,312 B | 2,560 B | 2,420 B |
-| ML-DSA-65 | 3 | 1,952 B | 4,032 B | 3,309 B |
-| ML-DSA-87 | 5 | 2,592 B | 4,896 B | 4,627 B |
+| Parameter set | NIST category | $(k,\ell)$ | Public key | Secret key | Signature | Expected attempts |
+| --- | --- | --- | --- | --- | --- | ---: |
+| ML-DSA-44 | 2 | $(4,4)$ | 1,312 B | 2,560 B | 2,420 B | 4.25 |
+| ML-DSA-65 | 3 | $(6,5)$ | 1,952 B | 4,032 B | 3,309 B | 5.1 |
+| ML-DSA-87 | 5 | $(8,7)$ | 2,592 B | 4,896 B | 4,627 B | 3.85 |
 
-The parameters trade signature size, rejection rate and security level. ML-DSA-65 is a common starting point. <Cite id="fips204" locator="§4" />
+The parameters trade signature size, rejection rate and security level. The expected-attempt column is informational analysis from FIPS 204 Table 1, not a measured latency or a hard bound. ML-DSA-65 is a common starting point. <Cite id="fips204" locator="§4, Table 1" />
 
 ## Signing, step by step
 
@@ -97,7 +105,7 @@ The parameters trade signature size, rejection rate and security level. ML-DSA-6
 5. Reject if $\|z\|_\infty \ge \gamma_1 - \beta$, or if the hint/rounding conditions fail.
 6. Otherwise output $(c, z, h)$ where $h$ encodes the rounding hints.
 
-The loop is why signing has a variable number of attempts. The rejection probability is chosen to be small enough for performance and large enough for security.
+The loop is why signing has a variable number of attempts. FIPS 204 lists informational expected main-loop repetitions of 4.25, 5.1 and 3.85 for ML-DSA-44, -65 and -87; these are analysis values, not latency guarantees. <Cite id="fips204" locator="Table 1" />
 
 <Figure caption="Toggle the norm bound and run attempts. With the bound disabled, out-of-range candidates are released and their distribution depends on the secret. ML-DSA rejects and resamples instead.">
   <RejectionSampling />
@@ -125,6 +133,15 @@ then applies the rounding decomposition and checks that $H(\mu \,\|\, \mathsf{Hi
 
 FIPS 204 permits both deterministic and hedged signing. Hedged signing mixes fresh randomness into the nonce derivation. That improves resilience against fault attacks and some side-channel attacks, at the cost of needing reliable randomness. <Cite id="fips204" locator="§3.4" />
 
+Let $\mu$ be the message representative, $K$ the secret key's seed and $rnd$ an optional fresh 32-byte value. The internal private random seed is $\rho''=H(K\|\mu)$ in deterministic mode and $\rho''=H(K\|rnd\|\mu)$ in hedged mode. The counter $\kappa$ then expands distinct masking vectors across attempts. The verifier is identical in both modes because neither $rnd$ nor $\rho''$ appears in the signature.
+
+| Mode | Fresh input | Main benefit | Main operational risk |
+| --- | --- | --- | --- |
+| Deterministic | None | Reproducible output for identical key and message | Faults can be repeated; unsuitable where side channels cannot be mitigated |
+| Hedged | 32-byte $rnd$ | Fresh masking even for the same message | Random-source rollback or cloning can repeat $rnd$ |
+
+FIPS 204 makes hedged signing the default and permits deterministic signing where fresh randomness is unavailable. Hedged signing still uses the precomputed secret seed, so a failure of the fresh source need not collapse security to an attacker-guessed nonce. Neither mode permits arbitrary nonce reuse or omitting the message from the derivation. <Cite id="fips204" locator="§3.4 and §6.2" />
+
 <Callout variant="warning" title="Nonce reuse is catastrophic">
 If the same masking vector is used for two different messages under the same key, the secret can be recovered algebraically. This is the lattice analogue of ECDSA nonce reuse. Randomness generation is part of the security boundary.
 </Callout>
@@ -132,13 +149,14 @@ If the same masking vector is used for two different messages under the same key
 
 ## The signing loop in detail
 
-The signer samples a masking vector $y$, computes $w = A y$, hashes the message and high bits to get a challenge $c$, and forms $z = y + c s_1$. It then checks:
+The signer samples a masking vector $y$, computes $w = A y$, hashes the message and high bits to get a challenge $c$, and forms $z = y + c s_1$. FIPS 204's internal signing loop then checks four conditions:
 
 - $\|z\|_\infty < \gamma_1 - \beta$;
-- the hint/rounding conditions;
-- the encoding is canonical and within bounds.
+- $\|r_0\|_\infty < \gamma_2 - \beta$, where $r_0=\mathsf{LowBits}(w-cs_2)$;
+- $\|\langle\!\langle ct_0\rangle\!\rangle\|_\infty < \gamma_2$;
+- the hint Hamming weight is at most $\omega$.
 
-If a check fails, the signer throws the candidate away and starts again. The rejection probability is part of the parameter design: too high and signing is slow; too low and the output distribution leaks the secret. <Cite id="fips204" locator="§5.2" />
+If any check fails, the signer throws the candidate away and starts again. The norm and low-bit checks control the response distribution; the $ct_0$ and hint-weight checks bound the correction information released to the verifier. All four are part of the standard's validity test, not optional filters. <Cite id="fips204" locator="§6.2, Algorithm 7" />
 
 ## Verification in detail
 
@@ -156,17 +174,17 @@ ML-DSA-44, ML-DSA-65 and ML-DSA-87 trade security level against signature size a
 
 ## Parameter details and the signing loop
 
-The norm controls are concrete. For ML-DSA-44, $\gamma_1=2^{17}$, $\gamma_2=(q-1)/32$, $\beta=78$ and the hint weight bound is $\omega=80$. For ML-DSA-65, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/88$, $\beta=120$ and $\omega=180$. For ML-DSA-87, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/120$, $\beta=120$ and $\omega=120$. The challenge Hamming weights are bounded by $\tau=39,49,60$ respectively. These values must be changed as a complete set, never tuned independently. <Cite id="fips204" locator="§4" />
+The norm controls are concrete. The matrix dimensions $(k,\ell)$ are $(4,4)$, $(6,5)$ and $(8,7)$ for ML-DSA-44, -65 and -87. Their private-key coefficient range is $\eta=2,4,2$, so $\beta=\tau\eta=78,196,120$. All three drop $d=13$ public-key bits. For ML-DSA-44, $\gamma_1=2^{17}$, $\gamma_2=(q-1)/88$ and $\omega=80$; for ML-DSA-65, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/32$ and $\omega=55$; for ML-DSA-87, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/32$ and $\omega=75$. The challenge Hamming weights are $\tau=39,49,60$ respectively. These values must be changed as a complete set, never tuned independently. <Cite id="fips204" locator="§4, Table 1" />
 
 Signing starts by deriving the message digest $\mu$ and expanding a nonce seed into $y$. Compute $w=Ay$, extract its high bits, and hash them with $\mu$ to obtain the small challenge polynomial $c$. Form $z=y+cs_1$ and reduce it to the specified centered representative. Inspect every coefficient of $z$: one coefficient at or above the norm limit rejects the whole candidate. The signer also computes the low bits $w-cs_2$ and the hint vector, then checks the hint weight and rounding conditions. A rejected attempt is discarded completely; its $y$, $z$ and hint must not influence the next attempt except through the approved random source.
 
 <WorkedExample
   title="A strict norm rejection in ML-DSA-65"
   steps={[
-    "ML-DSA-65 has gamma_1 = 524288 and beta = 120, so the acceptance bound is gamma_1 - beta = 524168.",
-    "Suppose one candidate coefficient is y = 524167 and the challenge times the corresponding secret coefficient contributes +1. Then z = 524168.",
-    "The rule is the infinity norm strictly less than 524168, so equality rejects this candidate. A single offending coefficient rejects the entire signature attempt.",
-    "On a fresh attempt, let y = 524160 and the same contribution be +1. Then z = 524161, which passes this coordinate's norm check.",
+    "ML-DSA-65 has gamma_1 = 524288 and beta = 196, so the acceptance bound is gamma_1 - beta = 524092.",
+    "Suppose one candidate coefficient is y = 524091 and the challenge times the corresponding secret coefficient contributes +1. Then z = 524092.",
+    "The rule is the infinity norm strictly less than 524092, so equality rejects this candidate. A single offending coefficient rejects the entire signature attempt.",
+    "On a fresh attempt, let y = 524084 and the same contribution be +1. Then z = 524085, which passes this coordinate's norm check.",
     "Passing one coordinate is not final acceptance: all z coefficients, the hint weight and the rounding conditions must still pass."
   ]}
   result="The boundary is strict, and the rejection is all-or-nothing for an attempt. Implementations must compare the maximum norm across the full vector without releasing an out-of-range candidate."
@@ -183,7 +201,7 @@ Signing starts by deriving the message digest $\mu$ and expanding a nonce seed i
   result="Reusing y across different challenges exposes a linear equation about the secret. The example is scalar arithmetic for intuition; real ML-DSA operates on vectors in a quotient ring."
 />
 
-Verification reverses the algebraic relation. Parse the signature into exactly $c$, $z$ and the encoded hint. Reject non-canonical $z$ coefficients, excess hint weight, malformed hint trailing data and a challenge with too many nonzero coefficients. Compute $w'=Az-c t_1 2^d$ modulo $q$, recover the high bits using the hint, and compare the challenge hash with $c$. Verification must not accept an equivalent but non-canonical signature encoding, because signature malleability can break protocols that use signatures as unique identifiers.
+Verification reverses the algebraic relation. Parse the signature into exactly $c$, $z$ and the encoded hint. Decode $z$ into the standard's centred coefficient range, reject any coefficient whose infinity norm reaches $\gamma_1-\beta$, and reject a hint whose sparse encoding is not canonical. Reconstruct the challenge with $\mathsf{SampleInBall}$, which produces exactly $\tau$ nonzero coefficients by construction. Compute $w'=Az-c t_1 2^d$ modulo $q$, recover the high bits using the hint, and compare the challenge hash with $c$. Verification must not accept an equivalent but non-canonical signature encoding, because signature malleability can break protocols that use signatures as unique identifiers.
 
 <ProcessFlow
   steps={[
@@ -250,13 +268,7 @@ Parameter selection is therefore a joint optimisation over security, correctness
 
 ## Fiat–Shamir with aborts
 
-The challenge is derived from the message and the commitment, so the signer cannot choose it adaptively. Rejection sampling ensures the released $z$ is statistically independent of the secret. The proof is in the random-oracle model and relies on Module-LWE and Module-SIS. <Cite id="lyubashevsky2012" locator="pp. 738–755" /> <Cite id="dilithium-spec" locator="§2" />
-
-The norm bound is delicate:
-
-- too tight: signing becomes expensive;
-- too loose: the accepted distribution depends on $s_1$ and the simulation argument fails;
-- incorrect rounding: hints leak information or verification accepts invalid signatures.
+The challenge is derived from the message and the commitment, so the signer cannot choose it adaptively. Rejection sampling reshapes the released response; the next section makes that distributional argument and its finite-parameter bound explicit. The proof is in the random-oracle model and relies on Module-LWE and Module-SIS. <Cite id="lyubashevsky2012" locator="pp. 738–755" /> <Cite id="dilithium-spec" locator="§2" />
 
 ## What the verifier does not learn
 
@@ -268,19 +280,62 @@ Releasing an out-of-bound candidate would let an attacker collect samples whose 
 
 ## Decomposition, hints and the simulation argument
 
-For a public scaling parameter $\alpha$, write an integer $r$ as $r=\alpha r_1+r_0$ with $r_0$ in the centered interval determined by the standard. The high part is obtained by rounding $r/\alpha$, and the low part is the remaining offset. For $t=t_1 2^d+t_0$, the signer knows $t_0$ but the public key publishes only $t_1$. During signing, the signer computes $w-cs_2$ so that the low bits needed for the challenge match what the verifier can reconstruct.
+Two different decompositions must not be conflated. Key generation uses $\mathsf{Power2Round}$ to write $t=t_1 2^d+t_0$, with $d=13$. Commitment rounding uses $\mathsf{Decompose}$ with $\alpha=2\gamma_2$, a divisor of $q-1$, so that small changes near the ends of the field do not make the high part jump unpredictably. In the special case where ordinary rounding would return $r_1=(q-1)/\alpha$, $\mathsf{Decompose}$ instead returns $r_1=0$ and $r_0-1$. <Cite id="fips204" locator="§7.4, Algorithms 35–38" />
 
-The hint is a correction bit, not a copy of $t_0$. In the standard's high-bit helper, a set hint increments the recovered high part by one modulo the permitted range; an unset hint leaves it unchanged. The verifier applies the hint to the high part of $Az-c t_1 2^d$. If the hint does not yield the hashed challenge, verification fails. The total number of set hints must not exceed $\omega$, and the serialized hint must decode canonically. These checks prevent an attacker from choosing arbitrary corrections that make verification easier.
+During signing, the signer knows $t_0$ but the public key publishes only $t_1$. The signer computes $w-cs_2$ so that the low bits used for rejection match what the verifier can reconstruct from $Az-ct_1 2^d$ plus the hint.
+
+The hint is a correction bit, not a copy of $t_0$. FIPS 204 defines $\mathsf{MakeHint}(z,r)$ as the indicator that $\mathsf{HighBits}(r+z)$ differs from $\mathsf{HighBits}(r)$. The verifier calls $\mathsf{UseHint}(h,r)$: an unset hint leaves the high part unchanged, while a set hint increments it modulo $(q-1)/(2\gamma_2)$ when the centred low part is positive and decrements it when the low part is non-positive. Simply incrementing for every set bit is wrong. <Cite id="fips204" locator="§7.4, Algorithms 36–40" />
+
+For a concrete ML-DSA-44 coefficient, $\gamma_2=(q-1)/88=95{,}232$, so $\alpha=2\gamma_2=190{,}464$ and the high-part modulus is $44$. If decomposition yields $r_1=43$ and $r_0=100$, a set hint produces $0$, not $44$. With the same $r_1=43$ but $r_0=-100$, it produces $42$. This wrap-around is essential near the ends of the field and is a common verification bug.
+
+The total number of set hints must not exceed $\omega$, and the serialized hint must decode canonically. These checks prevent an attacker from choosing arbitrary corrections that make verification easier. A malformed hint causes verification to fail.
+
+### The hint is sparse, not a bit mask
+
+FIPS 204 encodes the hint in exactly $\omega+k$ bytes. For each polynomial in turn, it writes the coefficient indices whose hint bit is one; after each polynomial it records the cumulative number of indices written so far in one of the final $k$ bytes. Unused index bytes must be zero. The decoder checks that cumulative counts do not decrease, that indices within each polynomial strictly increase, and that all leftover bytes are zero. <Cite id="fips204" locator="§7.2, Algorithms 20–21" />
+
+For a valid illustrative vector with set coefficients $h_0[2]$, $h_0[7]$, $h_1[0]$ and $h_1[5]$, the first four index bytes are `02 07 00 05`. With $k=4$, the last four bytes are cumulative counts `02 04 04 04`; the remaining index bytes up to $\omega$ are zero. A decoder must not interpret those last bytes as per-polynomial counts `02 02 00 00`, nor accept an out-of-order pair such as `07 02` within one polynomial.
+
+This encoding is why the verifier does not need a separate “hint weight” scan after successful decoding: the fixed length, cumulative counts and zero-padding checks already bound the number of set bits by $\omega$. A custom bit-mask encoding may be mathematically equivalent internally but is not wire-compatible with the standard.
 
 The signing response is computed modulo $q$, but the norm check uses centered representatives. A field element near $q$ is a small negative number for this purpose. Failing to centre before measuring the norm can reject every valid negative coefficient; accepting a large positive representative instead leaks a different distribution. The implementation therefore needs one documented conversion used consistently by signing, verification and serialisation.
 
 Fiat–Shamir-with-aborts has two linked ideas. Fiat–Shamir makes $c=H(\mu\|\mathsf{HighBits}(w))$ a challenge the signer cannot choose after seeing $y$. Aborts reshape the released response. If $y$ is sampled from a fixed interval and $z=y+cs_1$ is accepted only in a slightly smaller interval, the accepted distribution approaches the distribution induced by sampling $z$ directly from that smaller interval and setting $y=z-cs_1$. The residual dependence on the secret is controlled by the rejection bound and the parameter choices; it is not correct to claim that every finite implementation has literally perfect independence. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
 
+### Quantifying the norm rejection
+
+The masking vector has $\ell$ polynomials of 256 coefficients. For any fixed coefficient shift $t=(cs_1)_j$, rejection of the norm condition requires $|y_j+t|\ge\gamma_1-\beta$. With $y_j$ uniform over its $2\gamma_1$ possible values and $|t|\le\beta$, the rejected fraction for that coordinate is $\beta/\gamma_1$. A union bound over all $256\ell$ coordinates gives
+
+$$
+P_{\rm norm}\le256\ell\frac{\beta}{\gamma_1}.
+$$
+
+| Parameter set | $256\ell\beta/\gamma_1$ | FIPS 204 expected total attempts | Interpretation |
+| --- | ---: | ---: | --- |
+| ML-DSA-44 | 0.609375 | 4.25 | Norm rejection alone is already substantial |
+| ML-DSA-65 | 0.478515625 | 5.1 | Low-bit and hint checks add further rejection |
+| ML-DSA-87 | 0.41015625 | 3.85 | Smaller $\ell$ reduces the norm term |
+
+The expected-attempt values are the informational analysis values in FIPS 204 Table 1; the first column is a conservative norm-only bound derived from the standard parameters. If $p_{\rm total}$ is the overall rejection probability, the expected number of attempts is $1/(1-p_{\rm total})$. Neither the mean nor the norm bound gives a worst-case latency: the loop is unbounded and a service must set its own deadline without weakening acceptance. <Cite id="fips204" locator="§4, Table 1 and §6.2" />
+
+The scalar building block of the privacy argument is a truncation bound. Sampling $y$ uniformly from $2\gamma_1$ integer values and conditioning on $z=y+t$ lying in an interval of size $2(\gamma_1-\beta)+1$ gives a conditional point mass larger than the target uniform mass by at most the standard rejection-sampling ratio $\gamma_1/(\gamma_1-\beta)$. For ML-DSA-65 that ratio is $524288/524092\approx1.0003735$. The full vector-and-hint proof must also handle convolution, the challenge distribution and repeated signatures; this scalar ratio is a building block, not the complete statistical distance from the secret.
+
 A simulation-based proof explains the tradeoff. The simulator programs the challenge hash so that a guessed challenge is consistent with a response it can generate without $s_1$. It samples a candidate $z$ from the target interval, derives a corresponding commitment, and programs the hash if it has not already been fixed. Guessing the query position and waiting for consistent programming introduce a reduction loss. Rejection bounds limit how often a real signer produces candidates that the simulator cannot reproduce. The security reduction therefore depends on hash behaviour, Module-SIS or Module-LWE assumptions, and the number of signing and hash queries.
 
 The verifier equation also connects unforgeability to a short-vector problem. A forger that produces a new accepted $(c,z,h)$ supplies a small $z$ related to $Ay$ for some challenge. Under the random-oracle simulation, extracting enough such relations would solve a Module-SIS instance or collide with a programmed challenge. This is a proof sketch rather than a complete security derivation: the module rank, norm bounds, hint extraction and reduction loss all matter.
 
-Edge cases are part of the verifier's job. Reject wrong lengths, coefficients outside $[0,q)$, $z$ outside the centered norm bound, a challenge with more than $\tau$ nonzero coefficients, and a hint with more than $\omega$ set bits. Reject non-canonical trailing hint bytes. A verifier should not normalise these values into acceptance, because the signature bytes are what protocols hash and log. Also distinguish verification failure from internal failure: a malformed public signature returns false; an unavailable or corrupted public-key object is a local error.
+Edge cases are part of the verifier's job. FIPS 204's external verifier returns false for a wrong public-key or signature length. Signature decoding checks the canonical sparse hint; the challenge is then reconstructed with $\mathsf{SampleInBall}$, which produces exactly $\tau$ coefficients in $\{-1,1\}$. The verifier recomputes $w'=Az-ct_1 2^d$, applies $\mathsf{UseHint}$, hashes $\mu\|w'_1$, and accepts only if the hash matches and every centred $z$ coefficient has absolute value below $\gamma_1-\beta$. <Cite id="fips204" locator="§5.3, §6.3 and §7.2" />
+
+| Failure mode | Required outcome | Unsafe repair |
+| --- | --- | --- |
+| Wrong key or signature length | Return false before decoding | Try alternate parameter sets |
+| Hint counts decrease or indices repeat | Hint decoder returns failure | Sort or deduplicate attacker input |
+| Leftover hint bytes are nonzero | Return false | Ignore unused bytes |
+| $z$ equals or exceeds the centred norm bound | Return false | Measure the ordinary residue instead |
+| Reconstructed challenge hash differs | Return false | Normalise $w'_1$ until it matches |
+| Public-key object is unavailable or corrupted | Local operational error | Report the same outcome as a bad signature |
+
+A verifier should not normalise malformed values into acceptance, because the signature bytes are what protocols hash and log. Also distinguish verification failure from internal failure: a malformed public signature returns false; an unavailable or corrupted public-key object is a local error.
 
 The hint and challenge are public but should still be encoded unambiguously. The same message signed under different keys should use a key-bound context where required by the application. The proof system does not decide whether a manifest name, signer identity or expiration policy is correct; those checks belong to the verifier's surrounding policy. A mathematically valid signature can still be unacceptable because its certificate chain, key usage or release identifier is wrong.
 </Lens>
@@ -307,7 +362,7 @@ Timing or power leakage that reveals information about $y$ can be combined acros
 
 - The NTT is used for matrix-vector products; the same butterfly and reduction issues as ML-KEM apply.
 - Sampling uses SHAKE256; the Keccak permutation is a major cost.
-- The rejection loop has data-dependent iteration count, which is public (the signature includes the result), but the *values* inside the loop are secret.
+- The rejection loop has a data-dependent iteration count. That count is not serialized in the signature, although service latency can expose it; the secret values inside each attempt still require fixed memory access and arithmetic.
 - Hints are small but must be encoded and checked without out-of-bounds access.
 
 ## Fault attacks
@@ -321,7 +376,7 @@ A fault during signing can produce a signature that reveals the secret or breaks
 3. Use constant-time comparison for the challenge and hint.
 4. Keep the rejection loop free of secret-dependent memory access.
 5. Test with fault injection and side-channel evaluation.
-6. Confirm interoperability with the standard test vectors. <Cite id="liboqs" />
+6. Confirm interoperability with the standard test vectors. <Cite id="liboqs" locator="tests/test_sig.c and KAT test vectors" />
 
 <KnowledgeCheck
   question="Why is hedged signing often preferred over deterministic signing in deployment?"
@@ -334,7 +389,7 @@ A fault during signing can produce a signature that reveals the secret or breaks
 ## Side channels and faults
 
 - **Masking vector $y$:** leakage can be combined across signatures to recover $s_1$. Use constant-time sampling and arithmetic.
-- **Rejection loop:** the number of attempts may be public, but the values inside must not leak through branches or memory access.
+- **Rejection loop:** the attempt count is not a signature field, but latency can reveal it; the values inside must not leak through branches or memory access.
 - **Hints and encoding:** validate lengths and bounds without out-of-bounds access.
 - **Faults:** a corrupted signature can reveal the key or break unforgeability. Verify before release and use redundancy where appropriate. <Cite id="boneh1997" locator="pp. 37–51" />
 - **Hedged signing:** fresh randomness improves resilience to some faults and side channels, but does not excuse a leaky implementation. <Cite id="fips204" locator="§3.4" />
@@ -347,6 +402,24 @@ A fault during signing can produce a signature that reveals the secret or breaks
 4. Fault injection and side-channel evaluation.
 5. Interoperability with independent implementations.
 6. Benchmark rejection rate and worst-case signing latency.
+
+### Test the failure modes, not only valid signatures
+
+A verifier fuzz campaign should mutate each serialized region independently: the challenge digest, the encoded response and the sparse hint. Include exact boundary values for the centred norm, duplicate and decreasing hint indices, nonzero padding, wrong counts and every truncated length. Keep a signer-side internal verification pass in the test harness so that a valid generated signature is checked through the exact public decoder before release.
+
+Fault injection needs a separate matrix because “verify before release” catches only faults that change the final equation. A skipped multiplication may produce an invalid signature that verification rejects; a repeated nonce can produce two perfectly valid signatures that leak the key; and a fault that corrupts randomness state may not appear until a later request.
+
+| Injected condition | Detection | Residual action |
+| --- | --- | --- |
+| Skip or corrupt the norm check | Internal verification or redundant norm computation | Withhold candidate and alarm |
+| Corrupt one $cs_1$ product | Signature fails internal verification | Withhold and retry with fresh attempt |
+| Corrupt hint construction | Internal verification fails canonical relation | Withhold and wipe workspace |
+| Repeat nonce seed or roll back RNG state | Test-only nonce-uniqueness check across requests | Stop signing and rotate the key |
+| Fault the verifier during verify-before-release | Independent recomputation or hardware sensors | Do not trust a single negative check |
+
+For latency, record attempt count, stage time and p99 under concurrent load for each parameter set. The informational expectations of 4.25, 5.1 and 3.85 attempts are useful sanity checks, not capacity-planning guarantees. If a deadline expires, abort without publishing $y$, $z$, the hint or a partial signature. Retrying with the same bad random state is worse than returning a controlled error.
+
+Side-channel evaluation should cover both accepted and rejected attempts. The fact that rejection is part of the protocol does not excuse variable-time arithmetic on secret coefficients. Use taint analysis to mark the secret seed, masking vector and response as sensitive, then inspect the exact release binary for secret-dependent branches, addresses and division. Repeat after changing compilers, CPU features or hardware providers.
 
 ## Implementation patterns for a signing device
 

@@ -22,6 +22,39 @@
     ]
   },
   {
+    "id": "harvest-now-decrypt-later",
+    "term": "Harvest now, decrypt later",
+    "definition": "An adversary records quantum-vulnerable ciphertext today and retains it until a sufficiently capable quantum computer is available. The relevant deadline depends on the data's confidentiality lifetime, not only on when such a computer appears.",
+    "citations": [
+      "mosca2018",
+      "nist-ir8547"
+    ],
+    "modules": [
+      "quantum-threat",
+      "tls-pki"
+    ],
+    "related": [
+      "pqc",
+      "crypto-agility"
+    ]
+  },
+  {
+    "id": "quantum-resource-estimate",
+    "term": "Quantum resource estimate",
+    "definition": "A model-based estimate of the logical qubits, physical qubits, gate count, runtime and error-correction overhead required by a quantum attack. Estimates depend strongly on hardware, noise and code assumptions and are not arrival-date predictions.",
+    "citations": [
+      "gidney-ekera2021",
+      "roetteler2017"
+    ],
+    "modules": [
+      "quantum-threat"
+    ],
+    "related": [
+      "shor",
+      "pqc"
+    ]
+  },
+  {
     "id": "shor",
     "term": "Shor's algorithm",
     "definition": "A quantum algorithm that factors integers and computes discrete logarithms in polynomial time, breaking RSA, finite-field Diffie–Hellman, and elliptic-curve cryptography once a sufficiently large fault-tolerant quantum computer exists.",
@@ -40,9 +73,11 @@
   {
     "id": "grover",
     "term": "Grover's algorithm",
-    "definition": "A quantum search algorithm giving a quadratic speed-up for unstructured search and collision finding. It halves the effective security level of symmetric primitives, motivating larger keys and hashes.",
+    "definition": "A quantum search algorithm giving a quadratic speed-up for unstructured search, including symmetric key and hash-preimage search. Quantum collision search uses different algorithms and cost exponents, so it should not be described as a generic Grover speed-up.",
     "citations": [
-      "grover1996"
+      "grover1996",
+      "brassard-hoyer-tapp1998",
+      "nist-ir8105"
     ],
     "modules": [
       "quantum-threat"
@@ -529,9 +564,10 @@
   {
     "id": "masking",
     "term": "Masking",
-    "definition": "A countermeasure that splits secret-dependent values into random shares so that any single share is independent of the secret. Boolean and arithmetic masking are common building blocks for DPA resistance.",
+    "definition": "A countermeasure that splits secret-dependent values into random shares so that a defined set of shares is independent of the secret under a stated probing model. Boolean and arithmetic masking are common building blocks, but composability, glitches and higher-order probes require separate analysis.",
     "citations": [
-      "kocher1999"
+      "nikova-rechberger-rijmen2006",
+      "faust2018"
     ],
     "modules": [
       "side-channel"
@@ -539,6 +575,23 @@
     "related": [
       "dpa",
       "constant-time"
+    ]
+  },
+  {
+    "id": "tvla",
+    "term": "Test Vector Leakage Assessment (TVLA)",
+    "definition": "A statistical leakage-assessment method that compares trace distributions for fixed-versus-random or specific public-input classes. A non-significant result only bounds detectable leakage under the stated sample size, effect size and test setup; it is not proof that no leakage exists.",
+    "citations": [
+      "schneider-moradi2015",
+      "whitnall-oswald2019"
+    ],
+    "modules": [
+      "side-channel"
+    ],
+    "related": [
+      "side-channel",
+      "masking",
+      "dpa"
     ]
   },
   {
@@ -559,11 +612,12 @@
   {
     "id": "hybrid-key-exchange",
     "term": "Hybrid key exchange",
-    "definition": "Combining a classical key agreement (such as X25519) with a post-quantum KEM so that the resulting shared secret is secure if either component remains secure. This supports incremental PQC migration.",
+    "definition": "Combining a classical key agreement (such as X25519) with a post-quantum KEM so that the resulting shared secret is secure if either component remains secure. The selected group fixes component order and encoding; X25519MLKEM768 places ML-KEM first despite its name.",
     "citations": [
       "hybrid-design",
+      "rfc10024",
       "rfc7748",
-      "rfc8446"
+      "rfc9846"
     ],
     "modules": [
       "tls-pki",
@@ -628,7 +682,7 @@
     "term": "TLS 1.3 handshake",
     "definition": "The authenticated key exchange that establishes traffic keys for a TLS connection. It negotiates a key-exchange group and authenticates the server (and optionally client) with signatures.",
     "citations": [
-      "rfc8446",
+      "rfc9846",
       "hybrid-design"
     ],
     "modules": [
@@ -1081,7 +1135,7 @@
     "term": "TLS interception",
     "definition": "Terminating TLS at a proxy to inspect plaintext. It creates a high-value key and trust target, breaks end-to-end guarantees and raises legal and privacy issues.",
     "citations": [
-      "rfc8446"
+      "rfc9846"
     ],
     "modules": [
       "deep-packet-inspection",

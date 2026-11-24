@@ -1,4 +1,5 @@
 import { Activity, BookOpen, Crosshair, ShieldCheck, Siren, Wrench } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 const STEPS = [
   { title: "Prepare", detail: "telemetry, playbooks, access, contacts", icon: ShieldCheck },
@@ -26,7 +27,7 @@ export function SocLifecycle() {
         })}
       </div>
       <div className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.1em] text-brand-700">
-        feedback from every incident updates detections, playbooks and controls
+        feedback from every incident updates detections, playbooks and controls <Cite id="sp800-61r3" locator="§2–5" />
       </div>
     </div>
   );

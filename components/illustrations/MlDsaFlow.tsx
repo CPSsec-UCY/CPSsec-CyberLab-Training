@@ -1,4 +1,5 @@
 import { ArrowRight, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function MlDsaFlow() {
   return (
@@ -35,7 +36,7 @@ export function MlDsaFlow() {
       </div>
 
       <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.1em] text-muted">
-        <RefreshCw className="h-3 w-3" /> rejection sampling is a correctness and security control, not just performance
+        <RefreshCw className="h-3 w-3" /> rejection sampling is a correctness and security control, not just performance <Cite id="fips204" locator="§5" />
       </p>
     </div>
   );

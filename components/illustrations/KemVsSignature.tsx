@@ -1,4 +1,5 @@
 import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 function Node({ label, detail, tone }: { label: string; detail: string; tone: string }) {
   return (
@@ -25,6 +26,7 @@ export function KemVsSignature() {
           <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-brand-400" />
           <Node label="4. AEAD(K)" detail="The shared key protects the actual application data." tone="border-emerald-200 bg-emerald-50" />
         </div>
+        <p className="mt-3 text-[9px] text-muted"><Cite id="fips203" locator="§7.1–7.3" /></p>
       </div>
 
       <div className="rounded-xl border border-coral-200 bg-coral-50/60 p-4">
@@ -40,6 +42,7 @@ export function KemVsSignature() {
           <ArrowRight className="mx-auto h-4 w-4 rotate-90 text-coral-400" />
           <Node label="4. Decision" detail="Valid signatures give authenticity and integrity, not confidentiality." tone="border-emerald-200 bg-emerald-50" />
         </div>
+        <p className="mt-3 text-[9px] text-muted"><Cite id="fips204" locator="§5" /></p>
       </div>
     </div>
   );

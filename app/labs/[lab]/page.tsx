@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FlaskConical } from "lucide-react";
 import { getLab, LABS } from "@/lib/labs";
+import { getModule } from "@/lib/modules";
+import { ModuleReferences } from "@/components/citations/ModuleReferences";
 
 export function generateStaticParams() {
   return LABS.map((lab) => ({ lab: lab.slug }));
@@ -18,6 +20,7 @@ export default async function LabPage({ params }: { params: { lab: string } }) {
   const lab = getLab(params.lab);
   if (!lab) notFound();
   const Lab = await lab.load();
+  const supportingModule = getModule(lab.course.split("/").filter(Boolean)[1] ?? "");
 
   return (
     <div className="container-page py-8 sm:py-12">
@@ -41,6 +44,15 @@ export default async function LabPage({ params }: { params: { lab: string } }) {
           </Link>
         </header>
         <Lab />
+        {supportingModule ? (
+          <div className="mx-auto mt-8 max-w-4xl">
+            <p className="mb-3 text-xs leading-6 text-body">
+              This workbench uses simplified, deterministic teaching data. Use the supporting module and
+              its primary sources to distinguish the illustrated mechanism from production assumptions.
+            </p>
+            <ModuleReferences ids={supportingModule.citations} title="Primary sources for this workbench" />
+          </div>
+        ) : null}
       </div>
     </div>
   );

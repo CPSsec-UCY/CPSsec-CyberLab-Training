@@ -110,7 +110,7 @@ export function ParameterExplorer() {
         ))}
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-line">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table className="w-full min-w-[640px] border-collapse text-left text-xs">
           <thead className="bg-mist-100 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
             <tr>

@@ -8,7 +8,7 @@ difficulty: "Advanced"
 readingTime: 95
 summary: "Timing, cache, power and fault leakage; the constant-time discipline; masking; and the specific places where PQC implementations leak."
 outcomes: ["Model timing, cache, power/EM and fault leakage.", "Explain constant-time programming and why it is necessary but insufficient.", "Analyse DPA correlation and masking/probing security.", "Design a validation plan for PQC implementations and real hardware."]
-citations: ["kocher1996", "kocher1999", "boneh1997", "fips203", "fips204", "montgomery1985", "liboqs", "longa2016"]
+citations: ["kocher1996", "kocher1999", "boneh1997", "fips203", "fips204", "fips205", "montgomery1985", "liboqs", "longa2016", "schneider-moradi2015", "nikova-rechberger-rijmen2006", "faust2018", "whitnall-oswald2019"]
 tags: ["side-channel", "constant-time", "implementation", "hardware"]
 prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
@@ -42,7 +42,7 @@ For every operation, ask: **does the observable behaviour depend on a secret?**
 Constant-time code means the sequence of instructions and memory addresses does not depend on secret data. It does not mean "takes the same number of nanoseconds" — caches, interrupts and frequency scaling make exact timing impossible. It means no secret-dependent control flow and no secret-dependent memory indexing.
 
 <Callout variant="note" title="Not sufficient, but necessary">
-Constant-time code defeats timing and cache-index attacks. It does not defeat power analysis, electromagnetic leakage or fault injection. Those need masking, hiding, redundancy and physical protections on top.
+Constant-time code is designed to remove timing and cache-index leaks caused by secret-dependent control flow and addressing. It does not defeat power analysis, electromagnetic leakage or fault injection. Those need masking, hiding, redundancy and physical protections on top.
 </Callout>
 
 ### Knowledge check
@@ -76,6 +76,21 @@ Defender goals also include reproducibility. The exact source, compiler, optimis
 Misconceptions weaken this model. Constant-time does not mean equal wall-clock nanoseconds, because interrupts, caches and frequency scaling create noise. It means that secret values do not choose instructions or memory addresses. It also does not mean power-independent. Masking does not make arbitrary code safe, and hiding a secret with noise does not help if the attacker can average unlimited traces. A single clean benchmark is not evidence against a statistical attack.
 
 Security and availability must be reviewed together. Redundant computation can double latency; full-table scans can increase cache pressure; fault detection can abort a payment. Define acceptable failure behaviour and recovery rather than silently removing countermeasures under load. The result should degrade into a documented safe state, not into a secret-dependent shortcut.
+
+### Translate capabilities into an observation budget
+
+“The attacker can measure timing” is too vague to design a test. A remote attacker may control ciphertexts and collect thousands of requests, but cannot pin the victim process to one CPU or remove network jitter. A co-resident attacker can manipulate cache state but may observe only coarse eviction patterns. A power attacker can align traces to a hardware trigger but usually changes the physical environment. Fault capability is different again: the attacker may corrupt one byte, skip an instruction or repeat a computation, but may not know whether the fault landed.
+
+| Channel | Observable and attacker control | Main confounders | Assurance question |
+| --- | --- | --- | --- |
+| Remote timing | Chosen inputs and response duration | Network jitter, scheduling, frequency changes | Does duration distribution depend on a secret at the stated sensitivity? |
+| Cache | Shared-cache eviction or hit pattern | Other tenants, prefetch, replacement policy | Can secret-selected addresses be distinguished across repeated probes? |
+| Power or EM | Aligned trace samples at chosen probe points | Probe placement, board variation, clock noise | Is an intermediate value recoverable under a stated leakage model? |
+| Fault | Output after controlled disturbance | Unknown fault location and repeatability | Does the device detect, contain or leak the fault before releasing output? |
+
+Consider chosen ciphertexts sent to an ML-KEM decapsulation interface. A prefix comparison can make rejection time depend on how many leading bytes match, so repeated queries may expose structure even when each individual measurement is noisy. <Cite id="fips203" locator="§7.2–7.3 (ML-KEM encapsulation and decapsulation)" /> The test plan must therefore fix the input distribution, estimate the number of observations available to the attacker and record what noise the countermeasure must tolerate. A one-off benchmark with one ciphertext cannot answer that question.
+
+The observation budget also determines what “secure” can mean. A design may resist an attacker limited to 500 traces but not one allowed 500,000. Write the bound into the assurance claim, together with chosen-input freedom, probe count, fault set and hardware revision. Kocher's timing work shows why repeated measurements amplify small execution differences; the DPA work shows why many aligned traces can reveal data dependence. <Cite id="kocher1996" locator="pp. 104–113" /> <Cite id="kocher1999" locator="pp. 388–397" /> Without a budget, a pass label has no defensible scope.
 </Lens>
 
 <Lens level={2} title="Timing, cache, power, faults — and the fixes">
@@ -131,23 +146,20 @@ In ML-KEM and ML-DSA, the path taken on rejection or failure must not be disting
 </Callout>
 
 
-## Timing and cache attacks
+## Worked oracle: compare completely, then select
 
-A timing attack needs a secret-dependent execution path and enough measurements to average out noise. Remote timing attacks are practical when the leak is amplified by many queries or by a shared cache. Constant-time code removes the path dependence; it does not remove power leakage.
+An ML-KEM-768 ciphertext is 1,088 bytes. A vulnerable implementation decompresses and decodes enough input to derive a candidate key, re-encrypts it, and compares the result with the submitted ciphertext using a routine that returns at the first mismatch. The returned shared secret may be correct, but rejection time reveals the matching prefix. An attacker does not need to recover the long-term key in one query; repeated chosen ciphertexts can build a distinguishing statistic.
 
-Cache attacks observe which lines are loaded. A table indexed by a secret coefficient reveals the index if only one line is touched. A full-table scan touches every line and selects in registers, which hides the index but costs time and power.
+The repair is not “compare faster.” Parse and validate the public length, perform the prescribed decoding and derivation, compute both the accepted key and the implicit-rejection key, and accumulate differences across the complete ciphertext without early exit. Convert the final accumulation to a mask and select the output with bitwise operations. FIPS 203 specifies the decapsulation interface and its rejection behavior. <Cite id="fips203" locator="§7.3 (decapsulation and implicit rejection)" />
 
-## Power analysis
+| Implementation choice | Instruction and address trace | Remaining concern | Test that discriminates |
+| --- | --- | --- | --- |
+| Prefix comparison with early return | Secret-dependent branch and loop length | Network timing and local cache effects | Compare distributions for ciphertexts with controlled matching prefixes |
+| Full comparison followed by branch on result | Comparison work is fixed; output branch remains | Success and rejection paths may differ in latency or power | Include both output classes in statistical tests |
+| Full comparison, both outputs derived, masked selection | No secret-dependent branch or index in source | Compiler may reintroduce a branch; power remains data-dependent | Inspect release assembly and run power evaluation |
+| Faulted comparison or selection | May skip the check or corrupt the mask | Unchecked key output or distinguishable error | Inject faults and require a safe abort or the specified rejection output |
 
-Simple power analysis reads a trace directly. Differential power analysis uses many traces and a leakage model such as Hamming weight. The attacker guesses a key byte, predicts an intermediate value, and correlates traces with the prediction. Enough traces distinguish the correct guess.
-
-## Fault attacks
-
-The Bellcore attack on RSA signatures used one faulty signature to factor the modulus. A fault during a post-quantum decapsulation or signature can similarly leak secrets or break unforgeability. Redundancy, verification before release and fault-detection circuitry are standard mitigations. <Cite id="boneh1997" locator="pp. 37–51" />
-
-<Callout variant="warning" title="Constant time is not side-channel freedom">
-Constant-time code hides instruction and address traces. It does not hide power, electromagnetic emanations or faults. Protection requires layered countermeasures and evaluation on real hardware.
-</Callout>
+Constant-time repair removes one observable, not every observable. A library `memcmp` can hide an early exit behind an audited interface, but a compiler or provider update can change the generated code. A fault that skips comparison can also defeat a superficially correct path. Test the complete operation boundary, including cleanup and output serialization, because a secret-dependent error code can recreate the oracle even when the arithmetic is constant-time.
 
 ## A measurement and correlation walkthrough
 
@@ -236,7 +248,7 @@ $$
 Any $d$ shares are uniformly random and reveal nothing in the probing model. Boolean masking suits bitwise operations; arithmetic masking suits modular addition and multiplication. Converting between them is a common source of bugs.
 
 <Callout variant="lab" title="Proof sketch">
-In the $d$-probing model, the adversary sees at most $d$ intermediate wires. A $d$-th-order masking scheme guarantees that any $d$ shares are independent of the secret. Real proofs also need composability and strong non-interference; a flawed refresh or a leaky conversion can break the guarantee.
+In the $d$-probing model, the adversary sees at most $d$ intermediate wires. A $d$-th-order masking scheme guarantees that any $d$ shares are independent of the secret. Real proofs also need composability and strong non-interference; a flawed refresh or a leaky conversion can break the guarantee. <Cite id="nikova-rechberger-rijmen2006" locator="§3.2–3.3" /> <Cite id="faust2018" locator="§1 and §4–4.1" />
 </Callout>
 
 ## Fault models
@@ -258,33 +270,23 @@ Constant-time code prevents a specific class of observable, the instruction/addr
 Without those, "side-channel resistant" is a marketing phrase.
 
 
-## A leakage model
+## When masking passes a unit test but fails a campaign
 
-A simple model treats the observed trace as
+A first-order masked multiplier passes its arithmetic test vectors: reconstructing the output shares always gives the correct product. During hardware evaluation, however, a correlation peak appears when the implementation converts Boolean shares to an arithmetic representation. The multiplication gadget is not the only secret-dependent operation; the conversion performs nonlinear work, and a refresh step reuses a mask from the previous invocation.
 
-$$
-L(x) = \mathrm{HW}(x) + \eta,
-$$
+| Test or observation | What it establishes | What it does not establish |
+| --- | --- | --- |
+| Functional reconstruction | The shares encode the correct mathematical result | That intermediate shares are independent of the secret |
+| Single-probe simulation | No tested wire leaks under the stated model | Security against two probes, glitches or a different placement |
+| Static Hamming-weight correlation | Linear leakage under that model and time window | Absence of nonlinear or transition-based leakage |
+| Fixed-mask versus fresh-mask comparison | Whether refresh and randomness affect the measured distribution | Higher-order security if only first-order combinations are tested |
+| Held-out traces and second board | Whether the effect reproduces beyond the tuning set | A universal guarantee across future hardware revisions |
 
-where $\mathrm{HW}$ is Hamming weight and $\eta$ is noise. More realistic models include transitions, memory effects and device-specific power profiles.
+DPA predicts an intermediate value under each key guess and correlates that prediction with many traces; the correct guess should stand out when the leakage model and alignment are appropriate. <Cite id="kocher1999" locator="pp. 388–397" /> In a masked design, the evaluation must also vary masks and test joint observations, not merely compare average power. A stale mask can correlate shares across executions, while a leaky conversion can expose a combination even when each input share looks uniform in isolation.
 
-For correlation power analysis, the attacker computes
+A useful campaign first validates sensitivity with a deliberately weakened implementation: reuse a mask or omit a refresh and confirm that the chosen distinguisher detects it. Then collect traces for the repaired design, randomise public inputs and masks, and evaluate on data not used to choose probe points. Testing many time samples and many guesses creates multiple comparisons, so a peak must survive a predeclared significance rule and independent replication. FIPS 205 explicitly identifies side-channel and fault protection as implementation considerations beyond the hash-based signature definition. <Cite id="fips205" locator="§3.2 (side-channel and fault attacks)" />
 
-$$
-\rho(k) = \frac{\mathrm{Cov}(L(v(k)), T)}{\sigma_{L(v(k))}\,\sigma_T}
-$$
-
-for each key guess $k$, where $v(k)$ is a predicted intermediate value. The correct guess should stand out above the noise.
-
-## Masking theory
-
-A secret $x$ is split into shares $x = x_0 \oplus \cdots \oplus x_d$. In the $d$-probing model, any $d$ wires are independent of $x$. Boolean masking suits bitwise operations; arithmetic masking suits modular arithmetic; conversions between them are delicate. A broken refresh or a leaky conversion can destroy the guarantee.
-
-The security proof is only as good as the model: probing security, strong non-interference, composability and glitch resistance are separate properties. Real hardware evaluation is still required.
-
-<Callout variant="lab" title="Fault and side-channel models compose">
-A combined attacker can use a fault to bypass a check and a power trace to learn the branch. Defences should be evaluated together, not as independent checkboxes.
-</Callout>
+The repair follows the evidence. Refresh masks with fresh entropy at the required boundary, replace the conversion with a reviewed gadget, and examine transition effects if glitches may expose adjacent shares. Re-run the functional vectors and the full leakage campaign; a successful unit test is necessary for correctness but says little about the distribution the attacker observes.
 
 ## Formalising leakage and constant time
 
@@ -294,7 +296,7 @@ Pearson correlation measures linear dependence between a prediction and a trace.
 
 Constant-time programming constrains the instruction and address trace. For every pair of secret inputs, execution follows the same sequence of public branches, loop bounds and memory addresses. Secret values may still determine register contents and arithmetic operations. This directly addresses branch and cache-index timing, but it says nothing by itself about power, electromagnetic emanations or fault behaviour. A full-table scan removes the secret index but still processes secret-selected data in registers.
 
-In the $d$-probing model, an adversary observes at most $d$ intermediate wires during one execution. With $d+1$ shares and at least one fresh uniform share, any set of $d$ shares can be independent of the secret. For Boolean sharing, $x=x_0\oplus\cdots\oplus x_d$; conditioning on any $d$ shares leaves the remaining share uniformly distributed. For arithmetic sharing, the same statement holds under addition modulo the relevant ring.
+In the $d$-probing model, an adversary observes at most $d$ intermediate wires during one execution. With $d+1$ shares and at least one fresh uniform share, any set of $d$ shares can be independent of the secret. For Boolean sharing, $x=x_0\oplus\cdots\oplus x_d$; conditioning on any $d$ shares leaves the remaining share uniformly distributed. For arithmetic sharing, the same statement holds under addition modulo the relevant ring. <Cite id="nikova-rechberger-rijmen2006" locator="§2–3.3" />
 
 The proof becomes harder for nonlinear operations. Boolean AND, modular multiplication, comparisons and decompression need gadgets whose every intermediate probe set is secure. Strong non-interference requires that extending the observed probe set does not reveal additional secret information. Composability requires that a secure gadget remains secure when placed in a larger circuit. Transition-based leakage models additionally treat glitches between clock cycles. A scheme that is secure against one static probe can fail against two probes at different times if shares are not refreshed.
 
@@ -356,7 +358,7 @@ The compiler may transform these patterns. Use a compiler barrier that does not 
 - **Memory:** use locked pages where appropriate, clear buffers, avoid copying secrets into uninitialised padding.
 
 <Callout variant="lab" title="A realistic assurance plan">
-Start with a constant-time library, then measure. Review the assembly for the exact build. Run statistical timing tests. Evaluate power traces on a representative device. Red-team the fault paths. Repeat after every compiler or hardware change. <Cite id="liboqs" />
+Start with a constant-time library, then measure. Review the assembly for the exact build. Run statistical timing tests. Evaluate power traces on a representative device. Red-team the fault paths. Repeat after every compiler or hardware change. <Cite id="liboqs" locator="Reference implementations and KEM/signature test harness" />
 </Callout>
 
 <KnowledgeCheck
@@ -367,33 +369,26 @@ Start with a constant-time library, then measure. Review the assembly for the ex
 />
 
 
-## Writing constant-time code
+## A release-gate protocol with stated sensitivity
 
-- No branches on secret values.
-- No array indices derived from secrets.
-- No variable-time division or modulo on secrets.
-- No early-exit comparisons.
-- No secret-dependent loop bounds.
-- No floating point in the cryptographic path.
-- Wipe secrets and avoid logging them.
+A provider update changes the compiler's handling of a bitwise selection idiom. Functional vectors pass, but the new binary contains a conditional branch on a rejection flag. The old timing report no longer describes the deployed artifact. A release gate must therefore bind reports to an exact build and define what happens when evidence is missing, rather than carrying forward a green badge.
 
-The compiler can transform a conditional into a branch or a conditional move depending on optimisation level and target. Validate the generated assembly, not only the source.
+| Gate | Artifact or evidence | Pass criterion | Failure action |
+| --- | --- | --- | --- |
+| Build identity | Source revision, compiler, flags, provider and target | Matches the evaluated cryptographic bill of materials | Rebuild or repeat affected evaluation |
+| Static review | Taint results and generated assembly | No secret-derived branch, address, loop bound or variable-latency call | Fix code or replace the primitive |
+| Timing | Fixed-secret, randomised-input distributions | No detected difference above the predeclared sensitivity and trace budget | Isolate, diagnose and retest before release |
+| Power and EM | Aligned traces plus weakened positive control | Setup detects the known leak; repaired design meets the stated order and threshold | Review masks, gadgets, probe model and hardware |
+| Fault injection | Comparison, sampling and output paths | Faults produce safe abort or specified rejection, never unchecked secret-dependent output | Add detection or redesign the protected path |
+| Operational control | Logs, crash dumps, memory wiping and support tooling | No secret exposure and reproducible field-build mapping | Fix handling before deployment |
 
-## Validation
+Statistical timing tests need a planned sample size and a minimum effect of interest. “No significant difference” after 200 measurements may only mean the experiment lacked power. Power campaigns need aligned triggers, stable sampling and enough traces to estimate variance; fault campaigns need to record whether the device aborted, returned a normal rejection value or released an output. A crash is not automatically a secure outcome, and a clean result on one board does not cover every probe location. <Cite id="whitnall-oswald2019" locator="§3.1, §3.3 and §5.2" />
 
-- **Timing:** `dudect`, statistical timing tests and controlled experiments.
-- **Taint analysis:** ctgrind-style tools for secret-dependent branches and addresses.
-- **Formal tools:** constant-time verifiers for source or assembly.
-- **Power/EM:** leakage assessment (TVLA or equivalent) on a representative device.
-- **Faults:** voltage/clock/EM fault injection campaigns and simulation.
+The liboqs reference implementations and KEM/signature test harness provide a starting point for functional and implementation regression, but their results must be tied to the actual release build and hardware. <Cite id="liboqs" locator="Reference implementations and KEM/signature test harness" /> Run a deliberately weakened reference as a positive control to prove the laboratory setup can see the target leak. Keep held-out traces for final confirmation and repeat the affected gates after any compiler, provider, CPU-feature or hardware change.
 
-## PQC hotspots
+Report an effect size and uncertainty interval, not only a pass/fail p-value. For timing, compare paired measurements for each public-input class while keeping the secret fixed; for power, report the tested probe order, trace count and correction for multiple time points and guesses. Choose the sample size and exclusion rules before viewing final data, and investigate outliers rather than deleting them to obtain a clean result. A nonsignificant result means the experiment did not detect leakage above its stated sensitivity in that setup. It does not prove that leakage is impossible. <Cite id="whitnall-oswald2019" locator="§5.2 and §7" />
 
-- **ML-KEM:** decapsulation re-encryption comparison, decompression, rejection selection.
-- **ML-DSA:** masking vector generation, norm checks, rejection loop, hints.
-- **SLH-DSA:** secret seed handling and address-dependent hashing.
-- **NTT:** secret-dependent indexing or branches in the butterfly loop.
-- **Compression:** rounding must not branch on secret coefficients.
+The resulting claim is bounded and reviewable: this artifact, under this attacker model, at this sensitivity.
 
 <Callout variant="danger" title="Validate the deployed artifact">
 A constant-time claim at the source level does not survive a different compiler, optimisation level or CPU. Re-run validation after toolchain or hardware changes.
@@ -409,7 +404,7 @@ Static analysis should start with taint labels on the secret key, shares, nonce 
 
 Timing validation needs controlled experiments. Use `dudect` or an equivalent statistical test with fixed secret values, randomised public inputs and enough samples to estimate the distribution. Run on an isolated, frequency-stable target and repeat under realistic load. A nonsignificant result is evidence only for the tested artifact and sensitivity; it is not a universal proof.
 
-Power and electromagnetic validation should use a leakage-assessment process such as TVLA or a task-specific correlation campaign. Fix the trigger, trace window and device configuration. Test first-order and, where relevant, higher-order leakage across probe locations. Include fresh-mask and repeated-mask test modes so the evaluator can confirm that the setup detects a deliberately weakened implementation.
+Power and electromagnetic validation should use a leakage-assessment process such as TVLA or a task-specific correlation campaign. Fix the trigger, trace window and device configuration. Test first-order and, where relevant, higher-order leakage across probe locations. Include fresh-mask and repeated-mask test modes so the evaluator can confirm that the setup detects a deliberately weakened implementation. <Cite id="schneider-moradi2015" locator="§2–3" />
 
 Fault campaigns should vary voltage, clock and electromagnetic disturbance while recording output and detection behaviour. Inject faults into comparison, sampling, norm checks and hash-address generation. A secure response may abort, return the standard rejection value or repeat a computation, depending on the interface. It must not expose a secret-dependent error or release an unchecked signature.
 

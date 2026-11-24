@@ -143,7 +143,7 @@ export function MpcSecretSharingLab() {
         </p>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-line">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table className="w-full min-w-[560px] text-left text-xs">
           <caption className="sr-only">Shamir polynomial points and distributed shares</caption>
           <thead className="bg-mist-100 text-[9px] uppercase tracking-[0.1em] text-muted">

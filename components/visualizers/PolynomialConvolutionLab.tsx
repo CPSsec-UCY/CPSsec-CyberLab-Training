@@ -189,7 +189,7 @@ export function PolynomialConvolutionLab() {
           <span className="font-mono text-[10px] text-muted">{mode === "negacyclic" ? `ψ = ${PSI}, odd powers` : `ω = ${OMEGA}, all powers`}</span>
         </div>
         {step >= 2 ? (
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full min-w-[520px] text-center font-mono text-xs">
               <caption className="sr-only">Four-point transform values and point-wise products</caption>
               <thead className="text-[9px] uppercase tracking-[0.1em] text-muted">

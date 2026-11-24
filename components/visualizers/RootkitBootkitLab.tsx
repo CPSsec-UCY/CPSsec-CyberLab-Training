@@ -267,7 +267,7 @@ export function RootkitBootkitLab() {
 
         <section className="overflow-hidden rounded-xl border border-line bg-white p-3 lg:col-span-2">
           <p className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-navy"><Eye className="h-3.5 w-3.5 text-brand-600" /> Visibility by vantage point</p>
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
             <table className="w-full min-w-[680px] text-left text-[10px]">
               <thead className="bg-mist-50 text-muted"><tr><th className="px-2 py-2">Vantage</th><th className="px-2 py-2">Potential observation</th><th className="px-2 py-2">Important limitation</th></tr></thead>
               <tbody>{layer.visibility.map((item) => (

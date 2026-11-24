@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 80
 summary: "How federated averaging works, what secure aggregation and differential privacy actually protect, and why poisoning, Sybil and inference attacks remain."
 outcomes: ["Trace a FedAvg round with weighted aggregation and client dropout.", "Separate privacy controls from integrity controls.", "Explain secure aggregation, differential privacy and composition.", "Analyse poisoning, backdoors, membership inference and operational testing."]
-citations: ["mcmahan2017", "kairouz2021", "bonawitz2017", "abadi2016", "dwork-roth2014", "shokri2017", "bagdasaryan2020"]
+citations: ["mcmahan2017", "kairouz2021", "bonawitz2017", "abadi2016", "dwork-roth2014", "shokri2017", "bagdasaryan2020", "sp800-61r3"]
 tags: ["federated-learning", "privacy", "differential-privacy", "poisoning"]
 prerequisites: ["centralised-decentralised", "hashing-mac-kdf"]
 updated: "2026-11-24"
@@ -74,6 +74,20 @@ In an eight-hospital deployment, a rare-condition model is trained for two hundr
 Several intuitive claims are wrong. Keeping records local does not mean updates are anonymous: gradients or parameter differences can encode examples. Adding noise once does not give a fixed lifetime privacy guarantee, because repeated releases compose. Hiding individual updates does not mean the final aggregate is safe: ten colluding clients can target the same feature. More clients do not automatically reduce poisoning; a large attacker-controlled population can increase both weight and confidence. A good threat-model statement names the privacy unit, the collusion threshold, the number of adversarial updates and whether the server follows the protocol.
 
 Define success before training: clinical utility, bounded privacy loss, maximum poisoning impact and round availability. Reject a candidate if clean validation accuracy falls by more than two percentage points or any protected subgroup falls by more than five points. These policy thresholds turn concerns into testable release gates.
+
+### Write an adversary specification, not just a list of attackers
+
+“Malicious client” and “curious server” are starting points, not complete models. A testable specification names the **privacy unit**, the neighbouring relation, the maximum colluding set, the parties whose endpoints may be compromised, the server's allowed deviations and every release visible to an outsider. At record level, neighbours differ by one example. At client level, they differ by one client's entire contribution. At update level, the protected object is a bounded vector; that claim alone says nothing about all records held by its owner. The unit must match the promise made to the person whose data is being protected.
+
+Next distinguish passive from active behaviour. An honest-but-curious aggregator follows the protocol but inspects shares, timing, identities and released models. A malicious aggregator may omit selected clients, substitute a model version, alter the clipping instruction or withhold output. Secure aggregation may hide individual vectors from both, but availability and correct model publication need additional evidence. Likewise, a malicious client can send malformed shares, abort after contributing, submit stale rounds or collude with other clients; a compromised endpoint can exfiltrate raw data before clipping occurs. Encryption on the wire cannot protect an update computed on an already compromised device.
+
+Collusion should be bounded independently of dropout. If a protocol reconstructs from six of eight clients, that number describes availability. It does not tell you how many clients may pool their views before an individual update is exposed. A secret-sharing construction has its own collusion threshold, and a robust aggregator has a separate corruption budget. Mixing these numbers produces a false guarantee such as “six-of-eight is private against six attackers.”
+
+Map the data flow as an attack graph: enrolment, local dataset, model download, training, clipping, masking, share submission, reconstruction, noise, evaluation, publication and downstream queries. At each edge record who can observe, modify, replay or suppress the artefact. Participation timing can leak membership, a model version can reveal the selected cohort, and a public query log can become a second dataset. Controls placed only on gradient upload leave these channels open.
+
+Governance authority belongs in the same specification. Decide who may change the objective, approve a client population, read diagnostic shares, set the privacy budget, revoke an organisation and publish a model. A coordinator that lowers clipping or resets accounting can invalidate privacy and integrity while cryptographic checks pass. The release gate needs signed configuration, append-only accounting, independent evaluation and named approval authority.
+
+Finally, separate worst-case guarantees from empirical tests. Differential privacy gives a distributional guarantee for the declared neighbours; secure aggregation gives confidentiality under its cryptographic assumptions; neither promises useful accuracy or resistance to every poisoning strategy. Release documentation should label each claim as proved, measured or assumed.
 </Lens>
 
 <Lens level={2} title="Rounds, aggregation and the privacy stack">
@@ -177,6 +191,38 @@ The aggregator verifies commitments, reconstructs only after the threshold holds
 />
 
 Version configuration with the round. Clipping controls sensitivity, deadlines control participation and the reconstruction threshold controls dropout availability. Test these interacting knobs together.
+
+### What a secure sum hides
+
+A simplified secure-sum protocol shows the core cancellation property. Work in a finite field or fixed-width ring and let client $i$ hold update vector $v_i$. For every pair of clients, choose a random mask $r_{ij}$ and set $r_{ji}=-r_{ij}$. Client $i$ submits
+
+$$
+y_i = v_i + \sum_{j \ne i} r_{ij}.
+$$
+
+If every selected client submits exactly once, the pairwise terms cancel:
+
+$$
+\sum_i y_i = \sum_i v_i.
+$$
+
+The server learns the sum but not an individual vector, provided the masks remain unknown and clients do not reveal their views. This illustration assumes authenticated clients, secure channels, honest endpoints and a fixed participant set. It is not the complete Bonawitz protocol. Production constructions add secret-shared masks, double masking, commitments and verification so that malicious clients cannot submit inconsistent shares. <Cite id="bonawitz2017" locator="pp. 1180–1187" />
+
+Dropout breaks the simple cancellation equation because a missing client also removes its masks. Substituting a zero update is generally wrong: the sum then contains an unknown mask offset rather than the intended dropout-free aggregate. Threshold secret sharing lets surviving participants recover the missing mask contributions without revealing honest updates. The protocol must still record which contributions are usable, preserve the agreed weighting and refuse to publish if reconstruction or validation fails. Failure robustness means a defined recovery or abort path; it does not mean every dropout can be hidden without cost.
+
+Commitments differ from encryption. They bind a client to a masked share before reconstruction, preventing adaptation after seeing others. Authentication binds the share to an identity and round. Range and dimension checks prevent wraparound or malformed vectors from corrupting the sum. These checks must use the protocol's specified representation, not a server-side plaintext update the privacy design was meant to hide.
+
+<WorkedExample
+  title="Pairwise masks cancel only when the round is complete"
+  steps={[
+    "Choose independent pairwise masks modulo a declared field, with opposite signs in each direction.",
+    "For updates 10, 20 and 30, choose r12 = 4, r13 = 7 and r23 = -2.",
+    "Client 1 sends 10 + 4 + 7 = 21; client 2 sends 20 - 4 - 2 = 14; client 3 sends 30 - 7 + 2 = 25.",
+    "The server reconstructs 21 + 14 + 25 = 60, exactly the sum of the three updates.",
+    "If client 1 drops out before usable shares exist, its masks remain in the surviving messages. The protocol must recover those masks from threshold shares or abort; treating client 1's update as zero is not equivalent."
+  ]}
+  result="Mask cancellation provides confidentiality for complete rounds. Dropout recovery, share consistency and commitments are separate protocol requirements."
+/>
 </Lens>
 
 <Lens level={3} title="The objective, the guarantee and the adversary">
@@ -237,28 +283,53 @@ An attacker can scale an update to dominate the average, target a trigger patter
 
 No single defence covers all attackers. The threat model must state whether clients can be malicious, whether the server is honest-but-curious, and whether Sybil identities are cheap.
 
+### Integrity controls have different failure modes
+
+Clipping limits the **mass** of an attack but not its direction. Suppose $p$ is the total aggregation weight of malicious clients and each clipped update has norm at most $C$. The norm of their combined contribution is at most $pC$. In a 100-client round, ten malicious clients with equal weight can contribute at most one tenth of the clipping norm in their chosen direction. That bound does not prove the attack is harmless: clean updates may be small, heterogeneous or cancel, and a targeted feature may be sensitive to a much smaller perturbation. If enrolment is cheap, the attacker can raise $p$ by creating Sybil clients, so client-level clipping does not replace Sybil resistance.
+
+Model-replacement backdoors exploit this structure. Instead of poisoning local training data and hoping a small gradient survives, the attacker trains toward a trigger task and scales the resulting update to the allowed norm. Clipping may constrain the final vector but does not remove the targeted direction. The constrain-and-scale attack explicitly optimises for persistence and evasion, so an outlier detector must be evaluated against defence-aware attacks rather than only random noise. <Cite id="bagdasaryan2020" locator="§4.2–4.3" />
+
+Robust aggregation changes the failure budget. A coordinate-wise median can tolerate fewer than half malicious values in a coordinate under the usual symmetric-error assumptions, but corruption spread across coordinates can evade per-coordinate reasoning. A trimmed mean requires a stated trim fraction and an upper bound on attacker weight. Both can discard legitimate updates under heavy non-IID heterogeneity. Their security therefore depends on the data distribution, coordinate correlations and attacker strategy, not only the aggregator name.
+
+| Control | Hides individual updates? | Bounds update magnitude? | Resists malicious direction? | Detects a hidden backdoor? | Main limitation |
+| --- | --- | --- | --- | --- | --- |
+| Secure aggregation | Yes, under its collusion model | No | No | No | Malicious contributions still enter the sum |
+| Clipping | No | Yes | No | No | Many bounded attackers can align |
+| Gaussian DP | No | Works with a sensitivity bound | No | No | Noise can reduce utility; budget composes |
+| Coordinate median or trimmed mean | No | Often reduces extreme influence | Only within a corruption bound | Not by itself | Heterogeneity can reject honest updates |
+| Sybil-resistant enrolment | No | Indirectly limits attacker weight | Indirectly | No | Does not stop a compromised legitimate client |
+| Independent clean and subgroup evaluation | No | No | Supports rollback | Can reveal targeted regression | Requires representative evaluation data |
+
+Membership inference has its own evaluation loop. A black-box attacker can train shadow models, query the target on members and non-members, and classify confidence or loss patterns without reading training updates. Defences include reducing overfitting, limiting queries, calibrating confidence, regularisation and a privacy guarantee covering the released model; secure aggregation does not address the serving interface. <Cite id="shokri2017" locator="§V and §VIII" />
+
+Test the defence suite jointly. Measure clean accuracy, worst-subgroup accuracy, backdoor success, membership-inference advantage, reconstruction failures and communication cost together. Noise can hide a backdoor from anomaly detection, secure aggregation can prevent individual inspection, and robust aggregation can bias results against a minority hospital; the release decision is a multi-objective gate.
+
 ### Privacy units, sensitivity and composition
 
 The word privacy is incomplete until the unit is named. Record-level DP limits the effect of adding or removing one example; client-level DP limits the effect of one client's entire dataset; update-level DP may protect a single vector contribution but not the underlying client. Neighbouring datasets must differ only under the declared relation. Client-level DP is usually the relevant claim when each hospital contributes one bounded update, but it is not interchangeable with record-level DP. <Cite id="dwork-roth2014" locator="Vol. 9, pp. 211–407" />
 
-For a vector-valued query with clipping bound $C$, the Gaussian mechanism adds noise with standard deviation proportional to $C/\varepsilon$. A common one-release calibration for $(\varepsilon,\delta)$-DP with $\varepsilon<1$ is
+For a vector-valued query with $L_2$ sensitivity $C$, the Gaussian mechanism adds independent Gaussian noise to each coordinate. For the analytic calibration with $0<\varepsilon<1$, choose $c^2>2\ln(1.25/\delta)$ and
 
 $$
-\sigma = C\sqrt{\frac{2\ln(1/\delta)}{\varepsilon^2}}.
+\sigma \ge \frac{cC}{\varepsilon}.
 $$
 
-The formula is only valid for the specified mechanism, privacy unit and sensitivity analysis; it is not a recipe for arbitrary objectives. With independent releases, basic composition gives $\varepsilon_{\text{total}}\le \sum_r \varepsilon_r$. Advanced composition can be tighter when individual epsilons are small, but it does not remove accounting. DP guarantees are worst-case: they say the output distributions change little for neighbours, not that every record is impossible to infer. Post-processing cannot increase privacy, but a released model plus side information can still support attacks outside the protected unit. <Cite id="abadi2016" locator="pp. 308–318" />
+Here $C$ must be the sensitivity of the **released query after clipping and normalisation**, not merely the largest observed gradient. If one client's update is clipped to norm $C$ and contributions are averaged, the aggregate's sensitivity depends on that client's maximum weight. Changing sample weighting, adding clients or omitting dropouts can change the denominator and therefore the sensitivity analysis. The formula is valid only for the specified mechanism, privacy unit and neighbouring relation; it is not a recipe for an arbitrary training objective. <Cite id="dwork-roth2014" locator="§3.5.3, Theorem 3.22" />
+
+With independent releases, basic composition gives $\varepsilon_{\text{total}}\le \sum_r \varepsilon_r$ and $\delta_{\text{total}}\le \sum_r \delta_r$. Advanced composition can be tighter in some regimes, but it must be evaluated with its actual formula and parameters. For per-round parameters $(\varepsilon,\delta_{\mathrm{round}})$, a generic advanced bound is $\varepsilon' \le \sqrt{2T\ln(1/\delta')}\,\varepsilon + T\varepsilon(e^\varepsilon-1)$ with total $\delta\le T\delta_{\mathrm{round}}+\delta'$; it is not always smaller than basic composition. Specialised moments accountants exploit the Gaussian mechanism and sampling process and can be substantially tighter for private training, but they require a validated implementation and a complete record of sampling, clipping and noise settings. <Cite id="dwork-roth2014" locator="§3.5.1–3.5.2" /> <Cite id="abadi2016" locator="§3.1–3.2" />
+
+DP guarantees are worst-case: they say the output distributions change little for neighbours, not that every record is impossible to infer. Post-processing cannot increase privacy, but a released model plus side information can still support attacks outside the protected unit. Adaptive composition matters when later rounds or releases are chosen using earlier outputs. Random sampling can amplify privacy, but only under the sampling assumption used by the analysis; adversarially selecting a favourable cohort does not inherit the same guarantee.
 
 <WorkedExample
   title="Noise and budget for repeated hospital updates"
   steps={[
     "Choose client-level DP with clipping norm C equal to 1, epsilon equal to 0.8 and delta equal to 0.00001 for one round.",
-    "Compute the Gaussian standard deviation: 1 times the square root of 2 times ln of 100000, divided by 0.8.",
-    "The square-root term is approximately 4.840, so sigma is approximately 6.050.",
-    "Across 50 independent rounds, basic composition gives total epsilon at most 50 times 0.8, or 40.",
-    "An advanced-composition bound with the same delta is roughly 0.8 times the square root of 2 times 50 times ln of 100000, or about 26.7."
+    "Use the analytic Gaussian calibration c squared greater than 2 times ln of 1.25 divided by delta.",
+    "The square-root term is approximately 4.845, so the standard deviation must be at least 4.845 divided by 0.8, or approximately 6.056.",
+    "Across 50 independent rounds, basic composition gives total epsilon at most 50 times 0.8, or 40, and total delta at most 0.0005.",
+    "A generic advanced bound with delta prime equal to 0.00002 is approximately 75.3, with total delta at most 0.00052, so it is not an epsilon improvement here. A Gaussian moments accountant must be evaluated separately."
   ]}
-  result="A seemingly moderate per-round epsilon becomes very large over a training run. Fix the total privacy budget first, then allocate it across rounds and any public model releases."
+  result="A seemingly moderate per-round epsilon becomes very large over a training run. Fix the total privacy budget first, allocate it across rounds and public releases, and use a validated accountant rather than assuming a tighter composition result."
 />
 
 ### Correctness and robustness are separate arguments
@@ -350,6 +421,20 @@ The round runbook should define who can pause training, invalidate a model, revo
 8. Test poisoning, dropout, stale-model and reconstruction-failure paths.
 9. Gate release on privacy accounting and independent evaluation.
 10. Rehearse model rollback, participant revocation and consumer notification.
+
+### Make the coordinator's powers explicit
+
+The coordinator is a privileged actor even when it cannot see individual updates. It chooses eligibility, sampling, model version, clipping parameters, deadlines, reconstruction thresholds and publication time. It can also delay a round, omit a valid contribution or release a stale model. A secure-aggregation guarantee should therefore be paired with a coordinator threat model: what can it learn, what can it change, and what evidence can another party verify? Signed configuration, append-only round records and independent release approval constrain these powers without requiring plaintext gradients.
+
+Three thresholds belong in every protocol specification. The **reconstruction threshold** determines how many usable contributions are needed to recover the sum. The **collusion threshold** determines how many parties may pool views before update confidentiality fails. The **corruption threshold** determines how many malicious updates the integrity rule is designed to tolerate. For eight clients, six-of-eight reconstruction tolerates two dropouts; a sharing scheme with a two-party collusion bound does not become safer because six shares are required; and a robust aggregator may tolerate a different number of malicious vectors. Support each threshold with its experiment or theorem.
+
+Monitoring must not recreate the surveillance the protocol was meant to prevent. Aggregate norms and participation rates can reveal unusual clients in small cohorts. Restrict client-level diagnostics to an authorised audit process with purpose and retention limits. Allow a separately authorised quorum to inspect shares for a bounded investigation while the routine aggregator sees only the aggregate, and test that audit path for collusion and logging leaks.
+
+A poisoned round is a security incident. Preserve the last signed model and accounting checkpoint, stop publication, identify affected consumers and separate observed regressions from causal hypotheses. Define who can pause training, revoke a participant, authorise diagnostics and approve a rerun. These actions map to incident-response preparation, detection, containment and recovery, with evidence handling adapted to private training. <Cite id="sp800-61r3" locator="§2–5" /> Do not reset the privacy accountant on rollback: computation already occurred, and diagnostics may consume more budget.
+
+The serving plane needs a separate review. A privately trained model can expose membership through confidence scores or repeated queries. Apply query authentication, rate limits, output calibration and release quotas. Include published model-derived statistics in the privacy ledger. A model card should record population, privacy unit, budget, subgroup limitations, poisoning tests and revocation procedure.
+
+Exercise combined failures: heterogeneous honest clients, two dropouts, a stale client, a scaled backdoor and a delayed share. Verify that reconstruction respects the threshold, the integrity rule behaves as analysed, the accountant records actual releases and rollback restores the previous signed artefacts.
 </Callout>
 </Lens>
 

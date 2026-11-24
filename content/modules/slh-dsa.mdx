@@ -32,7 +32,7 @@ A single tree still has a limited number of signatures. SLH-DSA goes further: it
 
 ## Why "stateless" is a feature
 
-XMSS and LMS are efficient hash-based signatures, but the signer must remember which one-time keys have been used. Restore a backup, clone a VM, or sign from two machines, and you may reuse a one-time key — catastrophic. SLH-DSA is **stateless**: the signer derives everything from the secret seed, the message and fresh randomness. There is no counter to lose. <Cite id="fips205" locator="§3.1" />
+XMSS and LMS are efficient hash-based signatures, but the signer must remember which one-time keys have been used. Restore a backup, clone a VM, or sign from two machines, and you may reuse a one-time key — catastrophic. SLH-DSA is **stateless**: the signer derives message-specific keys from its secret seeds, the message and a randomizer. There is no counter to lose. <Cite id="fips205" locator="§9 (SLH-DSA key generation, signing and verification)" />
 
 ## The cost
 
@@ -62,7 +62,7 @@ SLH-DSA is stateless: the signer can be restored from a backup, cloned, or run o
 
 SLH-DSA targets EUF-CMA security. The attacker may obtain signatures on chosen firmware manifests and attempt to forge a signature for a new manifest under the public root. It may collect a very large number of signatures within the standard's stated signing limit, and it may use quantum algorithms. The defender must keep the secret seeds confidential, derive the message randomizer correctly, implement every domain-separated hash and release a signature that verifies against the pinned root.
 
-A bootloader trusts a 32-byte SLH-DSA-128s public root for twenty years. An offline signing service produces a 7,856-byte signature for each release. The attacker can modify update files and signatures in transit but cannot read the signing service. A separate operational attacker may clone the service, restore an old backup or corrupt its random source. Statelessness removes the one-time-key counter, but it does not remove the long-lived secret seed or the need to protect randomness and faults.
+A bootloader trusts a 32-byte SLH-DSA-128s public root for twenty years. An offline signing service produces a 7,856-byte signature for each release. The attacker can modify update files and signatures in transit but cannot read the signing service. A separate operational attacker may clone the service, restore an old backup or corrupt its random source. Statelessness removes the one-time-key counter, but it does not remove the long-lived private key or the need to protect randomness and faults.
 
 Defender goals include conservative cryptographic assumptions, canonical verification and reliable large-object handling. The bootloader needs enough contiguous memory or a streaming verifier for the signature. The signing service needs protected seed storage and enough workspace for authentication paths. The release pipeline must authenticate the complete manifest and ensure that no layer truncates the signature to fit a legacy field.
 
@@ -71,6 +71,21 @@ Misconceptions often start with the phrase hash-only. It does not mean security 
 Bandwidth is a security parameter in practice. A 49,856-byte signature can exceed a protocol's record, flash partition or database column. Silently truncating it causes denial of service; accepting an alternative parser's malformed value can create inconsistency. Choose the parameter set with the verifier's memory and transport constraints in view. A small public key does not make the signature small, and fast signing does not imply fast verification.
 
 Availability is distinct from forgery resistance. Hash-only implementations still suffer from faulty randomness, corrupted seed material and side channels. A signature that fails verification is a correctness event; a fault that reveals seed information is a security event. The service should verify before release, monitor verification failure rates and retain enough independent build information to diagnose an incompatible parameter set.
+
+### Stateless does not mean state-free
+
+Two signing workers are cloned from the same approved image. Neither needs a one-time-key counter, so both can restore an old snapshot without the XMSS reuse failure. They still depend on state that must be governed: the correct parameter-set identifier, the secret seed and public seed, root consistency, approved software, randomness health and a signing-volume policy. Statelessness removes one fragile invariant; it does not remove key custody.
+
+| Operational state | Why it still matters | Failure if ignored |
+| --- | --- | --- |
+| Parameter-set identifier | Determines hash family, dimensions and signature encoding | Valid key material is interpreted under the wrong algorithm |
+| SK seed and SK.prf seed | Generate message-specific WOTS+/FORS material and the randomizer | Broad copying turns one root compromise into a long-lived compromise |
+| Public seed and root | Bind derived keys to the trusted public key | A worker may sign for a different trust anchor |
+| Randomness source | Drives the message randomizer | Repeated or correlated randomizers weaken the construction's assumptions |
+| Software and configuration version | Determine addresses, derivation and encoding | A rollback restores incompatible or vulnerable signing logic |
+| Signing-volume policy | Keeps use within the standard's bound | A key exceeds the quantified signing limit |
+
+FIPS 205 treats input destruction, public-key validation and side-channel or fault protection as implementation considerations beyond the abstract signature algorithm. <Cite id="fips205" locator="§3.2 (implementation considerations)" /> Protect seed import and memory, verify root regeneration where possession assurance is required, and stop a worker if internal verification fails. Cloning can improve availability, but every clone increases the number of places that hold the same crown-jewel seed. Access control and audit must reflect that concentration of risk.
 </Lens>
 
 <Lens level={2} title="WOTS+, FORS and the hypertree stack">
@@ -87,7 +102,7 @@ Availability is distinct from forgery resistance. Hash-only implementations stil
 
 ## The signing flow
 
-1. Derive a randomizer from the secret and the message.
+1. Derive the randomizer with `SK.prf` from the signing input.
 2. Hash the message with the randomizer to obtain a digest.
 3. Use FORS to sign the digest.
 4. Use a WOTS+ key in the bottom hypertree layer to sign the FORS public key.
@@ -135,7 +150,7 @@ FORS signs a digest with a small forest of trees: one leaf is revealed per tree,
 
 ## Signing flow
 
-1. Derive a randomizer from the secret and message.
+1. Derive the randomizer with `SK.prf` from the signing input.
 2. Hash the message and randomizer into a digest.
 3. Produce a FORS signature over the digest.
 4. Sign the FORS public key with a WOTS+ key.
@@ -145,7 +160,7 @@ Verification reverses the process and checks the final root against the public k
 
 ## Hash chains and authentication paths by hand
 
-WOTS+ uses base-$w$ digits of a digest. For a chain of length $w-1$, signing digit $d_i$ reveals the value after $d_i$ hashes; verification applies the remaining $w-1-d_i$ hashes and compares the endpoint. Address and domain separation are prepended so that the same secret value used at two positions does not produce the same chain. In the 128-bit small parameter set, $n=16$ bytes and $w=16$, so $\mathrm{len}_1=\lceil128/4\rceil=32$. The checksum adds $\mathrm{len}_2=9$ chains, for 41 chains total. Each chain can require up to 15 hash calls. <Cite id="fips205" locator="§5" />
+WOTS+ uses base-$w$ digits of a digest. For a chain of length $w-1$, signing digit $d_i$ reveals the value after $d_i$ hashes; verification applies the remaining $w-1-d_i$ hashes and compares the endpoint. Address and domain separation are prepended so that the same secret value used at two positions does not produce the same chain. For every FIPS 205 parameter set, $\lg w=4$ and $w=16$. With $n=16$ bytes, $\mathrm{len}_1=\lceil128/4\rceil=32$. The checksum adds $\mathrm{len}_2=3$ chains, giving $\mathrm{len}=35$ chains in total. Each chain can require up to 15 hash calls. <Cite id="fips205" locator="§5 (WOTS+ parameters, equations 5.1–5.4)" />
 
 <WorkedExample
   title="A WOTS+ chain and the danger of reuse"
@@ -173,9 +188,29 @@ FORS splits a digest into $k$ chunks, each selecting one leaf in a tree of heigh
   result="Both authentication paths reproduce the committed roots. The toy hash is linear and insecure; it only makes the path arithmetic visible. Real FORS uses the parameter set's approved hash with address separation."
 />
 
+### Account for the signature, byte by byte
+
+The large signature is not an opaque blob. Its size follows from four contributions: the randomizer, the FORS secret values and sibling paths, one WOTS+ signature per hypertree layer, and the hypertree authentication siblings. For a parameter set with $n$ bytes, $k$ FORS trees of height $a$, $d$ layers and total height $h$,
+
+$$
+|\mathrm{SIG}| = n + k(a+1)n + d(2n+3)n + hn.
+$$
+
+The WOTS+ factor uses $\mathrm{len}=2n+3$ because every FIPS 205 set has $\lg w=4$. The formula explains the measured sizes in Table 2 rather than merely memorising them. <Cite id="fips205" locator="§5 (WOTS+), §7 (hypertree), §8 (FORS), and Table 2 (parameter sets)" />
+
+| Set | Randomizer | FORS values and paths | WOTS+ signatures | Hypertree siblings | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 128s | 16 B | 14 × 13 × 16 = 2,912 B | 7 × 35 × 16 = 3,920 B | 63 × 16 = 1,008 B | 7,856 B |
+| 128f | 16 B | 33 × 7 × 16 = 3,696 B | 22 × 35 × 16 = 12,320 B | 66 × 16 = 1,056 B | 17,088 B |
+| 256s | 32 B | 22 × 15 × 32 = 10,560 B | 8 × 67 × 32 = 17,152 B | 64 × 32 = 2,048 B | 29,792 B |
+
+The “fast” set does not make every component smaller. It uses shorter FORS trees, which reduces each path, but increases the number of FORS trees. It also uses many more hypertree layers, each requiring another WOTS+ signature. Shorter XMSS trees reduce per-layer chain and path work; the larger layer count still costs bandwidth. The “small” set does the opposite. This is why changing from 128f to 128s saves signature space but increases signing work, not because the hash function itself becomes slower.
+
+The same arithmetic supports memory budgeting. A signer can stream or discard completed FORS paths, but it must retain the roots needed to construct the FORS public value and enough workspace for each WOTS+ chain and hypertree sibling. A verifier can process one layer at a time only if it preserves the root needed by the next layer. Fixed-size buffers derived from the parameter set prevent a malformed signature from driving unbounded allocation.
+
 <ProcessFlow
   steps={[
-    {title: "Randomise", detail: "Derive the message randomizer from the secret seed and message.", tone: "brand"},
+    {title: "Randomise", detail: "Derive the message randomizer with SK.prf from the signing input.", tone: "brand"},
     {title: "Digest", detail: "Hash the randomizer and message into the prescribed digest.", tone: "brand"},
     {title: "FORS", detail: "Select one leaf per small tree and reveal the corresponding paths.", tone: "brand"},
     {title: "WOTS", detail: "Sign the FORS public key with a bottom-layer one-time key.", tone: "brand"},
@@ -186,7 +221,7 @@ FORS splits a digest into $k$ chunks, each selecting one leaf in a tree of heigh
 
 The hypertree parameters show the size/work tradeoff. The 128s set has height 63 and 7 layers, so each tree has height 9. The 128f set has height 66 and 22 layers, so each tree has height 3. Shorter trees reduce WOTS+ and authentication-path work per layer, but there are more layers to sign. The total height still governs the number of available leaves; it is not chosen independently of the signing bound.
 
-For SHAKE-128s, the public key contains two 16-byte values: the secret-seed-derived public seed and the root. A verifier first parses the signature's randomizer and message-dependent values, then recomputes the digest and FORS roots using the public seed. It does not need the secret seed, but it must reproduce the address construction exactly. A one-position error in layer, tree or leaf indexing produces a different hash and a failed signature.
+For SHAKE-128s, the public key contains two 16-byte values: the independently generated public seed and the root. A verifier first parses the signature's randomizer and message-dependent values, then recomputes the digest and FORS roots using the public seed. It does not need the private key, but it must reproduce the address construction exactly. A one-position error in layer, tree or leaf indexing produces a different hash and a failed signature.
 </Lens>
 
 <Lens level={3} title="Hash assumptions, few-time security and tight bounds">
@@ -237,13 +272,34 @@ FORS and WOTS+ are not general-purpose many-time signatures. The hypertree and p
 
 ## Security bounds and verification invariants
 
-A useful abstraction is a target-subset collision. After $Q$ signatures, each FORS tree has revealed $Q$ selected leaves among $2^a$ possibilities. The birthday-scale chance of a repeated leaf in one tree is approximately $Q^2/2^{a+1}$ when $Q$ is small relative to the tree size. Across $k$ trees, the collision exposure grows by a factor of $k$. This is an intuition for the few-time bound, not the complete FIPS 205 security formula; the standard also accounts for preimage searches, hash queries and the hypertree.
+### The checksum closes a shortcut, not every attack
+
+For a 128-bit digest encoded in base 16, there are 32 message digits. Suppose all are zero. The WOTS+ checksum is
+
+$$
+\sum_{i=1}^{32}(w-1-d_i)=32\times15=480.
+$$
+
+In base 16, 480 is `1E0`, so the three checksum digits are 1, 14 and 0. A signature reveals the starting chain values for 32 zero message digits and those three checksum digits. Verification advances each value by the remaining number of hashes and recomputes the WOTS+ public value. <Cite id="fips205" locator="§5 (WOTS+ checksum and chain functions)" />
+
+Now change one message digit from 0 to 1 while leaving the signature unchanged. The checksum falls from 480 to 465, which is `1D1`: the checksum digits become 1, 13 and 1. The old checksum-chain values no longer match the new digest's required endpoints, so the forgery fails even before the message-chain mismatch is considered. An attacker cannot independently shorten arbitrary chains and still satisfy the checksum. This is the concrete role of the three checksum chains.
+
+The FORS bound is different. Within one reused FORS tree, revealing selected leaves creates a birthday-style subset-collision problem. For a deliberately simplified model with $Q\ll2^{a/2}$ selections among $2^a$ leaves, the chance of any repeated leaf across $k$ trees is approximately
+
+$$
+1-\exp\left(-\frac{kQ(Q-1)}{2^{a+1}}\right).
+$$
+
+With $a=12$, $k=14$ and $Q=10$, that expression is about 14.3%. This is intuition for why “few-time” matters, not the FIPS 205 forgery bound: SLH-DSA derives message-specific FORS keys, and the full analysis also includes hash queries, hypertree selection and target-subset effects. <Cite id="fips205" locator="§8 (FORS) and §11 (security bounds and parameter sets)" />
+
+WOTS+ has another failure pattern. Its second-preimage argument assumes that an attacker cannot find a different digest whose base-$w$ digits permit a compatible signature from the revealed chain values. Address separation keeps chains at different layers, trees, key pairs and positions in distinct hash domains. Omitting an address component collapses those domains and invalidates the reduction even if every individual hash call is correct. <Cite id="wots2013" locator="pp. 173–188" />
+
 
 WOTS+ has a different failure pattern. Its base-$w$ digit sequences are designed so that a second-preimage attack must find a new digest with a compatible signature. The checksum chains prevent an attacker from simply choosing arbitrary digits that keep the signature shorter. Address separation ensures that chains at different positions, layers and trees are independent hash domains. Omitting an address component collapses those domains and invalidates the argument. <Cite id="wots2013" locator="pp. 173–188" />
 
 Hypertree correctness follows by induction. The bottom layer's XMSS signature authenticates the FORS public key under a leaf of its tree. The next layer authenticates that tree's root, and so on. At layer $\ell$, the verifier recomputes the signed root using the supplied WOTS+ signature and authentication path, then uses it as the target root for layer $\ell-1$. After the top layer, equality with the public root establishes that the same sequence of one-time keys authenticated the original digest.
 
-Statelessness changes key selection, not this verification chain. The signer derives a message-specific seed and chooses one-time keys pseudorandomly within the tree. Reusing the exact same message with the same randomizer can repeat a signature without revealing two different digest signatures; different messages must lead to different one-time key selections. The security proof bounds accidental or adversarial collisions over the allowed signing quantity. A broken randomizer can increase correlation and is therefore treated as a security failure, not a performance inconvenience.
+Statelessness changes key selection, not this verification chain. The signer derives a message-specific seed and chooses one-time keys pseudorandomly within the tree. Reusing the exact same message with the same randomizer can repeat a signature without revealing two different digest signatures. For different messages, the security argument bounds accidental or adversarial key-selection collisions over the allowed signing quantity; pseudorandom derivation is not an unconditional uniqueness guarantee. A broken randomizer in randomized mode can increase correlation and is therefore treated as a security failure, not a performance inconvenience.
 
 The assumptions are deliberately narrow. The approved hash functions must provide the required preimage, second-preimage and pseudorandomness properties. Address separation, key derivation and tree traversal must match the standard. Generic quantum search reduces preimage security, while quantum collision finding has a different cost from classical birthday search; parameter sizes are selected with those reductions in mind. Hash-based does not mean that implementation faults, seed disclosure or side channels disappear. <Cite id="fips205" locator="§11" />
 
@@ -268,16 +324,33 @@ The signer needs to hold authentication paths and intermediate nodes. The "s" pa
 
 ## Faults and randomness
 
-- **Randomness:** the message randomizer must be fresh and unpredictable. A broken RNG can undermine the security proof and enable fault attacks.
+- **Randomness:** FIPS 205 defines randomized and deterministic signing interfaces. Randomized signing supplies fresh approved random input to derive the message randomizer; deterministic signing uses the prescribed zero input and can repeat a signature for the same message. Do not describe a failed or reused RNG in randomized mode as harmless, and do not mistake deterministic repetition for fresh entropy.
 - **Fault injection:** a corrupted hash computation can produce an invalid or exploitable signature. Redundant computation and verify-before-release are standard defences. <Cite id="boneh1997" locator="pp. 37–51" />
 - **Side channels:** hash functions are usually easier to make constant-time than lattice arithmetic, but address computation and secret-dependent branching still matter.
+
+### Compare failures by what they break
+
+A fault during address generation, a broken randomizer and a truncated transport record can all produce “signature failed.” Their security consequences and tests are not the same.
+
+| Failure | Local symptom | Security consequence | Discriminating test |
+| --- | --- | --- | --- |
+| Address field is stale or swapped | Every affected path hashes to the wrong node | Usually invalid output; cross-domain reuse could undermine separation if systematic | Fixed address vectors and layer-by-layer root comparison |
+| Randomizer repeats | Same message can produce the same signature; different messages may become correlated | Randomisation assumptions weaken | RNG health tests, repeated-randomizer fault injection and entropy review |
+| Seed workspace is exposed | Logs, crash dump or side trace contain seed-derived values | Long-term signing key compromise | Memory wiping, log inspection, taint and power evaluation |
+| FORS index is malformed | Out-of-range leaf or path reaches hashing | Parser ambiguity or resource exhaustion | Reject before allocation; mutate every index region |
+| Faulted chain or path is released | Internal verification fails or output is unchecked | Invalid signature or fault-dependent leakage | Inject faults and require abort or normal rejection |
+| Transport truncates a path | Length or partition check fails | Availability loss; custom parsers may accept ambiguous bytes | Exact-size, fragmented and region-truncation tests |
+
+FIPS 205 explicitly identifies side-channel and fault protection as implementation considerations and specifies address fields that separate layer, tree, type, key pair and position. <Cite id="fips205" locator="§3.2 (side-channel and fault attacks) and §4.2 (addresses)" /> Hash-only security does not make these concerns disappear. Signing time can depend on WOTS+ digits and FORS indices; a secret-indexed table can leak through the cache; a fault that skips a hash or copies the wrong address can invalidate the authentication path.
+
+For the cloned-worker scenario, inject a repeated randomizer in randomized mode while keeping the seed intact and observe both outputs. Repeating a signature for the identical message is possible by design when the randomizer repeats, but the service should treat unexpected repetition as a security-relevant fault. Then corrupt one hypertree layer's address state and verify that internal verification catches it before release. Finally, truncate one WOTS+ value and require deterministic rejection without an out-of-bounds read. These tests target distinct failure classes rather than treating every error as generic “RNG trouble.”
 
 ## Deployment patterns
 
 - **Firmware and code signing:** verify once, at boot or install time; large signatures are acceptable.
 - **Long-lived roots:** small public keys and conservative assumptions simplify trust-anchor management.
 - **Protocols:** measure the handshake and record sizes; a 30 KB signature may fragment badly.
-- **Test vectors and interoperability:** use the standard's vectors and an independent implementation. <Cite id="liboqs" />
+- **Test vectors and interoperability:** use the standard's vectors and an independent implementation. <Cite id="liboqs" locator="Reference implementations and KEM/signature test harness (SLH-DSA known-answer tests)" />
 
 <Callout variant="note" title="Hybrid signatures">
 In a hybrid signature scheme, both a classical and a PQC signature must verify. This protects against a break in either component, but doubles the signature size and verification cost. Decide whether the protocol can afford it.
@@ -291,19 +364,6 @@ In a hybrid signature scheme, both a classical and a PQC signature must verify. 
 />
 
 
-## Hash cost and memory
-
-Signing performs many hash evaluations; verification is cheaper but still hash-heavy. SHA-2 variants benefit from hardware acceleration; SHAKE variants use Keccak. There is no NTT or modular arithmetic in the hot path, which makes the implementation simpler but not free.
-
-The signer holds authentication paths and intermediate nodes. The "s" parameter sets minimise signature size but do more work; the "f" sets reduce work by using more hypertree layers. On constrained devices, stack and code size can matter more than raw speed.
-
-## Faults and deployment
-
-- **Randomness:** the message randomizer must be fresh; a broken RNG undermines the proof and can enable fault attacks.
-- **Faults:** redundant computation and verify-before-release reduce the risk of releasing a corrupted signature.
-- **State:** statelessness removes the one-time-key counter, but the secret seed becomes a long-lived crown jewel.
-- **Interoperability:** test with standard vectors and an independent implementation.
-
 <Callout variant="danger" title="A large signature is still a security boundary">
 If a protocol silently truncates or fragments an SLH-DSA signature, verification fails or, worse, a different parser accepts a malformed value. Treat signature size as a protocol parameter.
 </Callout>
@@ -316,7 +376,7 @@ Use fixed-size workspaces for FORS trees, WOTS+ chains and hypertree authenticat
 
 Parallelise only independent work. Different FORS trees can be evaluated concurrently, and WOTS+ chains for distinct digits are independent once addresses are fixed. Hypertree layers are sequential because each signs the root needed by the layer above. Measure hash throughput, address-generation overhead and memory traffic; adding threads to a dependency chain can reduce performance.
 
-Protect both secret seeds and the randomizer workflow. The secret seed generates SK seed, SK.prf and the public seed through the specified derivation. Import the public seed from the public key or derive it from the secret seed as required, and verify consistency when both forms are available. Keep the signing seed out of process dumps and logs. A cloned stateless signer is not automatically a key-compromise event, but an uncontrolled clone still doubles exposure of the same long-lived secret.
+Protect all private-key components and the randomizer workflow. FIPS 205 key generation produces three fresh $n$-byte values: `SK.seed`, `SK.prf` and `PK.seed`. The public root is computed from `SK.seed` and `PK.seed`; `SK.prf` is used to derive the message randomizer. The serialized private key also contains copies of the public seed and root, but the public seed is not derived from the secret seed. Keep every private-key component out of process dumps and logs, and verify root regeneration when private-key possession assurance is required. <Cite id="fips205" locator="§3.1 (randomness, key checks) and §9 (SLH-DSA algorithms)" /> A cloned stateless signer is not automatically a key-compromise event, but an uncontrolled clone still doubles exposure of the same long-lived private key.
 
 Use approved randomness and the standard's signing interface. Verify the exact serialized signature before releasing it when faults are in scope. Recompute the final root or invoke an independent verifier in the signing pipeline; this catches corrupted paths and address state. Redundancy should not reuse the same faulty address helper without scrutiny. Monitor internal verification failures and stop the service if they rise unexpectedly.
 
@@ -362,7 +422,7 @@ During operation, rotate compromised seeds through the trust-anchor process and 
 | Wrong parameter set is used | Small and fast sets share a family name | Different signature length and hash behaviour | Store and validate the explicit set identifier |
 | Address bytes are misordered | Layer, tree or type fields are swapped | Every path hashes to the wrong node | Centralise and test address construction |
 | FORS index is normalised | Parser reduces an out-of-range value modulo tree size | Malformed input may reach the wrong leaf | Reject before hashing |
-| Randomizer source is broken | RNG failure or snapshot rollback | Security proof assumptions fail | Approved randomness and health checks |
+| Randomizer source is broken | Randomized mode reuses or loses random input | Randomisation assumptions fail | Approved RBG and fresh input; label deterministic mode explicitly |
 | Secret seed is copied broadly | Cloned workers share unprotected storage | Long-term root compromise | Protected key import and isolated workers |
 | Faulted path is released | No internal verification | Invalid signature or information leak | Verify exact serialized output |
 | Hybrid rule is misapplied | Only one signature is checked | Weaker than intended combined security | Define and test both-required semantics |

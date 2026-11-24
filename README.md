@@ -85,6 +85,10 @@ flowchart LR
 - **Citations:** `content/citations.json`; a Node validator enforces keys, types, URLs, locators,
   module coverage and inline/frontmatter consistency.
 - **Interactivity:** React + Framer Motion for protocol and maths visualisers; SVG is inspectable.
+  Explanatory sequences have play/pause/step controls and respect reduced-motion preferences;
+  the production build checks their accessible controls in the exported HTML.
+- **Tables:** Markdown and JSX tables render inside labelled, keyboard-focusable horizontal scroll regions;
+  the production build checks every exported table for overflow handling.
 - **Labs:** Rust compiled to `wasm32-unknown-unknown` with a hand-written C ABI plus browser-native labs
   for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs. A TypeScript
   fallback runs when Wasm is unavailable.
@@ -121,10 +125,12 @@ NEXT_PUBLIC_BASE_PATH=/CPSsec-CyberLab-Training npm run build
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Local development server |
-| `npm run validate` | Validate citations, frontmatter, lens coverage and glossary links |
+| `npm run validate` | Validate citations, frontmatter, lens coverage, learner-visible prose depth and glossary links |
 | `npm run lint` | Next.js ESLint |
 | `npm run typecheck` | TypeScript, no emit |
-| `npm run build` | Validate then static export |
+| `npm run test:tables` | Inspect the static export for wrapped, keyboard-accessible tables |
+| `npm run test:animations` | Verify exported process diagrams include accessible playback controls |
+| `npm run build` | Validate, statically export, then run rendering and animation regression checks |
 | `npm run build:wasm` | Compile the Rust lab to `public/wasm/pqc_lab.wasm` |
 | `npm run test:wasm` | Rust unit tests (NTT round-trip and multiplication) |
 | `npm run validate:links` | Network link check for citation URLs (scheduled in CI) |
@@ -160,6 +166,9 @@ scripts/                content validation, link checking, Wasm build
 - An inline citation must also appear in the module frontmatter so it is included in the module's
   primary-source list.
 - Unknown keys, malformed records, missing locators and missing depth lenses fail `npm run validate`.
+- The depth gate counts learner-visible prose, excluding code, JSX attributes and component configuration;
+  a lesson cannot pass by inflating component props or duplicating generic templates. Exact repeated
+  paragraphs are reported for author review.
 - A scheduled workflow checks citation URLs for rot. Link failures are reported as workflow failures.
 
 Corrections are first-class contributions. Open a

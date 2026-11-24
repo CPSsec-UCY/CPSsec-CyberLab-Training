@@ -1,4 +1,5 @@
 import { ArrowRight, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function MlKemFlow() {
   return (
@@ -35,7 +36,7 @@ export function MlKemFlow() {
       </div>
 
       <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.1em] text-muted">
-        <RefreshCw className="h-3 w-3" /> the FO re-encryption check turns CPA security into IND-CCA2
+        <RefreshCw className="h-3 w-3" /> the FO re-encryption check turns CPA security into IND-CCA2 <Cite id="fips203" locator="§7.3" />
       </p>
     </div>
   );

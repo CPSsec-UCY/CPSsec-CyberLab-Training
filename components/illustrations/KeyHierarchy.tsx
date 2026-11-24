@@ -1,4 +1,5 @@
 import { ArrowDown, KeyRound, LockKeyhole, Database, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function KeyHierarchy() {
   return (
@@ -50,7 +51,7 @@ export function KeyHierarchy() {
       </div>
 
       <p className="mt-3 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">
-        rotate, separate by purpose, and audit every unwrap
+        rotate, separate by purpose, and audit every unwrap <Cite id="sp800-57pt1r5" locator="§5–6" />
       </p>
     </div>
   );

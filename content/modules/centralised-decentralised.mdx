@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 70
 summary: "Compare centralised, federated, consortium and peer-to-peer architectures through trust boundaries, Byzantine failure, CAP, governance and operational reality."
 outcomes: ["Compare centralised, federated, consortium and permissionless trust models.", "Apply CAP and Byzantine quorum bounds to concrete architectures.", "Evaluate consensus, identity, recovery and upgrade authority.", "Measure decentralisation and design controls for failure and capture."]
-citations: ["lamport1982", "gilbert-lynch2002", "castro-liskov1999", "nakamoto2008", "gencer2018", "sp800-207", "kairouz2021"]
+citations: ["lamport1982", "fischer-lynch-paterson1985", "gilbert-lynch2002", "castro-liskov1999", "nakamoto2008", "gencer2018", "sp800-207", "sp800-57pt1r5", "kairouz2021"]
 tags: ["distributed", "consensus", "architecture", "trust"]
 prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
@@ -69,6 +69,30 @@ For each component, ask:
 - Who can recover a lost credential?
 
 If the answer is “the operator” for every row, you have a centralised system with a single trust boundary. If the answers differ, document the trust set and the quorum required to change state. That worksheet is more useful than a decentralisation score.
+
+### Separate ownership, operation and authority
+
+A consortium can look distributed while concentrating several powers in the same hands. The hospitals may own validator slots, yet one infrastructure provider may operate every node, host the governance dashboard, retain backup keys and deploy the client software. Voting rights are then only one part of the trust boundary. An architecture review should name the holder of each power separately:
+
+- **Rule-making:** who defines valid transactions, admission policy and upgrade compatibility?
+- **Ordering:** who proposes batches, assigns sequence numbers and controls timing?
+- **State mutation:** which quorum can commit a transfer or correct an entry?
+- **Observation:** who can read balances, metadata, logs or user queries?
+- **Recovery and upgrade:** who can replace a validator key, restore state or activate new code?
+- **Dispute and exit:** who can reverse a decision, compensate a user or export evidence?
+
+Concentrating observation and state mutation creates a surveillance risk even when consensus is honest. Concentrating recovery and upgrade creates a slower but more powerful takeover path. Conversely, separating powers can reduce abuse while making incidents harder to resolve. The design needs explicit hand-offs: an incident commander may freeze new admissions without being able to rewrite balances, and a recovery quorum may replace a key without approving a protocol change.
+
+| Architecture | Rule-making authority | State-change authority | Upgrade and recovery | Accountability and exit |
+| --- | --- | --- | --- | --- |
+| Centralised | Operator, subject to law and contract | Administrators or service control plane | Operator support and release process | Named accountable entity; portability depends on export rights |
+| Federated | Participants negotiate policy | Local owners plus agreed coordination rules | Domain-specific recovery; joint approval for shared rules | Multiple accountable domains; inconsistent policy and difficult exit |
+| Consortium | Charter and membership quorum | Validator quorum | Separate key-recovery and release signers | Shared audit obligations; deadlock and membership capture |
+| Permissionless P2P | Protocol rules plus client and social coordination | Consensus rule and its economic or vote threshold | Key-dependent recovery; protocol activation process | No single accountable operator; forks, client choice and off-chain remedies |
+
+A useful summary is the **smallest controlling coalition** for each action, not the number of servers. Record the minimum coalition that can censor a request, commit conflicting state, recover a key, change membership, activate an upgrade or suppress evidence. These minima can differ. A four-of-seven emergency coalition might pause the system while a five-of-seven charter quorum is required to alter membership. Calling both systems “seven-validator” conceals the more important difference.
+
+Independence must be assessed through control, not branding. Validators on separate clouds can share an administrator, release pipeline or master key. Signed audit evidence is meaningful only if its signer and retention path are independent of the audited operator. Portability is a security control: verifying history and exporting state gives a participant an exit when governance fails.
 
 ### Build the threat model before choosing the topology
 
@@ -158,6 +182,30 @@ The protocol must distinguish ordinary latency from a partition. If five validat
 ### Configuration choices that change the security model
 
 Membership policy is as important as the consensus code. If the same person can add validators and approve the resulting policy change, decentralisation is nominal. Limit emergency membership changes to a documented threshold, separate proposer authority from admission authority and test removal of a malicious validator. Rate limits protect against spam, but overly broad limits can become censorship; quotas should bind to authenticated principals.
+
+### The execution model behind the replica count
+
+Replica arithmetic is meaningful only after the protocol's execution model is stated. In the classical model, participants have known identities and public keys, messages are authenticated, and up to $f$ participants may behave arbitrarily. A Byzantine participant can omit messages, delay them, send different values to different peers, vote twice, or coordinate with other corrupt participants. The remaining participants are correct: they follow the state machine, validate independently and do not equivocate. State whether corruption is static for the whole run or adaptive across key rotations and membership changes. Adaptive corruption requires an erasure or reconfiguration argument so that a newly corrupt party does not retain usable state from its earlier honest operation.
+
+Timing assumptions determine whether safety and termination can both be claimed. In a synchronous model every message arrives within a known bound. In a partially synchronous model that bound holds only after an unknown global stabilisation time; before then messages may be delayed indefinitely. In an asynchronous model there is no usable delivery bound. Deterministic consensus cannot guarantee termination for every asynchronous execution with even one faulty participant, which is why production protocols state a liveness condition rather than promising progress under all schedules. <Cite id="fischer-lynch-paterson1985" locator="pp. 374–382" />
+
+PBFT-style protocols use views, timeouts and view changes to make progress after messages begin arriving promptly. A timeout is evidence of a suspected failure, not proof that the previous leader is Byzantine. Honest replicas may change view after a slow but correct leader, and the new leader must collect evidence and re-propose without discarding already certified state. The security argument still depends on at most $f$ faulty replicas, authentic messages, a consistent membership view and enough correct replicas to form a quorum. <Cite id="castro-liskov1999" locator="pp. 173–186" />
+
+State-machine replication makes the distinction between validation and ordering explicit. Each replica first checks authorisation, signatures, balances, replay identifiers and application policy. It then votes on a proposed batch and commits only a certificate containing the configured number of matching votes. The proposer is not trusted to assert that validation happened. A certificate is evidence that a quorum agreed under the protocol rules; it is not evidence that an external exchange rate or patient record was true.
+
+Availability is a separate inequality. If $n$ replicas are configured, at most $a$ are unavailable and the commit quorum is $q$, progress requires $n-a \ge q$, hence $a \le n-q$. Safety asks whether conflicting certificates can exist; liveness asks whether correct replicas can eventually produce one. Both matter, but the admissible unavailable set and Byzantine set are not interchangeable. An unavailable replica consumes no malicious strategy, while a Byzantine replica may actively disrupt quorum formation as well as vote dishonestly.
+
+<WorkedExample
+  title="Crash tolerance is not Byzantine tolerance"
+  steps={[
+    "Consider ten validators and a Byzantine budget of three, so the classical configuration uses a commit quorum of seven.",
+    "Any two seven-vote certificates share at least four validators; with only three Byzantine validators, at least one validator in the overlap is honest.",
+    "If four validators are unavailable, only six remain, so no seven-vote certificate can form even though the Byzantine bound is still satisfied.",
+    "A crash-tolerant majority quorum of six would progress with four unavailable validators, but it cannot provide the same Byzantine safety guarantee.",
+    "If the charter reduces the Byzantine budget to two but keeps a seven-vote quorum, safety is conservative while availability is unnecessarily limited to three unavailable validators."
+  ]}
+  result="Choose the quorum from the safety requirement, then derive the availability budget from n minus the quorum. Do not infer one tolerance from the other."
+/>
 </Lens>
 
 <Lens level={3} title="CAP, Byzantine bounds and the trust set">
@@ -221,6 +269,20 @@ CAP requires its own precision. Linearizability means that every operation appea
 
 A final edge case is external truth. Consensus proves that a state transition followed agreed rules; it cannot prove that an input was accurate. Put provenance, sanity bounds and dispute windows around external inputs that can move money or alter safety-critical decisions.
 </Callout>
+
+### Safety, liveness and finality are different promises
+
+A precise consensus contract can be written with three properties. **Agreement** requires that no two correct replicas decide different values at the same log position. **Termination** requires every correct replica to decide eventually once the protocol's liveness conditions hold. **Validity** requires the decided value to satisfy the application's proposal rule. Agreement and validity are safety properties: a violation is permanent evidence of a bad decision. Termination is a liveness property: a violation may be a temporary halt that later resolves.
+
+In a partially synchronous protocol, safety must hold during arbitrary delays and partitions, while termination is usually claimed only after the unknown stabilisation time and provided the fault and participation bounds hold. This asymmetry explains an apparently paradoxical result: a ledger can be perfectly safe and still fail its settlement service-level objective. Clients need to know whether a response means “proposed,” “prepared,” “certified,” or merely “stored locally.” Only the application-defined finality point should release goods, move funds or trigger an irreversible external action.
+
+Finality mechanisms encode different assumptions. A quorum certificate gives deterministic finality within the protocol's authentication, membership and fault model: a conflicting certificate would violate the intersection argument. Proof-of-work instead gives probabilistic finality. Additional confirmations make a reorganisation less likely under the assumed hash-power distribution and network conditions, but they do not create a certificate that is logically final. <Cite id="nakamoto2008" locator="§3–5" /> Economic influence, mining concentration and propagation behaviour therefore remain part of the security claim rather than implementation details. <Cite id="gencer2018" locator="pp. 439–457" />
+
+Checkpointing changes the recovery argument, not the underlying truth claim. A signed checkpoint can let a rejoining replica skip old log verification, so the checkpoint signer and the authenticated distribution path become trusted components. If checkpoints are produced by a quorum, document that quorum and how clients verify it. If they are produced by an operator, an operator compromise can accelerate a bad recovery even when the live consensus protocol remains honest.
+
+Availability claims also need a boundary. “Five of seven can commit” assumes those five have valid keys, compatible software, sufficient storage, access to external state and a route to one another. A denial-of-service attack against a shared clock service, certificate distribution endpoint or state database can stop progress without corrupting a validator. Measure the smallest common dependency across the nominal quorum; independent voting rights do not help if every replica depends on the same control-plane API.
+
+Finally, a reconfiguration is a consensus event too. Changing validator membership, quorum size or checkpoint authority can create a window in which old and new certificates coexist. The transition must bind old and new configurations, prevent dual authority, and define which certificates a client accepts. Test an upgrade that stalls halfway, a key that rotates during a view change, and a healed partition containing valid certificates from both sides of the transition.
 </Lens>
 
 <Lens level={4} title="Operating a distributed trust boundary">
@@ -292,6 +354,20 @@ Fault injection should cover crashes during every phase of a proposal, delayed a
 8. Test partition recovery, state reconstruction, software rollback and emergency membership changes.
 9. Verify that monitoring and governance tooling do not introduce a single hidden administrator.
 10. Review the smallest coalition able to censor, rewrite, recover or upgrade after every membership change.
+
+### Governance is also an adversarial protocol
+
+Governance deserves the same threat modelling as consensus. Its adversaries include a captured validator, a wealthy vote buyer, an impatient emergency responder, a compromised release signer and an apathetic membership. The attack may be procedural rather than cryptographic: add friendly validators, bundle an unrelated rule change with a security patch, exhaust the review window, or make refusal to upgrade socially costly. A perfectly implemented quorum cannot prevent capture if admission authority and policy authority are held by the same coalition.
+
+Separate ordinary operation from constitutional change. Transaction quorums should decide state transitions; membership quorums should admit and remove validators; a release process should authenticate code; and a recovery policy should manage key loss. Emergency powers should be narrow, logged and time-limited. A pause that blocks new withdrawals for a fixed period may be justified during an incident, but a permanent pause key can censor indefinitely. Require independent review after use, a public incident summary that excludes sensitive evidence, and a defined route back to normal operation.
+
+Consider a seven-seat municipal charter in which four votes may pause new admissions, five votes may change membership, five certified votes may commit a transaction, and three independent release signers must approve software. A four-seat coalition can halt admission but cannot rewrite balances or change the charter. A five-seat coalition can alter membership, so admission and charter thresholds must be assessed against the same worst-case collusion assumption. Release signing remains a separate attack path: two compromised signers cannot activate code, but a shared build service or signing endpoint may collapse that nominal separation.
+
+Key governance is part of this structure. NIST guidance treats compromise response, cryptoperiods and protection of key information as lifecycle concerns, not merely setup choices. <Cite id="sp800-57pt1r5" locator="§5.3–5.5 and §6.1–6.2" /> For each validator, recovery, upgrade and audit key, record the owner, authorised users, storage protection, activation quorum, rotation schedule, revocation evidence and backup policy. A backup that can reconstruct a threshold key outside the approved quorum silently changes the corruption threshold. Test compromise response by revoking a key while the system is under load and verifying that the replacement cannot approve historical rewrites.
+
+Change control should produce reviewable evidence: a canonical proposal hash, affected state transitions, compatibility tests, independent code review, signed artefacts, an activation window and a rollback plan. Time locks give clients and minority participants a chance to detect a hostile change, but they also delay emergency fixes. Resolve that tension with a narrowly scoped emergency path, not a universal administrator. Client diversity matters because users must be able to reject an upgrade without losing access to verified history.
+
+A governance review needs an exit plan. Participants should export certified state and audit evidence, dispute decisions through an agreed process, and identify the legal entity responsible for off-chain actions. Public networks offer client choice and forks; a consortium must provide exit in its charter. Otherwise “decentralised” authority becomes a deadlock even though no single party has formally taken control.
 </Lens>
 
 

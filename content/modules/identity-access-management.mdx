@@ -84,6 +84,12 @@ Record human identities, service identities, external collaborators and machine-
 
 This inventory reveals where federation ends and local authorisation begins. It also prevents scope inflation: a background worker should not inherit every permission its developer possesses, and a read-only reporting client should not receive write scope merely because the issuer supports it. Least privilege starts with an explicit inventory of purpose.
 
+## Identity keys are scoped, and account linking is a security event
+
+Two issuers can legitimately issue the same `sub` value to different people. The JWT specification defines `sub` as identifying the principal in the context of the issuer, not as a globally unique username. <Cite id="rfc7519" locator="§4.1, registered claim names — subject" /> A resource server that stores only `sub` can therefore merge an external collaborator with an internal administrator. Store the issuer and subject together, preserve their original string forms and define which provider is authoritative for each identity namespace.
+
+Email is not a durable substitute. A provider may report an unverified address, a person may change it and a workspace may allow aliases. Automatic linking on a matching email can produce account pre-hijacking: an attacker creates a federated identity with an address they do not yet control, waits for the victim to use that provider and then gains access to the linked account. Linking to an existing local account should require proof of the existing account or an explicit, authenticated account-linking ceremony. Record who approved the link and how the decision can be reversed.
+
 </Lens>
 
 <Lens level={2} title="Authorization code with PKCE, one message at a time">
@@ -148,6 +154,23 @@ Access tokens should be short enough to bound exposure but long enough for the a
 
 A front-end should not store long-lived credentials in broadly readable locations merely for convenience. A server-side session with protected cookie handling is often appropriate for a browser application, but the right design depends on the client type and XSS exposure. If tokens must reach browser code, minimise their lifetime and scope, protect against script injection and define a rotation and revocation strategy.
 
+## Give each transaction value a lifecycle
+
+State, nonce, authorization code and PKCE verifier are often described as four strings to generate. Their security properties come from where each value is created, where it is exposed, how it is checked and when it is destroyed.
+
+| Value | Created and stored by | Crosses the browser as | Must be checked by | Lifecycle failure |
+| --- | --- | --- | --- | --- |
+| `state` | Relying party, bound to its browser session | Authorization request and response | Relying party callback | Missing, predictable or reusable state permits login CSRF or response substitution |
+| `nonce` | Relying party, bound to one authentication attempt | Authorization request; echoed in the ID token | Relying party ID-token validator | A valid token from another attempt can be accepted |
+| Authorization code | Authorization server | Redirect response, therefore browser-visible | Authorization server during redemption | Reuse, leakage or a mismatched redirect receiver breaks code binding |
+| PKCE verifier | Client, kept out of front-channel URLs | Never sent in the authorization request; only the challenge is sent | Authorization server during redemption | Reuse or a weak verifier weakens proof of possession |
+
+Consider two login tabs. Tab A generates `state-A`; tab B generates `state-B`. If the callback handler merely checks that `state` is present, a response initiated in one tab can complete the other tab's session. Store the expected value in a transaction record keyed to the protected browser session, compare it exactly and consume it once. Bound the record's lifetime. A state value is not a secret that must be hidden from the authorization server, but its unpredictability and one-time use stop an attacker from supplying a chosen transaction.
+
+Code redemption needs a similar discipline. A successful first exchange must make a second exchange fail even when it presents the right verifier. Test this deliberately. Consume state once on callback, but retain the nonce and verifier until exchange and validation complete. On failure, invalidate the entire attempt and return a minimal error rather than silently starting a new login under the old state.
+
+OAuth's security guidance treats redirect handling, code injection and token replay as distinct threats. <Cite id="rfc9700" locator="§2–4, threats and mitigations — authorization code and redirect protections" /> OIDC binds the nonce through its authentication and ID-token validation rules. <Cite id="oidc-core" locator="§3.1.2.1 and §3.1.3.3 — nonce and ID token validation" /> Test these controls as a sequence: a correct signature cannot rescue a stale nonce, and PKCE cannot rescue a callback delivered to the wrong URI.
+
 <KnowledgeCheck
   question="Why is state still required when an OIDC flow uses PKCE and nonce?"
   options={["PKCE encrypts the authorization request", "State binds the browser response to the relying party's login transaction, while PKCE binds code redemption and nonce binds the ID token", "State replaces exact redirect URI validation", "Nonce can only be checked by the resource server"]}
@@ -198,6 +221,25 @@ Expiration limits how long a token can be accepted under normal validation. Nonc
 
 Revocation may happen through refresh-token revocation, session termination, account disablement or resource-server introspection. Each has a different propagation delay. Define how long a revoked session may remain usable and whether that delay is acceptable for the resource. Cache introspection results only with a bounded lifetime and clear failure policy.
 
+## Follow the authorisation chain after signature validation
+
+A token can pass every cryptographic check and still fail the application's security question. Consider a reporting client that obtains an access token with `reports:read`. The API verifies the issuer, signature and its own audience successfully. It then returns every report because the handler treats the scope as permission to read all objects. The token establishes a capability ceiling; it does not establish ownership, tenant membership or the sensitivity of a particular export.
+
+Multi-hop delegation adds another boundary. A front end may exchange a user credential for a narrower service token, and that service may call a downstream API. Each receiver must validate the token it actually receives against its own issuer, audience, type and lifetime. A downstream service must not assume that an upstream authorisation decision covered the downstream action. If actor or delegation claims are present, validate their meaning under the issuer's profile rather than inventing a universal `act` rule.
+
+OIDC also distinguishes the client audience from an authorised party. When an ID token has multiple audiences, the authorised-party claim identifies the party the token was issued to; a relying party should check it when present. <Cite id="oidc-core" locator="§3.1.3.3 — ID token validation, audience and authorized party" /> This is a receiver check, not something the browser can establish by decoding claims.
+
+| Credential | Intended receiver | Binding that must succeed | Application decision that remains |
+| --- | --- | --- | --- |
+| ID token | The relying party named by `aud` | Trusted issuer, signature, audience, time, nonce and authorised party where applicable | Which local account and session assurance apply? |
+| User access token | The resource server named by `aud` | Trusted issuer, signature or introspection, audience, time and required scope | May this subject perform this action on this object? |
+| Client-credentials token | The intended API | Client identity, audience, time and granted authority | Is the workload entitled to this tenant or operation? |
+| Refresh token | The authorization server | Grant binding, client authentication where required, rotation and reuse state | Should the grant be renewed or revoked now? |
+
+Opaque access tokens shift verification rather than removing it. The resource server or its introspection service must authenticate the response, enforce token type and audience expectations, and bound caching. A network failure must not turn unknown token status into acceptance unless a deliberately reviewed, low-risk degraded mode exists.
+
+Keep token acceptance and resource authorisation as separate, observable decisions. Log the receiver profile, token type, issuer, key identifier or introspection outcome, policy version and object result without logging the token. This separation lets an operator distinguish a validation outage from an authorisation bug and prevents “valid token” from being mistaken for “authorised request”.
+
 <WorkedExample
   title="Validate a toy ID token before creating a session"
   steps={[
@@ -239,6 +281,24 @@ A passkey may be device-bound or synchronised through a platform credential prov
 User presence and user verification are different ceremony properties. Configure the required policy explicitly and verify the returned result rather than assuming every authenticator behaves the same way. NIST assurance levels depend on the complete authentication method, authenticator characteristics and deployment, not the marketing term passkey. <Cite id="nist-sp800-63b-4" locator="§3–5, authenticator assurance and lifecycle" /> Require additional factors or proofing where the risk assessment demands them.
 
 Attestation can help assess authenticator properties, but it is not continuous proof that a device remains trustworthy. Decide which attestation roots or metadata your service trusts, how often to update them and what to do when attestation is unavailable. Do not confuse authenticator attestation with the authorization server's signing keys or the resource server's TLS certificate.
+
+## Test WebAuthn failure modes at the ceremony boundary
+
+WebAuthn verification is a collection of context checks, not a single signature call. The server supplies the expected relying-party identifier and a fresh challenge, stores the credential public key for the correct account, and validates the authenticator data and assertion signature. An implementation can verify the signature correctly while accepting the wrong origin context, a reused challenge or an unrelated credential.
+
+| Failure mode | Incorrect acceptance | Required check and test |
+| --- | --- | --- |
+| Relying-party scope | A credential created for a different host is accepted | Compare the authenticator's RP ID hash with the hash of the expected RP ID; test parent and sibling hostnames |
+| Challenge replay | An old assertion is reused to create another session | Store a fresh challenge with a short expiry, consume it once and reject repeats |
+| Credential-to-account binding | A valid credential is attached to the wrong local account | Look up the credential by its identifier and verify the stored public key belongs to the authenticated account |
+| Ceremony flags | Presence is treated as user verification | Require the configured `UP` and `UV` results and test authenticators that return different combinations |
+| Counter policy | Clone detection is assumed from a counter that is not maintained | Define provider-appropriate signature-counter handling; a zero counter can be normal for some synchronised credentials |
+| Attestation policy | Unavailable or untrusted attestation silently passes | Make the trust roots, metadata freshness and failure mode explicit for the required assurance level |
+| Registration context | A stolen session enrols an attacker's credential | Require appropriate recent authentication or step-up for adding a credential and bind registration to the verified account session |
+
+Consider an attacker with a stolen but still valid portal session. If the registration endpoint accepts a new public key without fresh authentication, the attacker can enrol a passkey they control and later sign in without the victim's password. The signature ceremony may be technically perfect while the enrolment decision is wrong. Registration is a privileged account change, not merely another login.
+
+The WebAuthn ceremony and credential model defines the relying party, challenge, authenticator data and assertion verification that support these checks. <Cite id="webauthn" locator="§5–10 (ceremony, credentials and assertions)" /> A test suite should include wrong RP ID, reused challenge, unknown credential, altered signature, missing user-verification result and registration under a stale session. Test recovery separately: revoking one passkey must not silently remove every authenticator, and enrolling a replacement must not revive a credential the user intended to revoke.
 
 <Figure caption="X.509 path building is relevant to TLS and authenticator attestation. JWT signing keys selected from issuer JWKS are not automatically an X.509 certificate chain, and certificate-path validation is only one part of token trust.">
   <PkiChain />

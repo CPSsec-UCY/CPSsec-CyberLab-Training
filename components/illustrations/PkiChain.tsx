@@ -1,4 +1,5 @@
 import { ArrowRight, BadgeCheck, Building2, LockKeyhole, Server, ShieldCheck } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function PkiChain() {
   return (
@@ -27,7 +28,7 @@ export function PkiChain() {
       </div>
       <div className="mt-3 flex items-start gap-2 rounded-lg border border-gold-200 bg-gold-50 p-3 text-[10px] leading-5 text-gold-800">
         <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Each certificate signs the next public key. The client validates signatures, names, constraints, validity and revocation before trusting the server key.
+        Each CA certificate signs its child certificate&apos;s public key. The client validates a path to a trust anchor, checking signatures, names, constraints, validity and revocation before trusting the server key. <Cite id="rfc5280" locator="§6" />
       </div>
     </div>
   );

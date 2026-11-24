@@ -524,7 +524,7 @@ export function SupplyChainLab() {
         <div className="bg-mist-50 px-3 py-2">
           <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">Fault detection map</p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
           <table className="w-full min-w-[680px] text-left text-[9px]">
             <caption className="sr-only">Each enabled toy fault, where it enters the pipeline, how it is detected and why deployment policy blocks it</caption>
             <thead className="border-b border-line bg-white text-muted">

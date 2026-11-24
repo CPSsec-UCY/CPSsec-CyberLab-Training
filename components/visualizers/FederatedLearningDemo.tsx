@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 type Mode = "centralised" | "federated" | "secure";
 
@@ -25,12 +26,13 @@ export function FederatedLearningDemo() {
 
   const result = useMemo(() => {
     const poison = malicious && round > 0;
-    const accuracy = poison ? Math.max(55, 92 - round * 6) : 92;
+    const toyScore = poison ? Math.max(55, 92 - round * 6) : 92;
     const exposure =
       mode === "centralised" ? "raw records" : mode === "federated" ? "individual updates" : "only the aggregate";
-    const privacy = mode === "centralised" ? 28 : mode === "federated" ? 62 : 88;
-    const integrity = poison ? 45 : 90;
-    return { accuracy, exposure, privacy, integrity };
+    const privacy =
+      mode === "centralised" ? "centralised raw-data risk" : mode === "federated" ? "updates may leak information" : "hides individual updates";
+    const integrity = poison ? "poisoned update enters sum" : "not evaluated by this toy";
+    return { toyScore, exposure, privacy, integrity };
   }, [malicious, mode, round]);
 
   function reset() {
@@ -106,18 +108,19 @@ export function FederatedLearningDemo() {
             <p className="mt-1 text-xs font-semibold text-navy">{result.exposure}</p>
           </div>
           <div className="rounded-xl border border-line bg-white p-3">
-            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">global accuracy</p>
-            <p className={`mt-1 text-xl font-bold ${result.accuracy < 80 ? "text-rose-600" : "text-emerald-600"}`}>{result.accuracy}%</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">toy model score</p>
+            <p className={`mt-1 text-xl font-bold ${result.toyScore < 80 ? "text-rose-600" : "text-emerald-600"}`}>{result.toyScore}%</p>
+            <p className="mt-1 text-[9px] leading-4 text-muted">Illustrative deterministic value, not an empirical benchmark or calibrated probability.</p>
           </div>
           <div className="rounded-xl border border-line bg-white p-3">
-            <div className="flex justify-between text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
-              <span>privacy</span><span>{result.privacy}</span>
-            </div>
-            <div className="mt-1 h-1.5 rounded-full bg-mist-200"><div className="h-full rounded-full bg-brand-500" style={{ width: `${result.privacy}%` }} /></div>
-            <div className="mt-3 flex justify-between text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
-              <span>integrity</span><span>{result.integrity}</span>
-            </div>
-            <div className="mt-1 h-1.5 rounded-full bg-mist-200"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${result.integrity}%` }} /></div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">privacy property</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-navy">{result.privacy}</p>
+            <p className="mt-1 text-[9px] leading-4 text-muted">Secure aggregation is not a differential-privacy guarantee.</p>
+          </div>
+          <div className="rounded-xl border border-line bg-white p-3">
+            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">integrity property</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-navy">{result.integrity}</p>
+            <p className="mt-1 text-[9px] leading-4 text-muted">Confidentiality controls do not establish robustness to poisoning.</p>
           </div>
         </div>
       </div>
@@ -136,8 +139,10 @@ export function FederatedLearningDemo() {
               : "Clients train locally and share updates. Secure aggregation additionally prevents the server from inspecting individual updates, at the cost of more coordination and dropout handling."}
         </span>
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted">
-        <LockKeyhole className="h-3.5 w-3.5" /> Client-side privacy is necessary but not sufficient; integrity needs its own controls.
+      <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-5 text-muted">
+        <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Client-side privacy is necessary but not sufficient; integrity needs its own controls.{" "}
+        <Cite id="mcmahan2017" locator="§1–2" /> <Cite id="bonawitz2017" locator="§1–3" />{" "}
+        <Cite id="bagdasaryan2020" locator="pp. 135–147" />
       </p>
     </div>
   );

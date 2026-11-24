@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import matter from "gray-matter";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
 import { z } from "zod";
 
 const root = process.cwd();
@@ -73,6 +76,66 @@ const moduleSchema = z.object({
   updated: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   lenses: z.array(z.number().int().min(1).max(4)).optional(),
 });
+
+const proseParser = unified().use(remarkParse).use(remarkGfm);
+
+function countWords(value) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function htmlToText(value) {
+  return value
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]*>/g, " ");
+}
+
+/**
+ * Count learner-visible prose instead of raw MDX tokens. Code blocks, component
+ * attributes, workshop arrays and other JSX expressions must not make a thin
+ * lesson appear to satisfy the depth requirement.
+ */
+function countProseWords(markdown) {
+  const tree = proseParser.parse(markdown);
+
+  function visit(node) {
+    if (["code", "inlineCode", "mdxjsEsm", "mdxFlowExpression", "mdxTextExpression"].includes(node.type)) {
+      return 0;
+    }
+    if (node.type === "html") return countWords(htmlToText(node.value));
+    if (node.type === "text") return countWords(node.value);
+    return (node.children ?? []).reduce((total, child) => total + visit(child), 0);
+  }
+
+  return visit(tree);
+}
+
+function duplicateParagraphs(markdown) {
+  const tree = proseParser.parse(markdown);
+  const seen = new Map();
+  const duplicates = [];
+
+  function text(node) {
+    if (node.type === "text") return node.value;
+    if (node.type === "html") return htmlToText(node.value);
+    if (["code", "inlineCode", "mdxjsEsm", "mdxFlowExpression", "mdxTextExpression"].includes(node.type)) return "";
+    return (node.children ?? []).map(text).join(" ");
+  }
+
+  function visit(node) {
+    if (node.type === "paragraph") {
+      const normalized = text(node).replace(/\s+/g, " ").trim().toLowerCase();
+      if (normalized.length >= 120) {
+        if (seen.has(normalized)) duplicates.push(seen.get(normalized));
+        else seen.set(normalized, normalized);
+      }
+    }
+    for (const child of node.children ?? []) visit(child);
+  }
+
+  visit(tree);
+  return duplicates;
+}
 
 function readJson(file) {
   try {
@@ -151,6 +214,30 @@ const orders = new Map();
 const moduleSlugs = new Set();
 const usedCitations = new Set();
 
+function checkComponentCitations(directory) {
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const filePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      checkComponentCitations(filePath);
+      continue;
+    }
+    if (!entry.name.endsWith(".tsx")) continue;
+    const source = fs.readFileSync(filePath, "utf8");
+    const relative = path.relative(root, filePath);
+    for (const tag of source.matchAll(/<Cite\s+[^>]*>/g)) {
+      const id = tag[0].match(/\bid=["']([^"']+)["']/)?.[1];
+      if (!id) continue;
+      if (!citationIds.has(id)) errors.push(`${relative}: component <Cite> references unknown source "${id}"`);
+      if (!/\blocator=["'][^"']+["']/.test(tag[0])) {
+        errors.push(`${relative}: component <Cite> must include a precise non-empty locator (${tag[0]})`);
+      }
+    }
+  }
+}
+
+checkComponentCitations(path.join(root, "components"));
+
 for (const file of moduleFiles) {
   const relative = `content/modules/${file}`;
   const raw = fs.readFileSync(path.join(modulesDir, file), "utf8");
@@ -195,6 +282,13 @@ for (const file of moduleFiles) {
   const inlineCites = [...parsedFile.content.matchAll(/<Cite\s+[^>]*\bid=["']([^"']+)["']/g)].map((match) => match[1]);
   const frontmatterCites = new Set(data.citations);
 
+  for (const tag of parsedFile.content.matchAll(/<Cite\s+[^>]*>/g)) {
+    const locator = tag[0].match(/\blocator=["']([^"']+)["']/)?.[1]?.trim();
+    if (!locator) {
+      errors.push(`${relative}: inline <Cite> must include a precise non-empty locator (${tag[0]})`);
+    }
+  }
+
   for (const id of frontmatterCites) {
     if (!citationIds.has(id)) {
       errors.push(`${relative}: frontmatter cites unknown source "${id}"`);
@@ -233,11 +327,14 @@ for (const file of moduleFiles) {
     errors.push(`${relative}: expected four Lens sections, found ${lensLevels.length}`);
   }
 
-  const wordCount = parsedFile.content.trim().split(/\s+/).filter(Boolean).length;
+  const proseWordCount = countProseWords(parsedFile.content);
+  for (const duplicate of duplicateParagraphs(parsedFile.content)) {
+    warnings.push(`${relative}: repeated learner-visible paragraph begins "${duplicate.slice(0, 90)}…"`);
+  }
   const figureCount = (parsedFile.content.match(/<Figure\b/g) ?? []).length;
   const checkCount = (parsedFile.content.match(/<KnowledgeCheck\b/g) ?? []).length;
-  if (wordCount < 3800) {
-    errors.push(`${relative}: only ${wordCount} words; modules require at least 3800 words of detailed learning content`);
+  if (proseWordCount < 3800) {
+    errors.push(`${relative}: only ${proseWordCount} words of learner-visible prose; modules require at least 3800 words of detailed learning content`);
   }
   if (figureCount < 1) {
     errors.push(`${relative}: no <Figure> illustration found`);
@@ -268,9 +365,11 @@ for (const file of moduleFiles) {
     errors.push(`${relative}: frontmatter lenses must be [1,2,3,4] when present`);
   }
 
-  for (const [index, block] of parsedFile.content.split(/<\/Lens>/).slice(0, -1).entries()) {
-    if (block.replace(/<[^>]+>/g, "").trim().length < 180) {
-      warnings.push(`${relative}: Lens section ${index + 1} looks thin (<180 characters of prose)`);
+  const lensBodies = [...parsedFile.content.matchAll(/<Lens\s+[^>]*>([\s\S]*?)<\/Lens>/g)];
+  for (const [index, match] of lensBodies.entries()) {
+    const proseCount = countProseWords(match[1]);
+    if (proseCount < 450) {
+      warnings.push(`${relative}: Lens section ${index + 1} looks thin (${proseCount} words of learner-visible prose; target at least 450)`);
     }
   }
 }

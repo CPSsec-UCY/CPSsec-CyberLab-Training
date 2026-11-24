@@ -1,4 +1,5 @@
 import { ArrowRight, CheckCircle2, EyeOff, Users } from "lucide-react";
+import { Cite } from "@/components/citations/Cite";
 
 export function MpcSharing() {
   return (
@@ -36,7 +37,7 @@ export function MpcSharing() {
         <p className="text-[9px] text-emerald-700">any 1 share reveals nothing in the threshold model</p>
       </div>
       <p className="mt-3 text-center text-[9px] leading-4 text-muted">
-        MPC evaluates circuits over shares. Security is argued by simulation under a stated corruption and network model.
+        MPC evaluates circuits over shares. Security is argued by simulation under a stated corruption and network model. <Cite id="shamir1979" locator="pp. 612–613" />
       </p>
     </div>
   );

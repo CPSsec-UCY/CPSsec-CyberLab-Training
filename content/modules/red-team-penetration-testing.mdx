@@ -8,7 +8,7 @@ difficulty: "Intermediate"
 readingTime: 95
 summary: "Learn to plan and execute a bounded penetration test in an isolated toy range, moving from reconnaissance to validated findings and evidence-backed reporting. The course connects hands-on testing methodology with low-level reasoning about memory, control flow and exploitability without providing live exploit code."
 outcomes: ["Write an engagement scope with explicit assets, techniques, stop conditions and escalation contacts.", "Build an isolated lab with synthetic data, controlled egress and reproducible snapshots.", "Separate reconnaissance observations from validated vulnerabilities and proven impact.", "Reason about source-to-sink paths, memory layout and control-flow preconditions for binary findings.", "Produce chain-of-custody evidence, ATT&CK mappings, remediation priorities and a verified cleanup record."]
-citations: ["book-weidman-pentest", "book-erickson-hacking", "owasp-asvs", "nist-sp800-86", "mitre-attack"]
+citations: ["book-weidman-pentest", "book-erickson-hacking", "owasp-asvs", "nist-sp800-86", "sp800-61r3", "mitre-attack"]
 tags: ["red-team", "penetration-testing", "lab-methodology", "binary-reasoning"]
 prerequisites: ["asymmetric-primitives", "web-application-security"]
 updated: "2026-11-24"
@@ -42,6 +42,23 @@ A scope document should identify legal entities, named systems, IP ranges, domai
 Technique constraints matter as much as asset constraints. Specify whether social engineering, password spraying, denial-of-service testing, physical access, wireless testing, persistence, privilege escalation and data extraction are permitted. Define limits on request volume, concurrency, test accounts and duration. A test that proves availability risk by taking a service offline may still violate the engagement if disruption was not authorised. The report should never have to explain that an unapproved action was necessary to answer the agreed question.
 
 Build a rules-of-engagement table with six columns: objective, permitted action, forbidden action, evidence to collect, stop trigger and escalation contact. For Cobalt's parser, a permitted action could be submitting a bounded malformed fixture to a disposable test process. A forbidden action could be sending the fixture to a production endpoint or reusing a real customer file. The stop trigger might be memory growth beyond a stated threshold, host instability or any unexpected outbound connection. The contact must be reachable during the test, not merely listed in a report template.
+
+## Stress-test the engagement contract
+
+Scope documents usually fail at interfaces, not at the centre of a named asset. A test address may traverse a shared proxy, a synthetic upload may hit a cache populated by earlier activity, or an escalation contact may be unavailable when a stop condition fires. Treat each assumption as something to falsify before active testing. NIST's incident-response guidance places preparation and playbooks inside the response lifecycle, which is a useful reminder that safety procedures need rehearsal rather than only documentation. <Cite id="sp800-61r3" locator="§2–5 (incident response lifecycle and playbooks)" />
+
+<div className="not-prose overflow-x-auto" role="region" aria-label="Engagement assumption checks" tabIndex={0}>
+
+| Assumption | Failure signal | Discriminating check before testing |
+| --- | --- | --- |
+| The approved address identifies only the toy application | A proxy or content-delivery layer serves the marker from another environment | Send a fresh synthetic nonce, inspect the routing chain and confirm which backend logged it |
+| Test data cannot resemble real data | A cache or object store already contains a realistic fixture | Start from a clean snapshot and create a nonce-bearing object whose origin the team can prove |
+| Logging will capture every action | A known baseline event is missing from the collector | Generate one harmless event, follow its identifier end to end and measure the observed delay |
+| A stop can be coordinated immediately | The named contact does not acknowledge the rehearsal message | Require an acknowledged contact check; grant the tester an unconditional local halt authority |
+
+</div>
+
+These checks produce negative evidence. If the logging rehearsal fails, more target activity will not repair the evidence path. If proxy ownership is unresolved, the route is not ready even with application-owner approval. Record the result beside the scope entry so a reviewer can see whether the experiment operated under the contract's assumptions.
 
 ## Build the lab before building the attack
 
@@ -119,6 +136,24 @@ An inventory should connect each observation to an owner and a trust zone. Recor
 
 The inventory is also a scope-control tool. When a service returns a link to an unapproved host, do not follow it automatically. When a certificate reveals a related domain, add it to the question list and request approval. When a cloud endpoint redirects to a shared provider console, stop. A useful engagement notebook makes out-of-scope discoveries visible without turning them into unauthorised tests.
 
+## Prune competing attack paths
+
+An attack path is a causal graph, not a pile of scanner results. Its nodes are states an attacker must reach; its edges are operations that move between them. Every edge needs an observed or explicitly assumed precondition. This framing exposes dead ends: discovering a service has little value if the next edge requires a credential that the approved test identities do not possess, while a single authorisation mistake can connect two already-reachable states.
+
+Cobalt's inventory supports two competing explanations for cross-tenant marker access. One path runs from the partner portal through the gateway to the application's object-authorisation decision. The other runs through a shared response cache that was populated before the test role changed. Both can produce the same marker, but they require different fixes. Weidman's vulnerability-analysis discussion is useful here because scanner output is treated as a starting point for research and manual analysis, not the end of the causal argument. <Cite id="book-weidman-pentest" locator="Ch. 6, “Finding Vulnerabilities” (scanner policy, research and manual analysis)" />
+
+<div className="not-prose overflow-x-auto" role="region" aria-label="Competing attack paths" tabIndex={0}>
+
+| Candidate path | Required transitions | Present support | Cheapest next discriminator |
+| --- | --- | --- | --- |
+| Direct cross-tenant read | Valid R-2 session → approved route → object lookup → missing tenant check → marker response | The route and R-2 identity work; the marker appeared | Repeat from the isolated client with caching disabled, a fresh marker and the server's correlation identifier |
+| Stale cached response | Earlier privileged response → shared cache → replay to R-2 | A proxy sits in the path and the marker predates the permission change | Inspect cache status and backend logs, then compare a cache-bypassing direct request |
+| Instrumentation artefact | Test client rewrites identity → misleading response label → analyst miscorrelation | The tool adds a custom header and the lab uses one shared account label | Capture the final request and verify the authenticated principal in the server audit record |
+
+</div>
+
+Do not turn this table into pseudo-probability arithmetic. Confidence belongs to individual edges, and the overall claim is limited by its weakest necessary link. If the cache explains the only impact evidence, further port scanning cannot strengthen the authorisation claim. If the backend log proves the request reached the application under R-2, the cache branch loses support. Recording why a branch was rejected makes the report shorter and more defensible.
+
 Map observed actions to ATT&CK only when the behaviour is clear. Service discovery may align with Network Service Discovery, while gathering host software details may align with Gather Victim Host Information. <Cite id="mitre-attack" locator="Enterprise Discovery tactic and host-discovery techniques" /> Keep the mapping next to the evidence, not as a replacement for it. A detection team needs to know which request produced which event, which user context was used and whether the target had seen similar benign activity.
 
 ## Distinguish exposure, weakness and vulnerability
@@ -130,7 +165,7 @@ Consider a toy gateway that advertises an old parser build in a banner. The bann
 A second example involves object identifiers. The API returns a different response code for existing and nonexistent synthetic records. That establishes an enumeration oracle, which may help discover valid identifiers. It does not establish unauthorised read access. The next test uses two approved tenant accounts and a marker record to determine whether the authorisation boundary is enforced. This is why access-control testing must preserve both identity and object context.
 
 <Figure caption="Evidence ladder for Cobalt's toy gateway. Each rung adds a necessary condition; no rung alone proves a complete vulnerability.">
-  <div className="not-prose overflow-x-auto">
+  <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
     <table className="w-full min-w-[680px] text-left text-[10px]">
       <thead className="bg-mist-100 text-muted">
         <tr><th className="px-3 py-2">Rung</th><th className="px-3 py-2">Observed evidence</th><th className="px-3 py-2">What it supports</th><th className="px-3 py-2">What remains unknown</th></tr>
@@ -242,6 +277,26 @@ Rate the claim, not the tool output. **Confirmed** means the team directly obser
 
 For a simulated account-abuse path, the marker might be a read-only record that only the test role should reach. Record the role policy, the authenticated request, the response and the corresponding audit event. Do not use a real employee credential or copy a real token into the report. If the action succeeds, the demonstrated impact is access to a synthetic object under that role. Production impact still depends on whether the same role and route exist outside the lab.
 
+## Test causality with counterfactual controls
+
+A convincing validation changes the suspected cause while holding the surrounding conditions steady. The goal is not merely to reproduce a symptom; it is to show that removing or altering one condition changes the outcome. This is the difference between correlation and an attack path that engineering can repair.
+
+Suppose R-2 receives marker M-17. A useful experiment has four cells. R-2 requests its own marker as a positive control; R-2 requests M-17 from another tenant; R-1 requests M-17 under the same route; and R-2 repeats the cross-tenant request with the shared cache bypassed. If only the second cell succeeds, the authorisation hypothesis gains support. If the second cell succeeds only before the permission change, the cache hypothesis gains support. If both roles succeed, the result may reflect an intended shared-marker policy rather than a boundary failure.
+
+<div className="not-prose overflow-x-auto" role="region" aria-label="Counterfactual validation controls" tabIndex={0}>
+
+| Question | Controlled change | Observation that supports causality | Alternative it does not eliminate |
+| --- | --- | --- | --- |
+| Does object context matter? | Keep R-2 and the route fixed; switch only the marker's tenant | The same-tenant request is allowed and the cross-tenant request is denied after remediation | A network policy or rate limit could still be producing the denial |
+| Is the cache responsible? | Keep R-2 and M-17 fixed; bypass only the shared cache | The marker becomes unavailable and the backend logs an authorisation denial | Another proxy or application-local cache could still be active |
+| Is the test identity what the server used? | Keep the body fixed; compare client metadata with the server audit principal | The audit record identifies R-2 and the request's correlation identifier | Session issuance or identity-provider compromise remains a separate question |
+
+</div>
+
+For a parser, apply the same structure to failure analysis. Compare a normal document, a same-size document with a harmless feature change and a bounded oversized document. A canary abort shared by normal and malformed inputs suggests an instrumentation or build problem, not necessarily corruption. A failure that tracks the size limit suggests a resource guard. Only the subset that also changes security-relevant state supports a stronger memory-safety claim, and even then control-flow influence and useful execution remain separate conclusions. Erickson's exploitation chapters make those distinctions through program state and memory layout rather than through the drama of a crash. <Cite id="book-erickson-hacking" locator="Ch. 0x300, “Exploitation,” especially 0x320 “Buffer Overflows”" />
+
+Rate confidence per link: directness of the artefact, independence from the suspected component, reproducibility, and coverage of plausible confounders. A finding can be confirmed in the toy deployment while its production prerequisite remains probable. Keeping those two statements separate is more accurate than averaging them into one vague severity label.
+
 <WorkedExample
   title="A parser crash is evidence of failure, not proof of execution"
   steps={[
@@ -309,6 +364,24 @@ Cleanup is an authorised phase, not an excuse to delete inconvenient evidence. R
 Some findings require preserving a vulnerable configuration long enough for the client to reproduce it. Coordinate this explicitly. Options include a retained isolated snapshot, a recorded demonstration, a minimal regression fixture or a developer-owned test environment. Do not leave a backdoor, privileged test account or exposed evidence share in production for convenience. Evidence retention and production restoration are separate decisions with separate owners.
 
 The cleanup record should list every created artefact and its disposition. “Removed test data” is too vague. Prefer “deleted synthetic marker M-17 from the isolated object store, revoked role R-2's temporary credential, restored gateway snapshot G-14 and verified the pre-test health response.” Attach the verification result. A clean closeout protects the client and makes the engagement easier to audit.
+
+## Reconcile contradictions before assigning confidence
+
+Evidence review is where an apparently complete finding can split into several narrower claims. Consider a toy record with three artefacts: an endpoint trace reports a process reading M-17, a network flow records a connection to the simulated gateway, and the application log denies the read. Timestamps alone cannot decide which account is correct. They may differ by clock offset, describe asynchronous stages, or refer to separate attempts.
+
+<div className="not-prose overflow-x-auto" role="region" aria-label="Contradictory evidence reconciliation" tabIndex={0}>
+
+| Artefact | What it directly establishes | Plausible limitation | Record needed to reconcile it |
+| --- | --- | --- | --- |
+| Endpoint process trace | A local operation used the marker path | The path may be a stale value, an attempted open or a different process context | Process identifier, creation time, executable hash and operation result |
+| Gateway flow | Traffic used the expected toy destination at a particular time | A flow does not identify the application action or prove the payload succeeded | Connection identifier, byte direction and proxy correlation mapping |
+| Application denial log | The server evaluated one request and rejected it | The logger may have dropped, sampled or misassociated records | Request identifier, authenticated principal, policy decision and ingestion status |
+
+</div>
+
+Join records through explicit identifiers first, then use a time window whose width reflects measured clock and ingestion uncertainty. Preserve the original timestamps. If the endpoint trace belongs to an earlier retry while the denial belongs to the final request, there is no contradiction; the engagement simply performed two different operations. If no identifier survives, report the sequence as correlated but not causally joined. NIST separates examination, which extracts relevant facts, from analysis, which interprets them against hypotheses. <Cite id="nist-sp800-86" locator="§3.2–3.3 (examination and analysis)" />
+
+Confidence then has a claim-specific structure. The marker access may be confirmed, attribution to R-2 probable, and any production impact unknown. A screenshot proves what a display showed at capture time; it does not prove the bytes on the wire. A hash establishes byte identity with the hashed object; it does not establish completeness of acquisition. A log entry proves that a logger emitted a record; it does not by itself prove that the event occurred as described. Stating those boundaries prevents the evidence package from becoming more certain merely because it contains more files.
 
 ## Report by decision, risk and evidence
 

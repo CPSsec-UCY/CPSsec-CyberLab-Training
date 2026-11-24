@@ -8,7 +8,7 @@ difficulty: "Advanced"
 readingTime: 100
 summary: "A complete pass over FIPS 203: Module-LWE, K-PKE, compression, the FO transform, decapsulation correctness, constant-time implementation and hybrid deployment."
 outcomes: ["Trace ML-KEM KeyGen, Encaps and Decaps with concrete byte sizes.", "Explain Module-LWE, K-PKE encryption and ciphertext compression.", "Derive correctness bounds and interpret decapsulation failure probabilities.", "Trace the FO re-encryption check and implicit rejection.", "Review constant-time implementation, Keccak/NTT performance and protocol deployment."]
-citations: ["fips203", "kyber-spec", "regev2009", "lpr2010", "langlois-stehle2015", "fujisaki-okamoto2013", "hofheinz2017", "rfc8446", "hybrid-design", "longa2016", "liboqs", "montgomery1985", "fips202"]
+citations: ["fips203", "kyber-spec", "regev2009", "lpr2010", "langlois-stehle2015", "fujisaki-okamoto2013", "hofheinz2017", "rfc9846", "rfc10024", "rfc9180", "hybrid-design", "longa2016", "liboqs", "montgomery1985", "fips202"]
 tags: ["pqc", "kem", "lattice", "ml-kem", "fips-203"]
 prerequisites: ["ntt-polynomials", "asymmetric-primitives"]
 updated: "2026-11-24"
@@ -64,7 +64,7 @@ That is larger than an X25519 public key (32 bytes) but small enough for TLS and
 
 ## A real session
 
-A browser opens a TLS 1.3 connection to a server that supports X25519MLKEM768. The client sends an X25519 share and an ML-KEM-768 encapsulation key; the server returns its X25519 share and an ML-KEM ciphertext. Both derive a hybrid secret and use it to key the record layer.
+A browser opens a TLS 1.3 connection to a server that supports X25519MLKEM768. The client sends a 1,216-byte key share containing the 1,184-byte ML-KEM-768 encapsulation key followed by its 32-byte X25519 share; the server returns a 1,120-byte share containing the 1,088-byte ML-KEM ciphertext followed by its 32-byte X25519 share. Both derive a 64-byte hybrid secret, again ML-KEM first, and use it to key the record layer. <Cite id="rfc10024" locator="§4.1–4.3" />
 
 The attacker records the ciphertext. Today, deriving the key requires solving Module-LWE. After a cryptographically relevant quantum computer exists, Shor's algorithm does not apply to Module-LWE; the recorded ciphertext remains hard under the best known attacks. That is the migration argument in one paragraph.
 
@@ -79,6 +79,20 @@ Defender goals include canonical parsing, strict length checks, constant-time re
 Misconceptions obscure the security boundary. Compression is not encryption and does not add security; it reduces bandwidth while consuming correctness margin. The FO transform does not repair a broken random-number generator, a leaked secret key or a ciphertext comparison that exits early. Hybrid deployment does not make an unsafe ML-KEM implementation safe; both components must be implemented correctly. Finally, the tabulated decapsulation failure rate is a correctness bound, not an estimate of an attacker's success probability.
 
 Availability is also worth stating. A decapsulation call should always produce a 32-byte value for a ciphertext of the expected length under the standard interface. The surrounding protocol may later fail authentication, but that is different from exposing a KEM error. Buffer allocation failure or an internal key-format error can stop the process; ordinary ciphertext rejection cannot. This distinction prevents a chosen-ciphertext oracle and gives the protocol a clean interface.
+
+### The API contract is part of the security boundary
+
+Separate public input validation from secret-dependent validity. Length and parameter-set checks can reject an input before expensive arithmetic, because the length is attacker-visible anyway. Once a correctly sized ciphertext enters decapsulation, however, its decoded message, comparison flag and output selection are secret intermediates. FIPS 203 requires the rejection flag to be destroyed before the internal function returns and forbids exposing it in any form. <Cite id="fips203" locator="§3.3 and §6.3" />
+
+| Input or event | Standard-level outcome | Service-level policy |
+| --- | --- | --- |
+| Wrong ciphertext length or parameter set | Input checking fails before decapsulation | Deterministic parser error; do not run arithmetic |
+| Correct length, adversarial ciphertext | Valid-length ciphertext enters the normal implicit-rejection path | Return the 32-byte value to the protocol |
+| Internal decapsulation-key inconsistency | Input checking fails | Fail closed locally; this is not a ciphertext verdict |
+| Encapsulation randomness failure | Encapsulation returns an error | Never substitute a counter or repeated message |
+| Protocol authentication fails later | KEM has already returned a key | Record a protocol failure, not a KEM acceptance flag |
+
+This table prevents a common wrapper bug: translating every unsuccessful handshake into “ML-KEM rejected” and logging it. Such a log can become an oracle, while an implementation that returns an explicit rejection value violates the intended interface. Support telemetry should aggregate health and internal integrity alarms without attaching a per-ciphertext verdict to remote-observable responses.
 </Lens>
 
 <Lens level={2} title="K-PKE, compression and the encapsulation flow">
@@ -136,7 +150,7 @@ Decompression reconstructs an approximation. The parameters choose $d_u, d_v$ so
 
 ## Where it appears
 
-TLS 1.3 negotiates a group; a hybrid group such as X25519MLKEM768 combines an ephemeral X25519 secret with ML-KEM-768. <Cite id="rfc8446" locator="§4.2.1" /> <Cite id="hybrid-design" locator="§3–4" /> HPKE exposes the KEM interface directly. <Cite id="fips203" locator="§1.1" />
+TLS 1.3 negotiates a group; a hybrid group such as X25519MLKEM768 combines an ephemeral X25519 secret with ML-KEM-768. <Cite id="rfc9846" locator="§4.3.7–4.3.8" /> <Cite id="hybrid-design" locator="§3.1–3.3" /> The standardized group fixes the ML-KEM-first wire order and 1,216/1,120-byte shares. <Cite id="rfc10024" locator="§4.1–4.3" /> HPKE exposes the KEM interface directly. <Cite id="rfc9180" locator="§4" />
 
 <Callout variant="warning" title="Do not use K-PKE on its own">
 FIPS 203 explicitly prohibits using K-PKE as a stand-alone public-key encryption scheme. It is an internal component; only the FO-wrapped ML-KEM is approved. <Cite id="fips203" locator="§3.3" />
@@ -160,10 +174,12 @@ The comparison is over the entire ciphertext, not just a tag. The rejection key 
 For a coefficient $v$, compression computes
 
 $$
-\mathsf{Compress}_d(v) = \mathsf{round}\left(\frac{2^d}{q}v\right) \bmod 2^d,
+\mathsf{Compress}_d(v) = \left\lceil\frac{2^d}{q}v\right\rfloor \bmod 2^d,
+\qquad
+\mathsf{Decompress}_d(y) = \left\lceil\frac{q}{2^d}y\right\rfloor,
 $$
 
-and decompression reverses the rounding. With $q=3329$ and $d=10$, the compressed value has 10 bits and the reconstruction error is at most about $q/2^{11} \approx 1.6$. ML-KEM uses $d=10$ for the vector component and $d=4$ for the message polynomial in the smaller parameter sets; the larger set uses different values to preserve correctness. <Cite id="fips203" locator="Table 2" />
+where $\lceil\cdot\rfloor$ denotes rounding to the nearest integer with half-integers rounded upward. The standard defines these operations over rational numbers and forbids floating-point computation in the specified path. Compression followed by decompression changes a value by at most $q/2^{d+1}$ in the chosen representative. With $q=3329$ and $d=10$, a coefficient uses 10 bits and this bound is $1.625$; $d=4$ gives a bound of $104.03125$. ML-KEM uses $d=10$ and $d=4$ for the two ciphertext components of ML-KEM-768, while ML-KEM-1024 uses $d_u=11$ and $d_v=5$ to preserve correctness. The message polynomial is a separate one-bit-per-coefficient encoding; $d_v$ compresses the noisy value $v$, not the message. <Cite id="fips203" locator="§4.2.1, §5.2–5.3 and Table 2" />
 
 <Callout variant="warning" title="Compression is part of correctness">
 Coarser compression saves bytes but increases the chance that noise crosses a reconciliation boundary. Parameter choice is a joint optimisation of size, failure probability and security.
@@ -172,6 +188,16 @@ Coarser compression saves bytes but increases the chance that noise crosses a re
 ## Byte layout and an implementation walkthrough
 
 For rank $k$, the encapsulation key is $384k+32$ bytes, the ciphertext is $32kd_u+32d_v$ bytes, and the expanded decapsulation key is $768k+96$ bytes. The extra 32 bytes in the public key encode the matrix seed; the decapsulation key includes the encoded private key, public key, public-key hash and rejection seed. These sizes explain why a seemingly simple KEM interface still needs careful buffer ownership.
+
+The hash functions have fixed output roles. In FIPS 203, $H$ is SHAKE256 to 32 bytes, $G$ is SHAKE128 to 64 bytes, and $J$ is SHAKE256 to 32 bytes. Encapsulation uses the first 32 bytes of $G(m\|H(ek))$ as $K$ and the remaining 32 as encryption randomness. Rejection uses $J(z\|c)$, where $z$ is the decapsulation key's private rejection seed. These are not interchangeable domain labels: reusing one output for another purpose invalidates the proof's separation of roles. <Cite id="fips203" locator="§4.1 and §6.2–6.3" />
+
+| Parameter set | $c_1$ bytes | $c_2$ bytes | Ciphertext bytes | Expanded decapsulation key |
+| --- | ---: | ---: | ---: | ---: |
+| ML-KEM-512 | 640 | 128 | 768 | 1,632 |
+| ML-KEM-768 | 960 | 128 | 1,088 | 2,400 |
+| ML-KEM-1024 | 1,408 | 160 | 1,568 | 3,168 |
+
+The split matters to parsers. A decoder must not infer $k$ from a convenient prefix length or try multiple parameter sets until arithmetic “works.” The selected parameter set fixes the exact $c_1$ boundary and every coefficient depth. FIPS 203 requires ciphertext type checking on every decapsulation call and specifies a modulus check for encapsulation keys. <Cite id="fips203" locator="§7.2–7.3 and Table 3" />
 
 Key generation samples a 32-byte seed $d$ and derives $\rho$ and $\sigma$ through the specified hash. Matrix entries are sampled and rejected until canonical coefficients in $[0,q)$ are obtained. The secret and error vectors are sampled from centered binomial distributions, transformed to the NTT domain, and combined as $\hat t=\hat A\hat s+\hat e$. The expanded key must be checked for internal consistency on import rather than trusting an arbitrary byte string of the correct length.
 
@@ -190,6 +216,10 @@ Decapsulation first decompresses the received components. It computes $m'=\maths
   ]}
   result="Ten bits reconstruct this coefficient with error one. Across a vector, these errors combine with LWE noise, so a one-coefficient check does not establish decapsulation correctness."
 />
+
+Packing follows the same little-endian bit stream as the standard's `ByteEncode_d`. Two ten-bit values $308$ and $777$ form the integer $308+777\cdot2^{10}=795{,}956$, encoded as the three bytes `34 25 0C`. Decoding the first ten bits gives $0x134=308$; shifting the same stream by ten bits gives $0x309=777$. A decoder must consume the exact number of coefficient segments fixed by $d$ and the vector length, not assume that every component occupies whole bytes.
+
+Tie handling is also observable. For $d_v=4$, `Decompress_4(8)` evaluates $3329\cdot8/16=1664.5$ and rounds upward to $1665$. A language's default banker's rounding, truncation or floating-point conversion can choose a different value and break known-answer tests. Use integer arithmetic implementing the standard's round-to-nearest, ties-up rule. <Cite id="fips203" locator="§2.3 and §4.2.1, Algorithms 5–6" />
 
 <WorkedExample
   title="Binomial noise and a message decision boundary"
@@ -288,17 +318,15 @@ A decapsulation failure is a correctness event. The FO transform turns correctne
 />
 
 
-## Correctness and failure probability
-
-Decryption succeeds if the accumulated noise stays inside the correct reconciliation region. A standard analysis bounds the noise as a sum of products of small coefficients; the failure rates in FIPS 203 are $2^{-138.8}$ for ML-KEM-512, $2^{-164.8}$ for ML-KEM-768 and $2^{-174.8}$ for ML-KEM-1024. <Cite id="fips203" locator="Table 1" />
-
-These are not cryptographic security levels; they are correctness probabilities. The FO transform handles a failure by returning a rejection key, so a rare correctness failure does not become a decryption oracle.
-
 ## The FO argument in detail
 
 The re-encryption check binds the ciphertext to the message and randomness. If an attacker modifies $c$, decryption produces an unrelated $m'$, re-encryption produces $c'' \ne c$, and the output is the rejection key. The attacker cannot tell whether the ciphertext was valid without solving the underlying problem or breaking the hash/KDF assumptions. <Cite id="hofheinz2017" locator="pp. 341–371" />
 
 The proof is in the random-oracle model and requires domain separation between $G$, $H$ and $J$. Using the same hash inputs for different purposes can break the argument.
+
+A useful way to read the reduction is to partition every decapsulation query into two events. In the exact-re-encryption event, the recovered message and derived coins reproduce the submitted ciphertext; the simulator can answer using the same programmed $G$ response as encapsulation. In the mismatch event, the standard returns $J(z\|c)$; the simulator programs an independent random-oracle response for that input. The challenger ciphertext remains an IND-CPA challenge, while programming must stay consistent across repeated hash queries. Any residual bias caused by honest decryption failures is accounted for by the correctness failure term rather than hidden by the rejection key. The modular analysis of Hofheinz, Hövelmanns and Kiltz states the precise properties and losses for this style of argument. <Cite id="hofheinz2017" locator="pp. 341–371" />
+
+This also explains three implementation requirements that look merely stylistic. Hashing $H(ek)$ binds coins and rejection to the intended public key; deriving $r$ from the recovered message makes re-encryption deterministic; and computing $J$ independently prevents an attacker from relating a rejection key to a successful shared secret. Omitting any one of them changes the experiment the proof analyses.
 
 ## Correctness as a norm inequality
 
@@ -311,7 +339,7 @@ $$
 An honest decryption therefore forms
 
 $$
-v-s^Tu=e_2+s^Te_1-e^Tr+\mathsf{Decompress}_1(m).
+v-s^Tu=e_2-s^Te_1+e^Tr+\mathsf{Decompress}_1(m).
 $$
 
 This identity exposes every source of disturbance: encryption error, secret times ephemeral error, public-key error times ephemeral secret, and the encoded message. If decompression reconstructs $u+\delta_u$ and $v+\delta_v$, the decoded value contains the additional term $\delta_v-s^T\delta_u$. The subtraction is exact in the field; the error analysis is over centered integer representatives before reduction.
@@ -320,11 +348,46 @@ For each coefficient, decoding succeeds when the total disturbance stays inside 
 
 Compression error is bounded by $q/2^{d_u+1}$ per coefficient of $\delta_u$ and $q/2^{d_v+1}$ for $\delta_v$. Multiplying $\delta_u$ by the secret amplifies it by secret coefficients, which is why reducing $d_u$ is not a free bandwidth optimisation. The standard's failure bounds already account for the selected parameter sets. Changing a noise distribution, root representation, rounding rule or compression depth invalidates that bound even if a small sample of keys still decapsulates.
 
+### Make the union bound explicit
+
+Let $E=e_2-s^Te_1+e^Tr+\delta_v-s^T\delta_u$ be the integer disturbance before message decoding, using centred representatives. If every coefficient satisfies $|E_j|<q/4$, every one-bit message coefficient is recovered correctly. Therefore
+
+$$
+\Pr[\text{decryption failure}]
+\le
+\sum_{j=0}^{256k-1}\Pr\!\left[|E_j|\ge\frac q4\right].
+$$
+
+For ML-KEM-768, this is a union over $256\cdot3=768$ coefficient positions. If a deliberately coarse analysis bounded each position by $p$, the aggregate bound would be $768p$; the actual tail is not uniform across positions or parameter sets, so substituting an average error would be unsound. FIPS 203's tabulated bounds come from the full noise analysis under the random-hash heuristic and successful randomness generation. <Cite id="fips203" locator="§3.2 and Table 1" />
+
+A worst-case coefficient budget shows why a sharper analysis is necessary. For ML-KEM-768, $\eta_1=\eta_2=2$, so the uncompressed terms are bounded by
+
+$$
+|e_2-s^Te_1+e^Tr|
+\le 2+2\cdot256\cdot3\cdot2^2=6{,}146.
+$$
+
+The compression terms add at most $q/2^5=104.03125$ from $\delta_v$ and $256\cdot3\cdot2\cdot q/2^{11}=2{,}496$ from $s^T\delta_u$. The resulting crude bound exceeds $8{,}746$, far above the sufficient threshold $q/4=832.25$. That does not contradict the tiny tabulated failure probability: the worst case requires every product to align at its maximum, whereas the failure analysis uses the binomial distributions and their moment-generating functions.
+
+| Component | ML-KEM-768 bound | What consumes margin |
+| --- | ---: | --- |
+| $e_2$ | $\eta_2=2$ | Encryption noise |
+| $s^Te_1$ and $e^Tr$ | $2\cdot256\cdot3\cdot\eta_1^2=6{,}144$ | Rank, convolution length and ephemeral noise |
+| $\delta_v$ | $q/2^{d_v+1}=104.03125$ | Four-bit compression of $v$ |
+| $s^T\delta_u$ | $256\cdot3\cdot\eta_1\cdot q/2^{d_u+1}=2{,}496$ | Secret amplification of ten-bit compression error |
+
+The table is a conservative arithmetic budget, not a probability estimate. It is useful for detecting a changed parameter or missing term; use the standard's distributional bound when assessing actual reliability.
+
+
 The reduction to Module-LWE is an average-case argument. Public samples $(A,t)$ hide short secret and error vectors; the error distribution is what makes the noiseless linear system unhelpful. A reduction must transform a Module-LWE distinguisher into an IND-CPA attacker against K-PKE, with a loss determined by the error bounds and number of samples. Module-SIS hardness and lattice reductions support the surrounding parameter analysis. <Cite id="regev2009" locator="Vol. 56, Article 34" /> <Cite id="langlois-stehle2015" locator="Vol. 75, pp. 565–599" />
 
 The FO transform upgrades the passive setting to chosen-ciphertext security. In the random-oracle reduction, $G$ is programmed to derive coins consistently, $H$ binds the public key, and $J$ provides an independent rejection key. A decapsulation query either re-encrypts exactly, in which case it can be simulated, or yields an implicit rejection value. Domain separation is essential so that a hash query from encapsulation cannot silently answer a re-encryption query. <Cite id="hofheinz2017" locator="pp. 341–371" />
 
 Implicit rejection also handles the tiny correctness event where the recovered message is wrong. If a noisy decode changes $m$, the derived randomness changes, so the re-encrypted ciphertext almost certainly differs. Returning $J(z\|c)$ avoids revealing that correctness failure. An implementation that returned a distinct error, skipped re-encryption, or compared only a prefix would destroy this argument.
+
+Correctness bounds aggregate over a workload by a union bound. If a deployment permits at most $N$ honest handshakes under one key and accepts an aggregate failure risk $\epsilon$, a sufficient planning condition is $N\cdot\Pr[\text{decapsulation failure}]\le\epsilon$. For ML-KEM-768, $\delta=2^{-164.8}$, so the corresponding limit is $N\le\epsilon/\delta$. This is a reliability calculation, not an attacker's forgery probability: keys are normally rotated long before such a threshold is relevant, and correlated implementation errors are not covered by the probabilistic bound.
+
+Keep three probabilities separate in reviews: decryption-noise failure, re-encryption mismatch after a wrong decode, and an attacker's success against IND-CCA2. The first two feed the standardized decapsulation-failure bound; the third is a security claim with a reduction and assumptions. A tiny $\delta$ does not compensate for a timing leak, and a strong security proof does not excuse a wrong compression parameter.
 
 Edge cases sharpen the model. The input must have exactly the expected length; allocation or internal key corruption may be fatal, but an ordinary wrong ciphertext must not be. Public-key coefficients must be canonical before use. The comparison must cover every ciphertext byte, including unused padding bits if the encoding defines them. Secret-key rollback must restore the matching rejection seed. If two operations share an output buffer, wipe or overwrite the previous key so a protocol layer cannot mistake a rejection key for an earlier success.
 </Lens>
@@ -368,10 +431,42 @@ A branch that looks constant-time in C can be turned into a conditional move or 
 
 A decapsulation key is 2,400 bytes for ML-KEM-768; an encapsulation key is 1,184 bytes. Hybrid TLS adds these to a handshake that previously carried a 32-byte X25519 share. Firmware and HSMs need larger command buffers. Embedded devices need stack budgets measured in kilobytes, not megabytes.
 
+FIPS 203 also warns that an ML-KEM component&apos;s IND-CCA2 property does not automatically make an arbitrary combined KEM IND-CCA2. The combiner, labels and key derivation must be analysed as a construction. RFC 9954 specifies the TLS hybrid framework, and RFC 10024 fixes the X25519MLKEM768 ordering; a library should not invent its own concatenation order or omit the classical component silently. <Cite id="fips203" locator="§3.3" /> <Cite id="hybrid-design" locator="§3.1–3.3 and §6" /> <Cite id="rfc10024" locator="§4.1–4.3" />
+
+### Negative tests are security tests
+
+Build the malformed-ciphertext corpus at the byte level and at the algebraic level. For each parameter set, include every wrong length, single-bit changes near the start and end of both ciphertext components, all-zero and all-one inputs, and public coefficients that decode to $q$ or above. For a correctly sized input, compare the result with an independent implementation; do not assert that every mutation must change the output, because some mutations can define another ciphertext that re-encrypts exactly.
+
+| Test class | Observable requirement | Common false pass |
+| --- | --- | --- |
+| Length validation | Reject before any out-of-bounds access | Only oversized inputs are tested |
+| Canonical decoding | Reject non-canonical public encodings | Modular reduction silently accepts them |
+| Re-encryption comparison | Work covers the complete ciphertext | Prefix comparison appears correct on random inputs |
+| Candidate selection | Both 32-byte candidates exist before selection | Rejection branch skips $J$ |
+| Key import | Hash and rejection seed stay paired | A round-trip test uses a freshly generated key only |
+| Fault injection | Internal faults cannot expose a success verdict | The wrapper logs a per-request rejection code |
+
+Timing tests should use the exact release binary and attacker-chosen ciphertexts, not just random valid traffic. Compare distributions across controlled mutation positions, repeat after compiler or provider changes, and combine statistical tests with taint analysis and assembly inspection. A successful known-answer test proves compatibility for its vectors; it does not prove that the rejection path has constant control flow.
+
+### Account for live key material, not just key-file size
+
+For ML-KEM-768, the expanded decapsulation key is 2,400 bytes: 1,152 bytes of K-PKE decryption key, 1,184 bytes of encapsulation key, a 32-byte public-key hash and a 32-byte rejection seed. A call also needs the 1,088-byte ciphertext and two 32-byte candidate outputs before selection. Matrix expansion, NTT workspaces, sampling buffers and hash state add implementation-defined space on top of those objects.
+
+| Live object | ML-KEM-768 size | Lifecycle rule |
+| --- | ---: | --- |
+| K-PKE decryption key | 1,152 B | Secret; wipe after use or protected storage |
+| Encapsulation key | 1,184 B | Public, but bound to the stored hash and seed |
+| Cached public-key hash | 32 B | Verify against the encapsulated key on import |
+| Rejection seed | 32 B | Secret; must survive rollback with the matching key |
+| Input ciphertext | 1,088 B | Attacker-controlled; validate exact length |
+| Success and rejection candidates | 64 B combined | Compute both before branch-free selection |
+
+A memory budget that counts only the serialized decapsulation key understates peak usage and can miss a stack overflow on the rejection path. Key deletion must wipe both the secret vector and rejection seed; restoring an old key file without its matching hash and seed can turn honest ciphertexts into unexplained failures.
+
 ## Testing strategy
 
 1. **Known-answer tests** from the standard.
-2. **Differential testing** against a reference implementation. <Cite id="liboqs" />
+2. **Differential testing** against a reference implementation. <Cite id="liboqs" locator="tests/test_kem.c and KAT test vectors" />
 3. **Fuzzing** of decoders and length checks.
 4. **Constant-time verification** and leakage assessment.
 5. **Interoperability tests** across libraries and protocol stacks.

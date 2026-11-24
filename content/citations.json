@@ -123,17 +123,21 @@
   },
   {
     "id": "nist-ir8547",
-    "short": "NIST IR 8547 (ipd)",
+    "short": "NIST IR 8547",
     "type": "report",
     "title": "Transition to Post-Quantum Cryptography Standards",
     "authors": [
-      "National Institute of Standards and Technology"
+      "Dustin Moody",
+      "Ray Perlner",
+      "Andrew Regenscheid",
+      "Angela Robinson",
+      "David Cooper"
     ],
-    "year": 2024,
+    "year": 2026,
     "publisher": "National Institute of Standards and Technology",
-    "url": "https://doi.org/10.6028/NIST.IR.8547.ipd",
-    "doi": "10.6028/NIST.IR.8547.ipd",
-    "locator": "§4 (migration), §5 (deprecation timeline)",
+    "url": "https://doi.org/10.6028/NIST.IR.8547",
+    "doi": "10.6028/NIST.IR.8547",
+    "locator": "§3.2 (hybrid trade-offs), §4 and Tables 2–5 (transition timeline), §1 (harvest-now risk)",
     "tags": [
       "pqc",
       "migration",
@@ -226,6 +230,92 @@
       "quantum",
       "search",
       "symmetric"
+    ]
+  },
+  {
+    "id": "brassard-hoyer-tapp1998",
+    "short": "Brassard–Høyer–Tapp 1998",
+    "type": "paper",
+    "title": "Quantum Cryptanalysis of Hash and Claw-Free Functions",
+    "authors": [
+      "Gilles Brassard",
+      "Peter Høyer",
+      "Alain Tapp"
+    ],
+    "year": 1998,
+    "container": "LATIN'98: Theoretical Informatics",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/BFb0054319",
+    "doi": "10.1007/BFb0054319",
+    "locator": "LNCS 1380, pp. 163–169 (collision algorithm and space–time trade-off)",
+    "tags": [
+      "quantum",
+      "collision",
+      "hash"
+    ]
+  },
+  {
+    "id": "mosca2018",
+    "short": "Mosca 2018",
+    "type": "paper",
+    "title": "Cybersecurity in an Era with Quantum Computers: Will We Be Ready?",
+    "authors": [
+      "Michele Mosca"
+    ],
+    "year": 2018,
+    "container": "IEEE Security & Privacy",
+    "publisher": "IEEE",
+    "url": "https://doi.org/10.1109/MSP.2018.3761723",
+    "doi": "10.1109/MSP.2018.3761723",
+    "locator": "Vol. 16, No. 5, pp. 38–41 (harvest-now-decrypt-later and migration timing)",
+    "tags": [
+      "quantum",
+      "migration",
+      "risk"
+    ]
+  },
+  {
+    "id": "gidney-ekera2021",
+    "short": "Gidney–Ekerå 2021",
+    "type": "paper",
+    "title": "How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits",
+    "authors": [
+      "Craig Gidney",
+      "Martin Ekerå"
+    ],
+    "year": 2021,
+    "container": "Quantum",
+    "publisher": "Verein zur Förderung des Open Access Publizierens in den Quantenwissenschaften",
+    "url": "https://doi.org/10.22331/q-2021-04-15-433",
+    "doi": "10.22331/q-2021-04-15-433",
+    "locator": "Vol. 5, Article 433, abstract and §2–4 (resource model and RSA-2048 estimate)",
+    "tags": [
+      "quantum",
+      "factoring",
+      "resource-estimates"
+    ]
+  },
+  {
+    "id": "roetteler2017",
+    "short": "Roetteler et al. 2017",
+    "type": "paper",
+    "title": "Quantum Resource Estimates for Computing Elliptic Curve Discrete Logarithms",
+    "authors": [
+      "Martin Roetteler",
+      "Michael Naehrig",
+      "Krysta M. Svore",
+      "Kristin Lauter"
+    ],
+    "year": 2017,
+    "container": "Advances in Cryptology – ASIACRYPT 2017",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-319-70697-9_9",
+    "doi": "10.1007/978-3-319-70697-9_9",
+    "locator": "LNCS 10625, pp. 241–270 (resource model and elliptic-curve estimates)",
+    "tags": [
+      "quantum",
+      "elliptic-curve",
+      "resource-estimates"
     ]
   },
   {
@@ -397,17 +487,18 @@
     ]
   },
   {
-    "id": "rfc8446",
-    "short": "RFC 8446",
+    "id": "rfc9846",
+    "short": "RFC 9846",
     "type": "rfc",
     "title": "The Transport Layer Security (TLS) Protocol Version 1.3",
     "authors": [
       "Eric Rescorla"
     ],
-    "year": 2018,
+    "year": 2026,
     "publisher": "IETF",
-    "url": "https://www.rfc-editor.org/rfc/rfc8446.html",
-    "locator": "§4.2.1 (supported_groups), §4.4 (key schedule), Appendix D",
+    "url": "https://www.rfc-editor.org/rfc/rfc9846.html",
+    "doi": "10.17487/RFC9846",
+    "locator": "§4.1 (transcript), §4.3.7–4.3.8 (groups and key shares), §4.5.2–4.5.3 (authentication), §7.1 (key schedule)",
     "tags": [
       "tls",
       "protocol",
@@ -502,8 +593,8 @@
   },
   {
     "id": "hybrid-design",
-    "short": "IETF TLS hybrid design",
-    "type": "internet-draft",
+    "short": "RFC 9954",
+    "type": "rfc",
     "title": "Hybrid Key Exchange in TLS 1.3",
     "authors": [
       "Douglas Stebila",
@@ -512,12 +603,74 @@
     ],
     "year": 2026,
     "publisher": "IETF",
-    "url": "https://datatracker.ietf.org/doc/draft-ietf-tls-hybrid-design/",
-    "locator": "draft-ietf-tls-hybrid-design-16, §3–4",
+    "url": "https://www.rfc-editor.org/rfc/rfc9954.html",
+    "doi": "10.17487/RFC9954",
+    "locator": "§3.1–3.3 (negotiation, encoding and shared-secret calculation), §6 (security considerations)",
     "tags": [
       "tls",
       "hybrid",
       "migration"
+    ]
+  },
+  {
+    "id": "rfc10024",
+    "short": "RFC 10024",
+    "type": "rfc",
+    "title": "Post-Quantum Traditional (PQ/T) Hybrid Key Agreement Mechanisms for TLS 1.3",
+    "authors": [
+      "Krzysztof Kwiatkowski",
+      "Panos Kampanakis",
+      "Bas Westerbaan",
+      "Douglas Stebila"
+    ],
+    "year": 2026,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc10024.html",
+    "doi": "10.17487/RFC10024",
+    "locator": "§4.1–4.3 (client/server share encoding, ordering and shared secret), §6 (security considerations)",
+    "tags": [
+      "tls",
+      "hybrid",
+      "ml-kem",
+      "migration"
+    ]
+  },
+  {
+    "id": "rfc791",
+    "short": "RFC 791",
+    "type": "rfc",
+    "title": "Internet Protocol",
+    "authors": [
+      "Jon Postel"
+    ],
+    "year": 1981,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc791.html",
+    "doi": "10.17487/RFC791",
+    "locator": "§2.3 (addressing and fragmentation), §3.1 (IPv4 header format)",
+    "tags": [
+      "ip",
+      "fragmentation",
+      "network"
+    ]
+  },
+  {
+    "id": "rfc9293",
+    "short": "RFC 9293",
+    "type": "rfc",
+    "title": "Transmission Control Protocol (TCP)",
+    "authors": [
+      "Wesley Eddy"
+    ],
+    "year": 2022,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9293.html",
+    "doi": "10.17487/RFC9293",
+    "locator": "§3.1 (header), §3.3.1 (connection state), §3.4 (sequence numbers), §3.10.7 (segment arrival)",
+    "tags": [
+      "tcp",
+      "reassembly",
+      "network"
     ]
   },
   {
@@ -712,6 +865,95 @@
       "isogeny",
       "attack",
       "case-study"
+    ]
+  },
+  {
+    "id": "schneider-moradi2015",
+    "short": "Schneider–Moradi 2015",
+    "type": "paper",
+    "title": "Leakage Assessment Methodology: A Clear Roadmap for Side-Channel Evaluations",
+    "authors": [
+      "Tobias Schneider",
+      "Amir Moradi"
+    ],
+    "year": 2015,
+    "container": "Cryptographic Hardware and Embedded Systems – CHES 2015",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-662-48324-4_25",
+    "doi": "10.1007/978-3-662-48324-4_25",
+    "locator": "§2, pp. 497–498 (Welch t-test); §3, pp. 499–502 (specific/non-specific TVLA and limitations)",
+    "tags": [
+      "side-channel",
+      "tvla",
+      "leakage-assessment"
+    ]
+  },
+  {
+    "id": "nikova-rechberger-rijmen2006",
+    "short": "Nikova–Rechberger–Rijmen 2006",
+    "type": "paper",
+    "title": "Threshold Implementations Against Side-Channel Attacks and Glitches",
+    "authors": [
+      "Svetla Nikova",
+      "Christian Rechberger",
+      "Vincent Rijmen"
+    ],
+    "year": 2006,
+    "container": "Information and Communications Security – ICICS 2006",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/11935308_38",
+    "doi": "10.1007/11935308_38",
+    "locator": "§2, pp. 530–531; §3.2–3.3, pp. 531–533 (non-completeness, correctness and first-order guarantees); §4.2, pp. 536–537 (glitch limitations)",
+    "tags": [
+      "side-channel",
+      "masking",
+      "threshold-implementations"
+    ]
+  },
+  {
+    "id": "faust2018",
+    "short": "Faust et al. 2018",
+    "type": "paper",
+    "title": "Composable Masking Schemes in the Presence of Physical Defaults & the Robust Probing Model",
+    "authors": [
+      "Sebastian Faust",
+      "Vincent Grosso",
+      "Santos Merino Del Pozo",
+      "Clara Paglialonga",
+      "François-Xavier Standaert"
+    ],
+    "year": 2018,
+    "container": "IACR Transactions on Cryptographic Hardware and Embedded Systems",
+    "publisher": "IACR",
+    "url": "https://doi.org/10.46586/tches.v2018.i3.89-120",
+    "doi": "10.46586/tches.v2018.i3.89-120",
+    "locator": "§1, pp. 89–91; §4–4.1, pp. 97–100 (robust probing model); §5.2, pp. 104–105; §8, p. 108 (composition rules)",
+    "tags": [
+      "side-channel",
+      "masking",
+      "composability",
+      "probing"
+    ]
+  },
+  {
+    "id": "whitnall-oswald2019",
+    "short": "Whitnall–Oswald 2019",
+    "type": "paper",
+    "title": "A Critical Analysis of ISO 17825 (Testing Methods for the Mitigation of Non-invasive Attack Classes Against Cryptographic Modules)",
+    "authors": [
+      "Carolyn Whitnall",
+      "Elisabeth Oswald"
+    ],
+    "year": 2019,
+    "container": "Advances in Cryptology – ASIACRYPT 2019",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-030-34618-8_9",
+    "doi": "10.1007/978-3-030-34618-8_9",
+    "locator": "§3.1, p. 262 (power); §3.3, pp. 263–264 (multiplicity); §5.2, p. 268 and §7, pp. 277–278 (interpretation and reporting)",
+    "tags": [
+      "side-channel",
+      "statistics",
+      "release-gates"
     ]
   },
   {
@@ -1059,6 +1301,97 @@
       "password",
       "owasp",
       "guidance"
+    ]
+  },
+  {
+    "id": "fischer-lynch-paterson1985",
+    "short": "Fischer–Lynch–Paterson 1985",
+    "type": "paper",
+    "title": "Impossibility of Distributed Consensus with One Faulty Process",
+    "authors": [
+      "Michael J. Fischer",
+      "Nancy A. Lynch",
+      "Michael S. Paterson"
+    ],
+    "year": 1985,
+    "container": "Journal of the ACM",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/3149.214121",
+    "doi": "10.1145/3149.214121",
+    "locator": "Vol. 32, No. 2, pp. 374–382",
+    "tags": [
+      "distributed",
+      "consensus",
+      "impossibility",
+      "asynchrony"
+    ]
+  },
+  {
+    "id": "fiat-shamir1986",
+    "short": "Fiat–Shamir 1986",
+    "type": "paper",
+    "title": "How To Prove Yourself: Practical Solutions to Identification and Signature Problems",
+    "authors": [
+      "Amos Fiat",
+      "Adi Shamir"
+    ],
+    "year": 1987,
+    "container": "Advances in Cryptology — CRYPTO’86",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/3-540-47721-7_12",
+    "doi": "10.1007/3-540-47721-7_12",
+    "locator": "LNCS 263, pp. 186–194",
+    "tags": [
+      "zero-knowledge",
+      "fiat-shamir",
+      "identification",
+      "signatures"
+    ]
+  },
+  {
+    "id": "ben-or-goldwasser-wigderson1988",
+    "short": "Ben-Or–Goldwasser–Wigderson 1988",
+    "type": "paper",
+    "title": "Completeness Theorems for Non-Cryptographic Fault-Tolerant Distributed Computation",
+    "authors": [
+      "Michael Ben-Or",
+      "Shafi Goldwasser",
+      "Avi Wigderson"
+    ],
+    "year": 1988,
+    "container": "Proceedings of the Twentieth Annual ACM Symposium on Theory of Computing (STOC ’88)",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/62212.62213",
+    "doi": "10.1145/62212.62213",
+    "locator": "pp. 1–10",
+    "tags": [
+      "mpc",
+      "byzantine",
+      "threshold",
+      "completeness"
+    ]
+  },
+  {
+    "id": "stark2018",
+    "short": "Ben-Sasson et al. 2018",
+    "type": "paper",
+    "title": "Scalable, Transparent, and Post-Quantum Secure Computational Integrity",
+    "authors": [
+      "Eli Ben-Sasson",
+      "Iddo Bentov",
+      "Yinon Horesh",
+      "Michael Riabzev"
+    ],
+    "year": 2018,
+    "container": "Cryptology ePrint Archive, Paper 2018/046",
+    "publisher": "IACR",
+    "url": "https://eprint.iacr.org/2018/046",
+    "locator": "Abstract and §1–2 (transparent ZK-STARK construction and verification properties)",
+    "tags": [
+      "zero-knowledge",
+      "stark",
+      "transparency",
+      "computational-integrity"
     ]
   },
   {
@@ -1715,6 +2048,68 @@
       "software",
       "weakness",
       "secure-coding"
+    ]
+  },
+  {
+    "id": "rfc9112",
+    "short": "RFC 9112",
+    "type": "rfc",
+    "title": "HTTP/1.1",
+    "authors": [
+      "Roy T. Fielding",
+      "Mark Nottingham",
+      "Julian Reschke"
+    ],
+    "year": 2022,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9112.html",
+    "doi": "10.17487/RFC9112",
+    "locator": "§6 (message body length), §6.1 (framing ambiguity), §6.3 (message body parsing), §11.2 (request smuggling)",
+    "tags": [
+      "http",
+      "message-framing",
+      "request-smuggling"
+    ]
+  },
+  {
+    "id": "nist-sp800-193",
+    "short": "NIST SP 800-193",
+    "type": "standard",
+    "title": "Platform Firmware Resiliency Guidelines",
+    "authors": [
+      "Andrew Regenscheid"
+    ],
+    "year": 2018,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-193",
+    "doi": "10.6028/NIST.SP.800-193",
+    "locator": "§4.2.1.1–4.2.1.2 (authenticated updates), §4.3.1 (boot-time integrity verification), §4.4.1 (recovery)",
+    "tags": [
+      "firmware",
+      "integrity",
+      "authenticated-update",
+      "recovery"
+    ]
+  },
+  {
+    "id": "tcg-pc-client-rim-1-1-r11",
+    "short": "TCG PC Client RIM 1.1 r11",
+    "type": "specification",
+    "title": "TCG PC Client Reference Integrity Manifest Specification",
+    "authors": [
+      "Trusted Computing Group — Infrastructure Work Group"
+    ],
+    "year": 2024,
+    "publisher": "Trusted Computing Group",
+    "url": "https://www.trustedcomputinggroup.org/resources/documents/tcg-pc-client-reference-integrity-manifest-specification",
+    "locator": "§2 (golden measurements, boot events and Quote validation), §3 (reference manifest appraisal), §3.2.1–3.2.2 (PCR and event-log assertions)",
+    "tags": [
+      "tcg",
+      "measured-boot",
+      "remote-attestation",
+      "tpm",
+      "pcr",
+      "firmware"
     ]
   },
   {

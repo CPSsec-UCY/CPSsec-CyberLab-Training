@@ -415,7 +415,7 @@ export function BlueTeamHuntLab() {
           </div>
           {hasRun ? (
             matched.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
                 <table className="w-full min-w-[720px] text-left text-[9px]">
                   <caption className="sr-only">Toy events that match the selected hypothesis, sources and threshold</caption>
                   <thead className="text-muted"><tr><th className="px-3 py-2 font-bold">Time</th><th className="px-3 py-2 font-bold">Source</th><th className="px-3 py-2 font-bold">Host / user</th><th className="px-3 py-2 font-bold">Observed event</th><th className="px-3 py-2 text-right font-bold">Score</th></tr></thead>
