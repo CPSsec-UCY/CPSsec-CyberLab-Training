@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, Atom, Cpu, KeyRound, Network, Share2, ShieldCheck } from "lucide-react";
+import { Activity, Atom, Bug, Cloud, Code2, Cpu, Fingerprint, KeyRound, Network, Package, Share2, ShieldCheck, Crosshair, Search } from "lucide-react";
 import type { TrackMeta } from "@/lib/tracks";
 
 const ICONS = {
@@ -10,6 +10,13 @@ const ICONS = {
   activity: Activity,
   cpu: Cpu,
   key: KeyRound,
+  code: Code2,
+  cloud: Cloud,
+  bug: Bug,
+  package: Package,
+  fingerprint: Fingerprint,
+  crosshair: Crosshair,
+  search: Search,
 };
 
 export function TrackCard({ track, count }: { track: TrackMeta; count: number }) {

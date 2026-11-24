@@ -3,7 +3,7 @@ slug: centralised-decentralised
 title: "Centralised vs decentralised systems: trust, consensus and failure"
 subtitle: "No architecture is automatically secure. What changes when one operator holds the truth — and when nobody does?"
 track: "Distributed Systems & Privacy"
-order: 5
+order: 12
 difficulty: "Intermediate"
 readingTime: 70
 summary: "Compare centralised, federated, consortium and peer-to-peer architectures through trust boundaries, Byzantine failure, CAP, governance and operational reality."
@@ -14,6 +14,8 @@ prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { ConsensusRoundLab } from "../../components/visualizers/ConsensusRoundLab";
 
 <Lens level={1} title="Who holds the truth?">
 
@@ -187,6 +189,10 @@ Consistency also has levels: linearizability, sequential consistency, causal con
 ## Byzantine quorum arithmetic
 
 With $n$ replicas and at most $f$ Byzantine faults, safety and liveness require $n \ge 3f + 1$ under classical oral-message assumptions. Quorums of size $2f+1$ intersect in at least $f+1$ replicas, so at least one honest replica appears in both. This is why a malicious minority cannot convince two honest clients of conflicting histories. <Cite id="lamport1982" locator="pp. 382–401" />
+
+<Figure caption="Step through a four-replica PBFT-style round and let the Byzantine replica vote for a conflicting value. Three matching votes still decide A because two quorums of three must share an honest replica.">
+  <ConsensusRoundLab />
+</Figure>
 
 Proof-of-work replaces the quorum with an economic majority. Its finality is probabilistic and its security depends on assumptions about mining concentration and network propagation. Measurement studies show why “decentralised” is a spectrum. <Cite id="gencer2018" locator="pp. 439–457" />
 

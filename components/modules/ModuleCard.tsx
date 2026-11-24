@@ -13,6 +13,13 @@ import {
   Network,
   Share2,
   ShieldCheck,
+  Code2,
+  Cloud,
+  Bug,
+  Package,
+  Fingerprint,
+  Crosshair,
+  Search,
 } from "lucide-react";
 import type { ModuleMeta } from "@/lib/types";
 import { DIFFICULTY_STYLES, getTrack } from "@/lib/tracks";
@@ -27,6 +34,13 @@ const ICONS = {
   activity: Activity,
   cpu: Cpu,
   key: KeyRound,
+  code: Code2,
+  cloud: Cloud,
+  bug: Bug,
+  package: Package,
+  fingerprint: Fingerprint,
+  crosshair: Crosshair,
+  search: Search,
 };
 
 export function ModuleCard({ module }: { module: ModuleMeta }) {

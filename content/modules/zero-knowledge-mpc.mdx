@@ -3,7 +3,7 @@ slug: zero-knowledge-mpc
 title: "Zero-knowledge proofs and secure multi-party computation"
 subtitle: "Prove a statement without revealing the witness; compute on secrets without pooling them."
 track: "Advanced Cryptography"
-order: 10
+order: 14
 difficulty: "Advanced"
 readingTime: 85
 summary: "Interactive proofs, Schnorr, SNARKs, secret sharing, MPC threat models, trusted setup and the engineering cost of privacy-preserving computation."
@@ -14,6 +14,8 @@ prerequisites: ["asymmetric-primitives", "hashing-mac-kdf"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { MpcSecretSharingLab } from "@/components/visualizers/MpcSecretSharingLab";
 
 <Lens level={1} title="Convincing without revealing">
 
@@ -98,6 +100,10 @@ The verifier learns that the prover knows $x$, not $x$ itself. Hashing the chall
 - **Garbled circuits:** two-party computation of a Boolean circuit. <Cite id="yao1986" locator="pp. 162–167" />
 - **Secret-sharing MPC:** evaluate arithmetic or Boolean circuits over shares.
 - **Commitments, oblivious transfer and zero-knowledge proofs:** compose into larger protocols.
+
+<Figure caption="Interactive toy Shamir sharing over the field modulo 17. Reveal the shares, reconstruct from the threshold and corrupt one point to see exact interpolation return the wrong secret.">
+  <MpcSecretSharingLab />
+</Figure>
 
 ## Threat model first
 

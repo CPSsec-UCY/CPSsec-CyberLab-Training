@@ -33,6 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
   specification: "Specification",
   source: "Source code",
   website: "Website",
+  book: "Book",
 };
 
 function CopyBibtex({ citation }: { citation: Citation }) {

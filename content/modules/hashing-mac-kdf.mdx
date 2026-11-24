@@ -3,7 +3,7 @@ slug: hashing-mac-kdf
 title: "Hashes, MACs and KDFs: integrity, authentication and key stretching"
 subtitle: "From file fingerprints to password storage and TLS key schedules — the primitives that turn secrets into keys and detect tampering."
 track: "Foundations"
-order: 4
+order: 3
 difficulty: "Intermediate"
 readingTime: 75
 summary: "Hash properties, HMAC, HKDF, password hashing, salts, domain separation and the subtle ways hash constructions fail in real systems."
@@ -113,6 +113,10 @@ $$
 $$
 
 The `info` field is your domain separation: protocol, direction, algorithm, version. <Cite id="rfc5869" locator="§2" />
+
+<Figure caption="An interactive HMAC/HKDF workbench using clearly labelled toy checksums. Inspect byte-level pad XORs, nested hashes, context-separated derived keys and the comparison-work difference between early exit and a full constant-time-style pass.">
+  <HmacHkdfLab />
+</Figure>
 
 <Callout variant="note" title="Extract then expand">
 HKDF is not a password hash. It assumes the input has enough entropy. Use a password-hashing function such as Argon2id for human passwords, then HKDF for deriving subkeys from the high-entropy result.

@@ -41,15 +41,17 @@ export function formatAuthors(citation: Citation, max = 3): string {
 export function toBibtex(citation: Citation): string {
   const proceedings = citation.container?.toLowerCase().includes("proceedings");
   const entryType =
-    citation.type === "paper"
-      ? proceedings
-        ? "inproceedings"
-        : "article"
-      : citation.type === "rfc" || citation.type === "internet-draft"
-        ? "misc"
-        : citation.type === "standard" || citation.type === "report"
-          ? "techreport"
-          : "misc";
+    citation.type === "book"
+      ? "book"
+      : citation.type === "paper"
+        ? proceedings
+          ? "inproceedings"
+          : "article"
+        : citation.type === "rfc" || citation.type === "internet-draft"
+          ? "misc"
+          : citation.type === "standard" || citation.type === "report"
+            ? "techreport"
+            : "misc";
 
   const fields: [string, string | undefined][] = [
     ["title", citation.title],

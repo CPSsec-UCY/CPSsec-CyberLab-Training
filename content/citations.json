@@ -1644,5 +1644,795 @@
       "range-proof",
       "paper"
     ]
+  },
+  {
+    "id": "owasp-top-10",
+    "short": "OWASP Top 10",
+    "type": "website",
+    "title": "OWASP Top 10 Web Application Security Risks",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP",
+    "url": "https://owasp.org/www-project-top-ten/",
+    "locator": "Current risk categories and guidance",
+    "tags": [
+      "web",
+      "application-security",
+      "owasp"
+    ]
+  },
+  {
+    "id": "owasp-asvs",
+    "short": "OWASP ASVS",
+    "type": "website",
+    "title": "OWASP Application Security Verification Standard",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP",
+    "url": "https://owasp.org/www-project-application-security-verification-standard/",
+    "locator": "Verification requirements and levels",
+    "tags": [
+      "web",
+      "application-security",
+      "testing"
+    ]
+  },
+  {
+    "id": "owasp-cheatsheets",
+    "short": "OWASP Cheat Sheets",
+    "type": "website",
+    "title": "OWASP Cheat Sheet Series",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP",
+    "url": "https://cheatsheetseries.owasp.org/",
+    "locator": "Input validation, XSS, injection, access control and session guidance",
+    "tags": [
+      "web",
+      "application-security",
+      "guidance"
+    ]
+  },
+  {
+    "id": "cwe-top-25",
+    "short": "CWE Top 25",
+    "type": "website",
+    "title": "CWE Top 25 Most Dangerous Software Weaknesses",
+    "authors": [
+      "MITRE Corporation"
+    ],
+    "year": 2026,
+    "publisher": "MITRE",
+    "url": "https://cwe.mitre.org/top25/",
+    "locator": "Current ranked weakness list",
+    "tags": [
+      "software",
+      "weakness",
+      "secure-coding"
+    ]
+  },
+  {
+    "id": "rfc9110",
+    "short": "RFC 9110",
+    "type": "rfc",
+    "title": "HTTP Semantics",
+    "authors": [
+      "Roy T. Fielding",
+      "Mark Nottingham",
+      "Julian Reschke"
+    ],
+    "year": 2022,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+    "locator": "§9–15 (methods, status, content negotiation)",
+    "tags": [
+      "web",
+      "http",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc6749",
+    "short": "RFC 6749",
+    "type": "rfc",
+    "title": "The OAuth 2.0 Authorization Framework",
+    "authors": [
+      "Dick Hardt"
+    ],
+    "year": 2012,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc6749.html",
+    "locator": "§4 (authorization grant flows)",
+    "tags": [
+      "identity",
+      "oauth",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc7519",
+    "short": "RFC 7519",
+    "type": "rfc",
+    "title": "JSON Web Token (JWT)",
+    "authors": [
+      "Michael B. Jones",
+      "John Bradley",
+      "Nat Sakimura"
+    ],
+    "year": 2015,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc7519.html",
+    "locator": "§4 (claims sets and encoding)",
+    "tags": [
+      "identity",
+      "jwt",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc9700",
+    "short": "RFC 9700",
+    "type": "rfc",
+    "title": "Best Current Practice for OAuth 2.0 Security",
+    "authors": [
+      "Torsten Lodderstedt",
+      "Daniele Micone",
+      "Antonio Sanso"
+    ],
+    "year": 2025,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9700.html",
+    "locator": "§2–4 (threats and mitigations)",
+    "tags": [
+      "identity",
+      "oauth",
+      "security"
+    ]
+  },
+  {
+    "id": "oidc-core",
+    "short": "OpenID Connect Core",
+    "type": "specification",
+    "title": "OpenID Connect Core 1.0 incorporating errata set 2",
+    "authors": [
+      "Nat Sakimura",
+      "John Bradley",
+      "Michael B. Jones",
+      "Roland Hedberg",
+      "Markus Åsander"
+    ],
+    "year": 2023,
+    "publisher": "OpenID Foundation",
+    "url": "https://openid.net/specs/openid-connect-core-1_0.html",
+    "locator": "§3 (authentication), §5 (tokens)",
+    "tags": [
+      "identity",
+      "oidc",
+      "authentication"
+    ]
+  },
+  {
+    "id": "nist-sp800-63b-4",
+    "short": "NIST SP 800-63B-4",
+    "type": "standard",
+    "title": "Digital Identity Guidelines: Authentication and Authenticator Management",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2025,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-63B-4",
+    "doi": "10.6028/NIST.SP.800-63B-4",
+    "locator": "§3–5 (authenticator assurance and lifecycle)",
+    "tags": [
+      "identity",
+      "authentication",
+      "standard"
+    ]
+  },
+  {
+    "id": "webauthn",
+    "short": "W3C WebAuthn",
+    "type": "specification",
+    "title": "Web Authentication: An API for accessing Public Key Credentials",
+    "authors": [
+      "Vijay Bharadwaj",
+      "Adam Langley",
+      "Emil Lundberg"
+    ],
+    "year": 2021,
+    "publisher": "World Wide Web Consortium",
+    "url": "https://www.w3.org/TR/webauthn-2/",
+    "locator": "§5–10 (ceremony, credentials, assertions)",
+    "tags": [
+      "identity",
+      "passkeys",
+      "webauthn"
+    ]
+  },
+  {
+    "id": "nist-sp800-145",
+    "short": "NIST SP 800-145",
+    "type": "standard",
+    "title": "The NIST Definition of Cloud Computing",
+    "authors": [
+      "Peter Mell",
+      "Timothy Grance"
+    ],
+    "year": 2011,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-145",
+    "doi": "10.6028/NIST.SP.800-145",
+    "locator": "§3 (service and deployment models)",
+    "tags": [
+      "cloud",
+      "architecture",
+      "standard"
+    ]
+  },
+  {
+    "id": "nist-sp800-190",
+    "short": "NIST SP 800-190",
+    "type": "standard",
+    "title": "Application Container Security Guide",
+    "authors": [
+      "Murugiah Souppaya",
+      "Oliver Scrapper"
+    ],
+    "year": 2017,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-190",
+    "doi": "10.6028/NIST.SP.800-190",
+    "locator": "§3–5 (container risks and mitigations)",
+    "tags": [
+      "cloud",
+      "containers",
+      "standard"
+    ]
+  },
+  {
+    "id": "nist-sp800-204",
+    "short": "NIST SP 800-204",
+    "type": "standard",
+    "title": "Security Strategies for Microservices-based Application Systems",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2019,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-204",
+    "doi": "10.6028/NIST.SP.800-204",
+    "locator": "§3–5 (microservice security patterns)",
+    "tags": [
+      "cloud",
+      "microservices",
+      "standard"
+    ]
+  },
+  {
+    "id": "owasp-k8s-top-10",
+    "short": "OWASP Kubernetes Top 10",
+    "type": "website",
+    "title": "OWASP Kubernetes Top 10",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP",
+    "url": "https://owasp.org/www-project-kubernetes-top-ten/",
+    "locator": "Current Kubernetes risk categories",
+    "tags": [
+      "cloud",
+      "kubernetes",
+      "owasp"
+    ]
+  },
+  {
+    "id": "kubernetes-security",
+    "short": "Kubernetes security docs",
+    "type": "website",
+    "title": "Kubernetes Security Documentation",
+    "authors": [
+      "Kubernetes Authors"
+    ],
+    "year": 2026,
+    "publisher": "Cloud Native Computing Foundation",
+    "url": "https://kubernetes.io/docs/concepts/security/",
+    "locator": "Pod security, RBAC, network policy and secrets",
+    "tags": [
+      "cloud",
+      "kubernetes",
+      "implementation"
+    ]
+  },
+  {
+    "id": "nist-sp800-83r1",
+    "short": "NIST SP 800-83r1",
+    "type": "standard",
+    "title": "Guide to Malware Incident Prevention and Detection",
+    "authors": [
+      "Paul Cichonski",
+      "Tom Millar",
+      "Tim Grance",
+      "Karen Scarfone"
+    ],
+    "year": 2012,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-83r1",
+    "doi": "10.6028/NIST.SP.800-83r1",
+    "locator": "§3–5 (prevention, detection, response)",
+    "tags": [
+      "malware",
+      "incident-response",
+      "standard"
+    ]
+  },
+  {
+    "id": "nist-sp800-86",
+    "short": "NIST SP 800-86",
+    "type": "standard",
+    "title": "Guide to Integrating Forensic Techniques into Incident Response",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2006,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-86",
+    "doi": "10.6028/NIST.SP.800-86",
+    "locator": "§3–4 (forensic process and evidence)",
+    "tags": [
+      "forensics",
+      "evidence",
+      "standard"
+    ]
+  },
+  {
+    "id": "yara-docs",
+    "short": "YARA documentation",
+    "type": "website",
+    "title": "YARA Documentation",
+    "authors": [
+      "The YARA Project"
+    ],
+    "year": 2026,
+    "publisher": "YARA",
+    "url": "https://yara.readthedocs.io/",
+    "locator": "Rules, modules and scanning",
+    "tags": [
+      "malware",
+      "detection",
+      "implementation"
+    ]
+  },
+  {
+    "id": "sysmon-docs",
+    "short": "Microsoft Sysmon",
+    "type": "website",
+    "title": "Sysmon System Monitor Documentation",
+    "authors": [
+      "Microsoft Corporation"
+    ],
+    "year": 2026,
+    "publisher": "Microsoft Learn",
+    "url": "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon",
+    "locator": "Configuration and event types",
+    "tags": [
+      "malware",
+      "endpoint",
+      "telemetry"
+    ]
+  },
+  {
+    "id": "volatility-docs",
+    "short": "Volatility 3 docs",
+    "type": "website",
+    "title": "Volatility 3 Documentation",
+    "authors": [
+      "The Volatility Foundation"
+    ],
+    "year": 2026,
+    "publisher": "Volatility Foundation",
+    "url": "https://volatility3.readthedocs.io/",
+    "locator": "Memory acquisition and plugin analysis",
+    "tags": [
+      "forensics",
+      "memory",
+      "implementation"
+    ]
+  },
+  {
+    "id": "nist-sp800-218",
+    "short": "NIST SP 800-218",
+    "type": "standard",
+    "title": "Secure Software Development Framework (SSDF) 1.1",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2022,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-218",
+    "doi": "10.6028/NIST.SP.800-218",
+    "locator": "§3 (secure development practices)",
+    "tags": [
+      "supply-chain",
+      "secure-development",
+      "standard"
+    ]
+  },
+  {
+    "id": "nist-sp800-161r1",
+    "short": "NIST SP 800-161r1",
+    "type": "standard",
+    "title": "Cybersecurity Supply Chain Risk Management Practices for Systems and Organizations",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2022,
+    "publisher": "NIST",
+    "url": "https://doi.org/10.6028/NIST.SP.800-161r1",
+    "doi": "10.6028/NIST.SP.800-161r1",
+    "locator": "§3 (supply chain risk management)",
+    "tags": [
+      "supply-chain",
+      "risk",
+      "standard"
+    ]
+  },
+  {
+    "id": "slsa",
+    "short": "SLSA",
+    "type": "website",
+    "title": "Supply-chain Levels for Software Artifacts (SLSA)",
+    "authors": [
+      "OpenSSF"
+    ],
+    "year": 2026,
+    "publisher": "Open Source Security Foundation",
+    "url": "https://slsa.dev/",
+    "locator": "Build, source and provenance levels",
+    "tags": [
+      "supply-chain",
+      "provenance",
+      "build"
+    ]
+  },
+  {
+    "id": "spdx",
+    "short": "SPDX",
+    "type": "specification",
+    "title": "Software Package Data Exchange (SPDX) Specification",
+    "authors": [
+      "Linux Foundation"
+    ],
+    "year": 2026,
+    "publisher": "SPDX Project",
+    "url": "https://spdx.dev/",
+    "locator": "SBOM and license data model",
+    "tags": [
+      "supply-chain",
+      "sbom",
+      "licensing"
+    ]
+  },
+  {
+    "id": "cyclonedx",
+    "short": "CycloneDX",
+    "type": "specification",
+    "title": "CycloneDX Software Bill of Materials Specification",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP",
+    "url": "https://cyclonedx.org/",
+    "locator": "BOM format and vulnerability data",
+    "tags": [
+      "supply-chain",
+      "sbom",
+      "owasp"
+    ]
+  },
+  {
+    "id": "sigstore",
+    "short": "Sigstore",
+    "type": "website",
+    "title": "Sigstore: Keyless Signing and Verification",
+    "authors": [
+      "Sigstore contributors"
+    ],
+    "year": 2026,
+    "publisher": "OpenSSF",
+    "url": "https://sigstore.dev/",
+    "locator": "Cosign, Fulcio and Rekor workflows",
+    "tags": [
+      "supply-chain",
+      "signing",
+      "provenance"
+    ]
+  },
+  {
+    "id": "book-weidman-pentest",
+    "short": "Weidman · Penetration Testing",
+    "type": "book",
+    "title": "Penetration Testing: A Hands-On Introduction to Hacking",
+    "authors": [
+      "Georgia Weidman"
+    ],
+    "year": 2014,
+    "publisher": "No Starch Press",
+    "url": "https://nostarch.com/pentesting",
+    "locator": "ISBN 978-1-59327-564-8; lab methodology, reconnaissance, scanning and exploitation fundamentals",
+    "tags": [
+      "red-team",
+      "penetration-testing",
+      "book"
+    ]
+  },
+  {
+    "id": "book-stuttard-pinto-web-hacking",
+    "short": "Stuttard & Pinto · Web Hacking",
+    "type": "book",
+    "title": "The Web Application Hacker's Handbook: Finding and Exploiting Security Flaws, 2nd Edition",
+    "authors": [
+      "Dafydd Stuttard",
+      "Marcus Pinto"
+    ],
+    "year": 2011,
+    "publisher": "John Wiley & Sons",
+    "url": "https://www.oreilly.com/library/view/the-web-application/9781118026472/",
+    "locator": "ISBN 978-1-118-02647-2; web vulnerability discovery, validation and exploitation methodology",
+    "tags": [
+      "red-team",
+      "web",
+      "application-security",
+      "book"
+    ]
+  },
+  {
+    "id": "book-seitz-arnold-black-hat-python",
+    "short": "Seitz & Arnold · Black Hat Python",
+    "type": "book",
+    "title": "Black Hat Python, 2nd Edition: Python Programming for Hackers and Pentesters",
+    "authors": [
+      "Justin Seitz",
+      "Tim Arnold"
+    ],
+    "year": 2021,
+    "publisher": "No Starch Press",
+    "url": "https://nostarch.com/black-hat-python2E",
+    "locator": "ISBN 978-1-71850-112-6; offensive tooling, packet capture, automation and safe lab design",
+    "tags": [
+      "red-team",
+      "python",
+      "tooling",
+      "book"
+    ]
+  },
+  {
+    "id": "book-erickson-hacking",
+    "short": "Erickson · Art of Exploitation",
+    "type": "book",
+    "title": "Hacking: The Art of Exploitation, 2nd Edition",
+    "authors": [
+      "Jon Erickson"
+    ],
+    "year": 2008,
+    "publisher": "No Starch Press",
+    "url": "https://nostarch.com/hacking2.htm",
+    "locator": "ISBN 978-1-59327-144-2; low-level C, memory layout, corruption and exploitation reasoning",
+    "tags": [
+      "red-team",
+      "binary-exploitation",
+      "memory",
+      "book"
+    ]
+  },
+  {
+    "id": "book-sikorski-honig-malware",
+    "short": "Sikorski & Honig · Practical Malware Analysis",
+    "type": "book",
+    "title": "Practical Malware Analysis: The Hands-On Guide to Dissecting Malicious Software",
+    "authors": [
+      "Michael Sikorski",
+      "Andrew Honig"
+    ],
+    "year": 2012,
+    "publisher": "No Starch Press",
+    "url": "https://nostarch.com/malware",
+    "locator": "ISBN 978-1-59327-290-6; static/dynamic analysis, x86 disassembly, debugging and anti-analysis",
+    "tags": [
+      "malware",
+      "reverse-engineering",
+      "book"
+    ]
+  },
+  {
+    "id": "book-saxe-sanders-malware-data-science",
+    "short": "Saxe & Sanders · Malware Data Science",
+    "type": "book",
+    "title": "Malware Data Science: Attack Detection and Attribution",
+    "authors": [
+      "Joshua Saxe",
+      "Hillary Sanders"
+    ],
+    "year": 2018,
+    "publisher": "No Starch Press",
+    "url": "https://www.oreilly.com/library/view/malware-data-science/9781492067672/",
+    "locator": "ISBN 978-1-59327-859-5; feature extraction, similarity, machine learning and detector evaluation",
+    "tags": [
+      "malware",
+      "data-science",
+      "machine-learning",
+      "book"
+    ]
+  },
+  {
+    "id": "book-matrosov-rootkits-bootkits",
+    "short": "Matrosov et al. · Rootkits & Bootkits",
+    "type": "book",
+    "title": "Rootkits and Bootkits: Reversing Modern Malware and Next Generation Threats",
+    "authors": [
+      "Alex Matrosov",
+      "Eugene Rodionov",
+      "Sergey Bratus"
+    ],
+    "year": 2019,
+    "publisher": "No Starch Press",
+    "url": "https://nostarch.com/rootkits",
+    "locator": "ISBN 978-1-59327-716-1; kernel persistence, UEFI bootkits, hooks and low-level evasion",
+    "tags": [
+      "malware",
+      "rootkit",
+      "bootkit",
+      "firmware",
+      "book"
+    ]
+  },
+  {
+    "id": "book-ligh-memory-forensics",
+    "short": "Ligh et al. · Memory Forensics",
+    "type": "book",
+    "title": "The Art of Memory Forensics: Detecting Malware and Threats in Windows, Linux, and Mac Memory",
+    "authors": [
+      "Michael Hale Ligh",
+      "Andrew Case",
+      "Jamie Levy",
+      "AAron Walters"
+    ],
+    "year": 2014,
+    "publisher": "Wiley",
+    "url": "https://dl.acm.org/doi/10.5555/2621971",
+    "locator": "ISBN 978-1-118-82509-9; volatile memory acquisition, process analysis and hidden artefacts",
+    "tags": [
+      "forensics",
+      "memory",
+      "dfir",
+      "book"
+    ]
+  },
+  {
+    "id": "book-carrier-filesystem-forensics",
+    "short": "Carrier · File System Forensics",
+    "type": "book",
+    "title": "File System Forensic Analysis",
+    "authors": [
+      "Brian Carrier"
+    ],
+    "year": 2005,
+    "publisher": "Addison-Wesley",
+    "url": "https://www.informit.com/store/file-system-forensic-analysis-9780321268174",
+    "locator": "ISBN 978-0-321-26817-4; NTFS/FAT/Ext structures, deleted data and filesystem evidence",
+    "tags": [
+      "forensics",
+      "filesystem",
+      "dfir",
+      "book"
+    ]
+  },
+  {
+    "id": "book-luttgens-incident-response",
+    "short": "Luttgens et al. · IR & Forensics",
+    "type": "book",
+    "title": "Incident Response & Computer Forensics, 3rd Edition",
+    "authors": [
+      "Jason T. Luttgens",
+      "Matthew Pepe",
+      "Kevin Mandia"
+    ],
+    "year": 2014,
+    "publisher": "McGraw-Hill",
+    "url": "https://dl.acm.org/doi/book/10.5555/2825951",
+    "locator": "ISBN 978-0-07-179868-6; enterprise incident response, evidence collection and containment",
+    "tags": [
+      "forensics",
+      "incident-response",
+      "dfir",
+      "book"
+    ]
+  },
+  {
+    "id": "book-murdoch-blue-team-handbook",
+    "short": "Murdoch · Blue Team Handbook",
+    "type": "book",
+    "title": "Blue Team Handbook: Incident Response Edition",
+    "authors": [
+      "Don Murdoch"
+    ],
+    "year": 2014,
+    "publisher": "CreateSpace",
+    "url": "https://books.google.com/books/about/Blue_Team_Handbook_Incident_Response_Edi.html?id=1f7doQEACAAJ",
+    "locator": "ISBN 978-1-50073-475-6; triage, containment and incident responder field workflow",
+    "tags": [
+      "blue-team",
+      "soc",
+      "incident-response",
+      "book"
+    ]
+  },
+  {
+    "id": "book-white-clark-btfm",
+    "short": "White & Clark · BTFM",
+    "type": "book",
+    "title": "BTFM: Blue Team Field Manual",
+    "authors": [
+      "Alan White",
+      "Ben Clark"
+    ],
+    "year": 2017,
+    "publisher": "CreateSpace",
+    "url": "https://books.google.com/books/about/BTFM.html?id=bP1LMQAACAAJ",
+    "locator": "ISBN 978-1-54101-636-1; Windows, Linux and network defence command reference",
+    "tags": [
+      "blue-team",
+      "soc",
+      "commands",
+      "book"
+    ]
+  },
+  {
+    "id": "book-costa-gazcon-threat-hunting",
+    "short": "Costa-Gazcón · Threat Hunting",
+    "type": "book",
+    "title": "Practical Threat Intelligence and Data-Driven Threat Hunting",
+    "authors": [
+      "Valentina Costa-Gazcón"
+    ],
+    "year": 2021,
+    "publisher": "Packt Publishing",
+    "url": "https://www.packtpub.com/en-us/product/practical-threat-intelligence-and-data-driven-threat-hunting-9781838556372",
+    "locator": "ISBN 978-1-83855-637-2; ATT&CK-driven hypotheses, data models and open-source hunting",
+    "tags": [
+      "blue-team",
+      "threat-hunting",
+      "threat-intelligence",
+      "book"
+    ]
+  },
+  {
+    "id": "book-bollinger-infosec-playbook",
+    "short": "Bollinger et al. · InfoSec Playbook",
+    "type": "book",
+    "title": "Crafting the InfoSec Playbook",
+    "authors": [
+      "Jeff Bollinger",
+      "Brandon Enright",
+      "Matthew Valites"
+    ],
+    "year": 2015,
+    "publisher": "O'Reilly Media",
+    "url": "https://www.infosecplaybook.com/",
+    "locator": "ISBN 978-1-49194-940-5; detection engineering, SIEM tuning and security monitoring operations",
+    "tags": [
+      "blue-team",
+      "detection-engineering",
+      "soc",
+      "book"
+    ]
   }
 ]

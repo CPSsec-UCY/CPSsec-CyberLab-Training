@@ -7,7 +7,7 @@ import { Stat } from "@/components/ui/Stat";
 export const metadata: Metadata = {
   title: "Citation registry",
   description:
-    "Every standard, RFC, paper and implementation referenced by CPSsec CyberLab, with DOI links, locators and BibTeX.",
+    "Every standard, RFC, paper and implementation referenced by CPSsec CyberLab Training, with DOI links, locators and BibTeX.",
 };
 
 export default function CitationsPage() {

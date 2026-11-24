@@ -6,7 +6,7 @@ Please **do not** open a public issue for a security vulnerability.
 
 Use GitHub Security Advisories:
 
-<https://github.com/CPSsec-UCY/pqc-cyberlab/security/advisories/new>
+<https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/security/advisories/new>
 
 Include:
 

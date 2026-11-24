@@ -8,7 +8,8 @@ export type CitationType =
   | "internet-draft"
   | "specification"
   | "source"
-  | "website";
+  | "website"
+  | "book";
 
 export interface Citation {
   id: string;
@@ -28,6 +29,13 @@ export interface Citation {
 
 export type TrackName =
   | "Foundations"
+  | "Red Team"
+  | "Application Security"
+  | "Identity & Access"
+  | "Cloud & Infrastructure"
+  | "Malware & Forensics"
+  | "Digital Forensics & Incident Response"
+  | "Software Supply Chain"
   | "Post-Quantum Cryptography"
   | "Network & Protocol Security"
   | "Distributed Systems & Privacy"

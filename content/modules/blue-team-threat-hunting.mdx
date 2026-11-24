@@ -1,0 +1,557 @@
+---
+slug: blue-team-threat-hunting
+title: "Blue team operations and threat hunting: hypotheses, detections and response"
+subtitle: "Turn threat intelligence and environment knowledge into testable hunts, measurable detections and proportionate response."
+track: "Security Operations"
+order: 20
+difficulty: "Intermediate"
+readingTime: 95
+summary: "Design hypothesis-driven threat hunts, choose and validate telemetry, build and tune detection queries, measure precision and recall, map evidence to ATT&CK and convert findings into safe response."
+outcomes: ["Write falsible threat-hunting hypotheses tied to assets, behaviours and telemetry.", "Build reproducible queries against normalised data with explicit baselines and limitations.", "Evaluate detections with precision, recall, coverage and benign fixtures.", "Map observed behaviour to ATT&CK and choose proportionate, auditable response actions."]
+citations: ["book-murdoch-blue-team-handbook", "book-white-clark-btfm", "book-costa-gazcon-threat-hunting", "book-bollinger-infosec-playbook", "mitre-attack", "sigma", "sp800-92"]
+tags: ["blue-team", "threat-hunting", "detection-engineering", "sigma", "mitre-attack", "soc"]
+prerequisites: ["soc-operations", "deep-packet-inspection"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+Threat hunting is the disciplined search for malicious activity that existing detections have not surfaced. It is proactive, but it is not unstructured browsing. A useful hunt starts with a hypothesis, names the evidence that would support or refute it and ends with a reproducible result: a finding, a benign explanation, a visibility gap or a detection improvement.
+
+Blue team operations include triage, investigation, containment and recovery as well as hunting. The best teams connect these activities. Alerts reveal where detections are weak; hunts reveal what the environment can observe; incident findings reveal which behaviours matter; and detection engineering turns that knowledge into repeatable coverage. This course uses three simulated hunts—valid-account misuse, Office-spawned PowerShell and DNS beaconing—to practise that loop safely.
+
+<Lens level={1} title="Hunt a hypothesis, not a hunch">
+
+## What makes hunting different from alert triage
+
+Alert triage begins with a detector's output. The analyst asks whether the alert is true, how severe it is and what action is justified. Threat hunting begins with an unanswered question. The hunter asks whether a behaviour could be present, where evidence would appear and how to search for it without assuming that an existing rule already works.
+
+Don Murdoch's *Blue Team Handbook: Incident Response Edition* emphasises triage, containment and the responder's field workflow. <Cite id="book-murdoch-blue-team-handbook" locator="Triage, containment and incident responder field workflow" /> Hunting extends that workflow upstream. Instead of waiting for a case, the hunter examines hypotheses across assets and time ranges, then routes findings into the same disciplined response process.
+
+A hunt is not a synonym for a saved search. A saved search can support many hunts, but the hunt adds a reason for searching, a scope, expected benign behaviour, a decision threshold and an outcome. “Search all PowerShell events” is a query plan. “Determine whether Office applications on finance workstations spawned encoded PowerShell outside approved deployment windows” is a hypothesis-driven hunt.
+
+## Anatomy of a testable hypothesis
+
+A strong hypothesis names five elements:
+
+1. **Actor behaviour:** what the adversary is assumed to do, expressed as an observable action.
+2. **Asset scope:** which systems, identities or data are likely targets and why.
+3. **Telemetry:** which sources can observe the behaviour and what fields are required.
+4. **Time window:** how far back to search and why that window is sufficient.
+5. **Discriminating evidence:** what would support the hypothesis and what would refute it.
+
+For example: “During the next 24 hours, a compromised finance identity will authenticate from a new device and then access a sensitive share from an endpoint that also creates an encoded scripting process. Identity sign-in, device-enrolment, file-access and process-creation telemetry will be correlated by identity and host. Approved travel, documented device replacement and signed automation are expected alternatives.”
+
+This hypothesis is testable without claiming that every new-country sign-in is malicious. It defines a behavioural chain and the evidence needed to distinguish it from benign change. It also gives the hunter a stopping condition. If the necessary endpoint telemetry is missing, the result is a visibility gap, not a clean bill of health.
+
+## Choose a trigger that creates value
+
+Hunts can start from threat intelligence, a recent incident, an attack-path assessment, a new asset, a detection gap or an analyst's environment knowledge. The trigger should make the hunt relevant. A report about a new malware family matters if its behaviour intersects deployed assets and available telemetry. A technique that requires cloud control-plane access is lower priority for an organisation with no cloud footprint.
+
+Valentina Costa-Gazcón's *Practical Threat Intelligence and Data-Driven Threat Hunting* connects ATT&CK-driven hypotheses with data models and open-source hunting. <Cite id="book-costa-gazcon-threat-hunting" locator="ATT&CK-driven hypotheses, data models and open-source hunting" /> Use intelligence to generate questions, not to copy indicators blindly. An attacker can change a hash, domain or IP address cheaply. Behaviour such as a document spawning a scripting host or a service account creating an unexpected child process is often more durable.
+
+Prioritise hunts by impact and feasibility. Impact includes asset criticality, data sensitivity, blast radius and the consequence of missing the behaviour. Feasibility includes telemetry availability, query cost, analyst skill and the expected prevalence of benign look-alikes. A high-impact hypothesis with no relevant telemetry may justify an instrumentation project rather than an immediate search.
+
+## The threat model includes the environment
+
+Assume telemetry may be incomplete, delayed or hostile. Attackers can delete local logs, exploit valid credentials, use approved administration tools or generate decoy activity. Insiders may have legitimate access that looks unusual only under a narrow baseline. Vendors can change schemas or silently stop exporting data. A hunt must account for collection failure and misleading context.
+
+Build a simple threat model for each hunt. What can the attacker control? Which observations are independent? Which fields can be spoofed or omitted? Where might clock skew change ordering? What benign process resembles the target behaviour? What would the organisation lose if the hypothesis were true? This analysis prevents the hunter from treating a single field as proof.
+
+Incentives also matter. If hunters are rewarded only for finding incidents, they may overstate ambiguous results. If they are rewarded only for closing hunts quickly, they may avoid difficult visibility gaps. If detection engineers are rewarded for rule count, hunters will produce noisy content. Measure completed hypotheses, evidence quality, validated visibility gaps, tuned detections and missed behaviours found later—not just the number of suspicious events.
+
+<Figure caption="A hunt moves from a trigger to a hypothesis, evidence, evaluation and an owned outcome. Negative results still require scope and visibility statements.">
+  <div className="not-prose grid gap-3 md:grid-cols-3">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-brand-700">Trigger</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Intelligence, incident lesson, ATT&CK gap, new asset or analyst observation creates a relevant question.</p>
+    </div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-700">Hypothesis</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Name behaviour, assets, sources, window, supporting evidence and refuting evidence.</p>
+    </div>
+    <div className="rounded-xl border border-coral-200 bg-coral-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-coral-700">Evidence</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Check freshness, schema, clock, coverage and provenance before interpreting results.</p>
+    </div>
+    <div className="rounded-xl border border-brand-200 bg-white p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-navy">Evaluate</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Compare matches with baseline and benign fixtures; quantify precision, recall and uncertainty.</p>
+    </div>
+    <div className="rounded-xl border border-teal-200 bg-teal-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-teal-700">Respond</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Escalate, contain, collect more evidence or document a benign explanation with approval.</p>
+    </div>
+    <div className="rounded-xl border border-line bg-mist-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-navy">Improve</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Promote a validated detection, fix telemetry, update a baseline or retire an unproductive hunt.</p>
+    </div>
+  </div>
+</Figure>
+
+## Four legitimate outcomes
+
+A hunt can find malicious activity, explain matches as benign, reveal a telemetry gap or fail to produce enough evidence for a decision. All four are useful when documented. A hunt that finds nothing is not automatically successful; it may have searched the wrong data, used a narrow window or depended on a field that is frequently missing.
+
+For a negative result, record the sources queried, assets covered, time range, query version, expected volume, freshness and known gaps. If only identity logs were available, the result supports “no matching identity anomaly in the selected window,” not “no account compromise occurred.” This wording protects the team from false assurance and directs instrumentation work.
+
+For a positive result, preserve the query, raw matching events, enrichment context and analyst reasoning before containment changes the data. Link the hunt record to an incident with a clear owner. For a benign result, record which evidence explained the activity and whether an exclusion is appropriate. For a visibility gap, create a tracked action with an owner, deadline and acceptance test.
+
+## Hunting maturity is not tool maturity
+
+A mature programme can be small. It has a repeatable intake process, versioned hypotheses, known data coverage, peer review and a path from finding to detection. An immature programme may own a powerful analytics platform but lack asset ownership, event schemas or retention. Tools amplify a process; they do not replace one.
+
+Begin with a small number of high-value hunts tied to critical assets and recent incidents. Establish baseline behaviour and data-quality checks. Add automation only after the logic is understood and tested. Expand to broader behavioural coverage as telemetry and analyst capacity grow. Retire hunts that no longer answer a relevant question rather than keeping them alive for activity metrics.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Which statement is the strongest threat-hunting hypothesis?"
+  options={["Look for suspicious activity on finance systems", "Search for every failed login", "Determine whether new-device finance sign-ins correlate with encoded scripting processes outside approved changes", "Find as many alerts as possible"]}
+  answer={2}
+  explanation="The strongest option names observable behaviour, scope, correlation and a benign alternative. The others are vague or reward volume rather than evidence."
+/>
+
+## Turn an unanswered question into a hunt record
+
+A hunt record should include a unique identifier, owner, trigger, hypothesis, asset scope, required fields, sources, query version, time window, baseline, acceptance criteria, result, evidence links, limitations and follow-up actions. The record lets another analyst reproduce the work and lets the programme compare outcomes across hypotheses.
+
+Use peer review at two points. Before execution, review scope, safety and data assumptions. After execution, review interpretation, metrics and response. The first review prevents wasted or risky searches; the second prevents a plausible story from outrunning the evidence. For high-impact findings, bring in the incident lead before taking disruptive action.
+
+</Lens>
+
+<Lens level={2} title="Build hunts on trustworthy telemetry">
+
+## Select sources by observability
+
+Choose data sources because they can observe part of the hypothesis, not because they are easy to query. Identity logs can show authentication, device enrolment and token activity. Endpoint logs can show process creation, command lines and file events. DNS logs can show query names, clients and response codes. Network logs can show destinations, direction, bytes and connection state. Each source has blind spots.
+
+For valid-account misuse, identity data establishes who authenticated and from what context. Endpoint data can show what happened after sign-in. For Office-spawned PowerShell, process creation is primary; identity and network data add user context and communication. For DNS beaconing, DNS shows query patterns while network attribution links the workstation to an outbound flow. No single source proves the whole chain.
+
+Write a field-level requirement list. If the hypothesis needs parent-process identity but the deployed source omits it, record that dependency. If command-line logging is disabled, an encoded-command hunt may be impossible. If DNS response codes are not retained, a high-NXDOMAIN hypothesis loses evidence. Missing fields should change the plan, not be silently approximated.
+
+## Normalise time and identity before correlating
+
+Log sources differ in timestamp format, time zone, resolution and delay. Preserve event time and ingestion time. Normalise to UTC while retaining the raw value and any known clock offset. Identity names also vary: email address, directory account, local account, service principal and display name are not interchangeable. Map them through a documented identity model rather than joining on a friendly name.
+
+Host identifiers deserve the same care. A hostname can be reused, a cloud instance can be replaced and a laptop can have multiple addresses. Prefer a durable asset identifier and record the mapping time. Enrichment from asset inventories may be stale; show freshness metadata. A high-confidence result attached to the wrong host is worse than an explicitly uncertain match.
+
+NIST SP 800-92 recommends managing logs across infrastructure, retention and review rather than treating collection as an end in itself. <Cite id="sp800-92" locator="§3–5 (log infrastructure, retention, review)" /> For hunting, that means monitoring source freshness, parser failures, dropped events and retention gaps. A quiet source can indicate an outage, not an absence of activity.
+
+## Establish a baseline before defining “unusual”
+
+A baseline describes expected behaviour for a relevant population and time window. It can include event volume, process ancestry, sign-in locations, destination diversity, query intervals, command-line patterns and approved change activity. Baselines should be segmented by asset class, user role, region and business schedule where those factors matter.
+
+Avoid a single global threshold. PowerShell launched by a monitoring service at 02:00 may be routine; the same parent and time on a finance workstation may be suspicious. DNS bursts from a content delivery network after deployment differ from low-variability queries to a newly observed domain. Context changes the meaning of the same score.
+
+Baseline quality matters. A short window during a quiet holiday can understate normal activity. A polluted baseline that includes an ongoing intrusion can teach the detector to accept malicious behaviour. Use longer representative periods, exclude known incidents and track changes in the environment. When the baseline shifts, investigate whether the change is approved before updating it.
+
+## Build the query in layers
+
+Start with a broad population, then add predicates that test the hypothesis. Keep each layer explainable. For a PowerShell hunt, the layers might be process creation, PowerShell image, unusual parent, encoded or hidden arguments, user context and network activity. Test each layer's contribution using matched counts and known fixtures.
+
+Version queries and save the exact parameters. A query without a time range, data-source list and schema version is not reproducible. Use a common schema where possible, but retain mappings to raw fields. Review performance: a hunt that scans years of high-cardinality data may be correct but operationally unusable. Partition by time and asset scope, and measure query latency under concurrent investigations.
+
+Alan White and Ben Clark's *BTFM: Blue Team Field Manual* provides a command-oriented reference for Windows, Linux and network defence. <Cite id="book-white-clark-btfm" locator="Windows, Linux and network defence command reference" /> Use that style for quick, read-only evidence collection, but adapt commands to the authorised environment and installed tooling. A field manual accelerates familiar work; it does not authorise access or replace schema knowledge.
+
+Safe starting commands include read-only queries over local Windows authentication events, Sysmon process-creation records, DNS client events or current TCP connections. On Linux, `journalctl --since '2 hours ago' --no-pager` reads the local journal. Run these only on systems within the investigation scope, with appropriate permissions. Avoid state-changing commands, redirection into evidence locations and broad remote execution during exploratory work.
+
+```powershell
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624,4625} -MaxEvents 200 |
+  Select-Object TimeCreated, Id, Message
+```
+
+The command reads recent authentication events from one authorised host. It does not establish whether audit policy captured every event, whether clocks are correct or whether identity data from the provider agrees. Those questions belong in the hunt record. Central identity logs are usually broader than local host logs, but they may omit endpoint behaviour.
+
+## Iterate against benign look-alikes
+
+Every hunt needs expected false positives. Approved travel, new device enrolment, signed automation, service accounts, software updates, vulnerability scanners and monitoring appliances can resemble malicious behaviour. Review a sample of non-matches as well as matches to detect selection bias and missing fields.
+
+When a benign explanation is found, prefer a narrow, owned exclusion over disabling the hunt. Record the exclusion's scope, reason, owner, expiry and test. A service-account exclusion should identify the account and expected parent, not the whole source subnet. Revalidate exclusions when software, ownership or deployment patterns change.
+
+<ProcessFlow
+  steps={[
+    {title: "Specify", detail: "Write behaviour, assets, sources, window and refuting evidence.", tone: "brand"},
+    {title: "Validate data", detail: "Check freshness, schema, fields, clocks and retention.", tone: "teal"},
+    {title: "Baseline", detail: "Compare relevant populations and approved changes.", tone: "gold"},
+    {title: "Query", detail: "Add explainable predicates and preserve query parameters.", tone: "coral"},
+    {title: "Evaluate", detail: "Review matches, non-matches, benign fixtures and uncertainty.", tone: "brand"},
+    {title: "Outcome", detail: "Respond, fix visibility or promote a tested detection.", tone: "teal"}
+  ]}
+/>
+
+## Operate the hunting workbench
+
+<Figure caption="Choose a toy hypothesis, select telemetry, run the query, tune the threshold, map ATT&CK and justify a response. The command panel is read-only reference material.">
+  <iframe
+    src="../visualizer-embed/blue-team-hunt/"
+    title="Interactive threat-hunting and detection workbench"
+    className="h-[2800px] w-full rounded-xl border border-line bg-white"
+    loading="lazy"
+  />
+  <a href="../visualizer-embed/blue-team-hunt/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-bold text-brand-700 hover:underline">
+    Open the threat-hunting lab full screen
+  </a>
+</Figure>
+
+Begin with the valid-account hypothesis. Select only identity data and run the query. Recall falls because endpoint corroboration is invisible, even though some identity events match. Add endpoint data and compare precision, recall and source coverage. Notice that a higher source-coverage value does not automatically mean better precision; it means more of the hypothesis can be tested.
+
+Move the threshold. A low threshold admits benign look-alikes, while a high threshold may miss a lower-scoring malicious event. The false-positive reduction metric compares the current threshold with threshold 30 on the same selected sources, so changing sources does not create a misleading improvement. The matching table hides ground-truth labels; the evaluation metrics use the deterministic fixture only for teaching.
+
+Select “Map ATT&CK.” A technique is covered only when the required sources are selected and at least one matching event contains the relevant behaviour. This is stricter than counting technique names in a document. Then choose a response. If precision or recall is weak, the decision panel warns against disruptive action. If the query matches only benign events, it recommends tuning rather than containment.
+
+Switch to the DNS hunt. The baseline changes, the expected look-alikes differ and the technique coverage depends on DNS plus network attribution. Use “Next hunt” to compare workflows, then reset to return to the initial state. All events, scores and labels are fictional; no command in the lab is executed.
+
+### WorkedExample
+
+<WorkedExample
+  title="Turn a vague login alert into a correlated hunt"
+  steps={[
+    "The trigger is a rise in successful logins from unfamiliar regions. Geography alone is noisy because VPN egress, travel and proxy services change apparent location.",
+    "Write the hypothesis: a compromised finance identity signs in from a new device and then accesses a sensitive share from a workstation that creates an encoded scripting process.",
+    "Select identity sign-in, device-enrolment, file-access and process-creation telemetry. Confirm that each source records user, device, host and event time with acceptable freshness.",
+    "Build a baseline by finance role, managed-device status and normal work schedule. Review approved travel and device-replacement records as refuting evidence.",
+    "Query a 24-hour window using stable identity and host identifiers. Preserve raw events, query parameters and enrichment timestamps before any containment action.",
+    "Review matches and a sample of non-matches. A new-device sign-in without endpoint or file activity remains suspicious but does not confirm the full chain.",
+    "Record the outcome as confirmed, benign, unresolved or visibility gap. If confirmed, hand off to incident response; if benign, create a narrow exclusion; if data is missing, open an instrumentation action."
+  ]}
+  result="The hunt produces a testable behavioural chain instead of a geography-only alert. The result can be reproduced, challenged and converted into detection logic or a telemetry improvement."
+/>
+
+## Data-quality checks are part of every hunt
+
+Before interpreting results, check source heartbeat, ingestion lag, parser success, schema changes and field-null rates. Compare expected and observed volume by source and asset class. A sudden drop in PowerShell events may indicate a broken agent rather than improved security. A spike may indicate a deployment or an attacker flooding telemetry.
+
+Create a hunt-specific data-quality statement. For example: “Endpoint coverage is 94% of managed workstations; six hosts last reported more than six hours ago; command-line fields are present in 99.2% of process events.” This statement bounds the conclusion. Without it, a negative hunt result overstates visibility.
+
+Protect log data as sensitive information. Authentication records, command lines and DNS queries can contain personal data, credentials or business information. Apply access control, retention and redaction to working views while preserving originals under policy. NIST's log-management guidance connects protection and retention with effective operational use. <Cite id="sp800-92" locator="§3–5 (log infrastructure, retention, review)" />
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why should a hunt preserve both event time and ingestion time?"
+  options={["They are always identical", "Delay and clock differences can change ordering and indicate pipeline problems", "Ingestion time proves user intent", "Event time is unnecessary"]}
+  answer={1}
+  explanation="Event time describes when the source says something happened; ingestion time describes when the platform received it. Keeping both supports clock analysis and pipeline-health checks."
+/>
+
+## Design for safe exploration
+
+Exploratory queries should be read-only and bounded. Limit time ranges, result counts and asset scope. Use approved analytics environments rather than running unknown scripts on production hosts. Do not upload sensitive logs to public services. Treat query text and results as controlled artefacts when they contain identifiers or investigation details.
+
+When a hunt requires active testing, use an authorised red-team procedure, synthetic markers and a defined window. Coordinate with asset owners and monitoring staff so defensive activity is not mistaken for an incident. The goal is to validate a hypothesis, not to create uncontrolled operational risk.
+
+</Lens>
+
+<Lens level={3} title="Measure detection quality, not just matches">
+
+## Precision and recall answer different questions
+
+Precision asks: of the events that matched, how many were malicious? Recall asks: of the malicious events that existed, how many did the detector find? A strict query can have high precision and low recall. A broad query can have high recall and drown analysts. Both values depend on the labelled fixture, selected population and threshold.
+
+For a rule with true-positive rate $p$, false-positive rate $q$ and malicious-event prevalence $\pi$, the probability that a match is malicious is
+
+$$
+\Pr(\text{malicious} \mid \text{match}) = \frac{\pi p}{\pi p + (1-\pi)q}.
+$$
+
+This is precision expressed as a conditional probability. When malicious events are rare, even a small false-positive rate can produce mostly benign matches. The formula assumes representative prevalence and stable detector performance. Real populations change, alerts are correlated and labels are imperfect. Use ranges and confidence intervals for small samples rather than presenting a toy percentage as certainty.
+
+## Baseline the queue, not only the rule
+
+A rule that produces ten matches per day may be excellent or unusable depending on analyst capacity and investigation cost. Measure matches per relevant population, cases created after correlation, time to validate and the proportion requiring disruptive action. Grouping related events can reduce queue volume without deleting evidence, but case-level precision must be measured separately from event-level precision.
+
+Track false-positive reduction alongside recall. A 90% reduction in false positives is not an improvement if recall falls from 95% to 20%. Report both, plus the absolute number of missed malicious events and the assets affected. Use expected-loss reasoning when consequences are asymmetric. Missing ransomware on a critical file server and investigating a benign scanner event do not have the same cost.
+
+Jeff Bollinger, Brandon Enright and Matthew Valites, in *Crafting the InfoSec Playbook*, connect detection engineering with SIEM tuning and security-monitoring operations. <Cite id="book-bollinger-infosec-playbook" locator="Detection engineering, SIEM tuning and security monitoring operations" /> The operational lesson is that a rule is a product: it needs an owner, tests, documentation, a runbook, performance targets and a retirement path.
+
+## Build labelled fixtures deliberately
+
+Evaluation needs examples of malicious behaviour, benign look-alikes and boundary cases. Include late, duplicated and missing-field events. Include changes in process ancestry, user role, asset class and clock offset. For correlation rules, test cross-source joins with ambiguous identifiers and sources that arrive out of order.
+
+Benign fixtures should come from representative environments, with privacy review. Malicious fixtures can be synthetic, safely emulated in an authorised range or derived from sanitised incidents. Keep ground truth separate from the query. The detector must not receive a `malicious` field; evaluation uses that label only after results are produced.
+
+Replay fixtures through the production parser and query compiler. A rule that works on hand-written JSON may fail when the SIEM normalises fields differently. Version fixtures with the detection so a parser change triggers re-evaluation. Record the dataset version, query version, environment and metrics with every result.
+
+<Figure caption="Detection evaluation combines quality, coverage and operational cost. No single metric establishes that a rule is ready for response automation.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[780px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Measure</th><th className="px-3 py-2">Question</th><th className="px-3 py-2">Common mistake</th><th className="px-3 py-2">Companion measure</th></tr></thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Precision</td><td className="px-3 py-2">How many matches are real?</td><td className="px-3 py-2">Optimising it by missing all attacks</td><td className="px-3 py-2">Recall and absolute false positives</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Recall</td><td className="px-3 py-2">How much malicious activity is found?</td><td className="px-3 py-2">Claiming completeness from one fixture</td><td className="px-3 py-2">Fixture diversity and visibility gaps</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">ATT&CK coverage</td><td className="px-3 py-2">Which observable behaviours are tested?</td><td className="px-3 py-2">Counting tags without evidence</td><td className="px-3 py-2">Source coverage and procedure-level tests</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Queue load</td><td className="px-3 py-2">Can analysts absorb the output?</td><td className="px-3 py-2">Measuring alerts instead of cases</td><td className="px-3 py-2">Investigation time and capacity</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Drift</td><td className="px-3 py-2">Has data or behaviour changed?</td><td className="px-3 py-2">Retuning without root-cause review</td><td className="px-3 py-2">Parser, baseline and environment changes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+## Use ATT&CK as an evidence map
+
+MITRE ATT&CK catalogues adversary tactics, techniques and procedures. <Cite id="mitre-attack" locator="Enterprise tactics, techniques and procedures" /> Use it to organise hypotheses, communicate behaviour and find coverage gaps. A technique tag is not proof that the organisation detects the technique well, and a large number of tags does not equal strong coverage.
+
+Map at the level the evidence supports. A PowerShell process supports command-and-scripting-interpreter behaviour. A DNS query pattern supports a DNS-related hypothesis. Data exfiltration requires evidence of transfer or a supported inference, not merely an unusual domain. Include the event, asset and source beside each mapping.
+
+Costa-Gazcón recommends data-driven hunting tied to ATT&CK and usable data models. <Cite id="book-costa-gazcon-threat-hunting" locator="ATT&CK-driven hypotheses, data models and open-source hunting" /> A coverage matrix becomes useful when each cell names the required telemetry, the detection or hunt that tests it, the last validation date and the known gaps. Review the matrix against recent incidents and asset changes, not only against the latest technique list.
+
+## Keep detection logic portable with Sigma
+
+Sigma provides a vendor-neutral detection format that can be converted to supported SIEM query languages. <Cite id="sigma" locator="Rule format and conversion tooling" /> Separate the behavioural specification from platform syntax so reviewers can inspect the logic and tests can be reused across backends. Conversion is not validation: field mappings, functions and semantics may differ after translation.
+
+A Sigma rule should state a clear detection hypothesis, required log source, fields, time window, grouping logic, severity rationale and false-positive guidance. Include an owner and status. Keep tests with the rule: malicious fixtures that must match, benign fixtures that must not and boundary cases for missing or late fields. Run converted rules through the production backend before deployment.
+
+Version rules with parsers and field mappings. Deploy with rollback and monitor execution errors, match volume and query cost. Give suppressions an owner and expiry. A suppression that silently excludes an entire subnet can erase visibility when asset ownership changes. Review exceptions during incident retrospectives and when the environment changes.
+
+### WorkedExample
+
+<WorkedExample
+  title="Evaluate a threshold change without hiding recall loss"
+  steps={[
+    "A toy fixture contains 100 events: five malicious and 95 benign. At threshold 30, the query matches 20 events: five malicious and 15 benign.",
+    "Precision is 5 / 20 = 25%, recall is 5 / 5 = 100%, and false-positive reduction relative to this baseline is 0%.",
+    "At threshold 75, the query matches four malicious and two benign events. Precision rises to 4 / 6 ≈ 67%, but recall falls to 4 / 5 = 80%.",
+    "False positives fall from 15 to two, a reduction of about 87%. The rule now creates less queue noise but misses one labelled malicious event.",
+    "The analyst reviews the missed event. If it represents a critical behaviour, add an independent predicate or a second lower-threshold path rather than accepting the loss silently.",
+    "Re-run the evaluation on a separate fixture and record dataset version, rule version, threshold, backend and uncertainty. Do not tune only until the original fixture looks good."
+  ]}
+  result="The team can explain the trade-off: higher precision and lower queue load at the cost of one missed event. The decision is tied to impact and validated on more than one dataset."
+/>
+
+## Tune with context, not only score
+
+Thresholds compress many features into one number and can hide why an event matched. Keep the component evidence visible: baseline deviation, rarity, sequence, asset criticality and source reliability. Review high-scoring benign events and low-scoring malicious events to understand model weaknesses.
+
+Prefer a small number of interpretable rules to an opaque score when the environment is stable and the behaviour is specific. Use statistical or machine-learning methods when they solve a defined problem and can be monitored. Either approach needs drift detection, explanation and a fallback. A model that quietly adapts to an intrusion can normalise malicious behaviour.
+
+## Validate response readiness
+
+A detection is not ready for automated containment merely because precision is high on a small fixture. Test against larger benign populations, critical assets, unavailable enrichment services and partial data. High-impact actions require confidence gates, asset context, authorisation, rate limits, idempotency, audit logging and rollback.
+
+Run tabletop exercises with responders, asset owners and communications staff. Rehearse a false positive that isolates a critical service and a true positive that spreads across identities. Record decision latency and evidence preservation. Automation should reduce repetitive work without removing the approval path for irreversible or highly disruptive actions.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="A threshold change reduces false positives by 90% but lowers recall from 95% to 25%. What is the best interpretation?"
+  options={["The detection is unquestionably better", "The detection is unquestionably worse", "The trade-off must be evaluated against missed-behaviour impact and absolute counts", "Recall no longer matters"]}
+  answer={2}
+  explanation="False-positive reduction and recall must be considered together. A large relative reduction can still leave unacceptable misses, especially on high-impact assets."
+/>
+
+## Monitor drift and retire weak content
+
+Data schemas, software deployments, user behaviour and attacker methods change. Track source freshness, parser errors, field-null rates, match volume, precision estimates and investigation outcomes. A sudden change is a prompt to investigate, not an instruction to retune automatically.
+
+Retire detections that no longer answer a relevant hypothesis, duplicate better content or create more cost than value. Preserve the decision and evidence. If a detection found a real incident before retirement, migrate the useful logic rather than deleting the lesson. Detection inventory hygiene is part of security operations, not administrative housekeeping.
+
+</Lens>
+
+<Lens level={4} title="Operationalise hunts and respond proportionately">
+
+## Establish a hunting cadence
+
+Hunting needs protected time and a manageable backlog. Some teams run scheduled hunts, some maintain a rolling queue and some dedicate specialists to intelligence-led investigations. The cadence should fit analyst capacity and the risk profile. A weekly hunt that is completed, reviewed and converted into a control is more valuable than a large queue of abandoned searches.
+
+Separate hunt intake from incident intake. A hunt can produce a finding that becomes an incident, but the hunt record should remain available as context. Define handoff criteria: confirmed malicious behaviour, credible high-impact suspicion, scope expansion or a need for immediate containment. The incident lead then owns response coordination while the hunter preserves analytical continuity.
+
+Review hunt outcomes regularly. Look for repeated visibility gaps, recurring false-positive causes, techniques that never produce evidence and hypotheses that repeatedly find benign change. Use those patterns to prioritise instrumentation, baseline improvements and detection engineering. Hunting should reduce uncertainty over time, not generate a permanent stream of one-off searches.
+
+## Choose response by evidence and impact
+
+A hunt result is not automatically a containment order. The responder considers confidence, asset criticality, active harm, business impact, evidence preservation and authority. Low-confidence matches may warrant collection and monitoring. High-confidence malicious execution may justify endpoint isolation. Credential misuse may require session revocation and credential rotation. A malicious destination may justify a scoped block while the team hunts for alternate infrastructure.
+
+Murdoch's field-oriented approach to triage and containment is useful here: responders need clear next actions, not vague instructions to investigate. <Cite id="book-murdoch-blue-team-handbook" locator="Triage, containment and incident responder field workflow" /> A response playbook should name the trigger, validation queries, evidence to preserve, approving role, action, rollback and closure criteria. It should also state when not to act.
+
+Preserve the hunt query, raw matches and enrichment before actions change telemetry. Record who approved the response, when it began, which assets were affected and what was observed. If an automated action fails partially, verify the actual state rather than assuming success. Containment should address the whole path: endpoint, identity, persistence, network and adjacent assets.
+
+## Automate enrichment before irreversible action
+
+Good automation candidates include asset lookup, identity context, ticket creation, evidence links and notification. These actions reduce repetitive work and are relatively reversible. Automated isolation, account disablement and broad blocking have higher consequences and require stronger gates.
+
+Every automation needs a defined scope, timeout, retry policy, rate limit, idempotency, audit event and human override. Test it with false positives, missing enrichment, unavailable services and partial failure. Monitor automation failure rates and rollbacks. If an asset database is stale, a perfectly executed isolation action can target the wrong system.
+
+Do not let automation erase analytical context. A case should retain the hypothesis, query version, matched evidence, baseline, confidence, response decision and outcome. Another analyst must be able to understand why the system acted without reconstructing it from scattered alerts.
+
+## Report a hunt so it can be reused
+
+A hunt report should answer: what question was tested, why it mattered, what data was searched, what was found, how confident the team is, what remains unknown and what changes follow. Include query version, asset coverage, time window, baseline, fixture results, limitations and evidence links. Keep sensitive raw data in controlled storage.
+
+For a negative result, use bounded language. “No matching encoded PowerShell chain was observed on 412 of 430 managed finance workstations during the selected 24 hours; 18 hosts had stale endpoint telemetry” is useful. “No PowerShell malware exists” is not. The first statement supports a decision and an instrumentation action; the second creates false assurance.
+
+For a positive result, separate the technical finding from attribution and impact. Evidence may strongly support malicious execution while the identity of the actor, initial access path and full data impact remain unresolved. Report confidence for each proposition. This helps incident command choose action without overstating what the hunt proved.
+
+<Figure caption="A hunt becomes operational value when its evidence, response decision and follow-up changes remain linked.">
+  <div className="not-prose grid gap-3 md:grid-cols-2">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-brand-700">Evidence package</p>
+      <p className="mt-2 text-[11px] leading-5 text-body">Hypothesis, sources, coverage, query, raw matches, baseline, enrichment timestamps and limitations.</p>
+    </div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-4">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-700">Decision package</p>
+      <p className="mt-2 text-[11px] leading-5 text-body">Confidence, asset impact, active harm, approving role, chosen action, rollback and business fallback.</p>
+    </div>
+    <div className="rounded-xl border border-coral-200 bg-coral-50 p-4">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-coral-700">Improvement package</p>
+      <p className="mt-2 text-[11px] leading-5 text-body">Detection rule, parser fix, baseline update, instrumentation action or retired hypothesis with owner.</p>
+    </div>
+    <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-teal-700">Validation package</p>
+      <p className="mt-2 text-[11px] leading-5 text-body">Malicious and benign fixtures, backend replay, metrics, acceptance criteria and scheduled review.</p>
+    </div>
+  </div>
+</Figure>
+
+## Programme metrics that resist gaming
+
+Measure hunt completion, time from hypothesis to result, validated findings, benign explanations, visibility gaps closed and detections promoted. Pair those with quality measures: peer-review findings, evidence completeness, reproduction success and missed behaviours discovered after the hunt. Do not reward raw match counts or incident counts alone.
+
+Measure detection health by rule and source: execution failures, match volume, case precision, investigation time, recall estimates and drift. Measure response quality with containment success, rollback rate, recurrence and evidence preservation. NIST's log-management guidance supports reviewing infrastructure and operational use together. <Cite id="sp800-92" locator="§3–5 (log infrastructure, retention, review)" />
+
+Use metrics to ask better questions. If a source repeatedly produces visibility gaps, is instrumentation underfunded or is ownership unclear? If a rule has high precision but low recall, which asset population does it miss? If response rollbacks increase after a baseline update, did the update normalise malicious behaviour? Metrics should drive investigation, not leaderboards.
+
+## Knowledge sharing and retention
+
+Store hunt records, queries, fixtures and lessons in a searchable knowledge base with ownership and review dates. Protect sensitive details and separate broadly reusable logic from case-specific evidence. Link detections to the hunts and incidents that motivated them so future analysts understand their intent.
+
+Retention should support repeat hunts and post-incident review. Hot data enables rapid investigation; cold archives support longer-range patterns and legal obligations. Balance cost, privacy and investigative value. Document retention by source and use case, and monitor whether the data actually arrives and remains searchable. A retention policy without ingestion verification is only an intention.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="What is the best outcome when a hunt cannot execute because required telemetry is missing?"
+  options={["Report that no malicious activity exists", "Delete the hypothesis", "Record a visibility gap with an owner, deadline and acceptance test", "Lower the threshold until something matches"]}
+  answer={2}
+  explanation="Missing telemetry prevents a valid conclusion. The useful outcome is a tracked visibility gap and a plan to make the hypothesis testable."
+/>
+
+## Build a sustainable blue-team loop
+
+A sustainable programme alternates between hunting, detection engineering, response and improvement. Hunts discover behaviours and gaps. Detections make repeat observations cheaper. Incidents reveal weaknesses in both. Post-incident learning updates hypotheses, telemetry and controls. Each stage produces artefacts the next stage can reuse.
+
+Protect focus time and avoid flooding analysts with low-value work. Rotate hunt topics, review workload and give hunters a path to escalate difficult cases. Include asset owners, detection engineers, responders and threat-intelligence staff in reviews. Technical excellence cannot compensate for unclear authority or a team that never has time to complete a hypothesis.
+
+</Lens>
+
+## Guided workshop: a week of suspicious finance sign-ins
+
+On Monday, the SOC notices a modest increase in successful finance-account sign-ins from unfamiliar regions. Geography-only alerts are noisy, and a recent VPN change explains some traffic. No endpoint alert has fired. Identity logs show new-device enrolments, MFA outcomes and token activity. Endpoint telemetry covers most finance workstations but six agents have not reported for eight hours. File-access logs show several payroll-share accesses. The threat-intelligence team reports increased use of valid accounts and session-token reuse, but provides no reliable indicator hashes. The blue-team lead has five analyst-days to test a hypothesis and must decide whether to promote a detection, open an incident or fix telemetry.
+
+<GuidedWorkshop
+  id="blue-team-threat-hunting-workshop"
+  title="Design, execute and operationalise a valid-account hunt"
+  scenario="Investigate a simulated rise in finance sign-ins using identity, endpoint and file-access telemetry. Separate location noise from behavioural corroboration, quantify detection quality and choose a proportionate response."
+  tasks={[
+    "Write a falsible hypothesis with asset scope, observable behaviour, sources, time window and refuting evidence.",
+    "Inventory telemetry coverage, required fields, freshness, clock assumptions and privacy constraints.",
+    "Build a segmented baseline and list benign explanations for unfamiliar-region and new-device sign-ins.",
+    "Design the query layers and a labelled evaluation fixture with malicious, benign and boundary cases.",
+    "Calculate precision, recall, queue impact and ATT&CK coverage for a broad and a strict threshold.",
+    "Map only evidence-supported behaviours to ATT&CK and identify source or technique gaps.",
+    "Choose a response path with authority, evidence preservation, rollback and acceptance criteria.",
+    "Decide whether to promote a detection, open an incident, fix telemetry or retire the hypothesis, and assign owners."
+  ]}
+  hints={[
+    "A new country is context, not proof. Correlate identity, device, endpoint and resource-access behaviour.",
+    "Six stale endpoint agents bound the negative result. Report coverage rather than assuming those hosts are clean.",
+    "Approved travel, VPN changes, device replacement and service-account automation are plausible benign explanations.",
+    "Keep ground-truth labels out of the query and include late, duplicated and missing-field events.",
+    "Compare absolute true and false positives as well as percentages; analyst capacity determines whether the queue is usable.",
+    "A Valid Accounts tag does not prove token reuse. Require a session or authentication artefact for that mapping.",
+    "Preserve identity audit records before session revocation. Critical finance systems need a business fallback.",
+    "A validated detection needs tests, an owner, a runbook, monitoring and a review date."
+  ]}
+  solution={[
+    "Hypothesis: during the next seven days, a compromised finance identity will authenticate from a new device or unusual network context and then access a sensitive share from an endpoint that exhibits an anomalous process or token-use chain. Required sources are identity sign-in, device enrolment, file access and endpoint process or session telemetry. Refuting evidence includes approved travel, a documented device replacement, VPN egress changes, signed automation and resource access consistent with an approved change. Scope finance identities and their managed endpoints, with a defined time window and privacy review.",
+    "Inventory each source's owner, schema, event and ingestion timestamps, field coverage, retention and freshness. Confirm that identity records include device identifier, authentication method, result and session identifier. Confirm that file logs include user, resource and action. Record that 18 endpoint agents are stale or missing, so conclusions exclude or separately qualify those hosts. Normalise users and hosts through durable identifiers and document clock-offset evidence before cross-source joins.",
+    "Segment the baseline by role, managed-device status, region and business schedule. Compare unfamiliar-region sign-ins with approved travel and VPN changes. Compare new-device enrolments with replacement records. Review payroll access against approved reporting workflows. Keep known incidents out of the baseline and record the baseline window. Benign look-alikes should become narrow, owned exclusions only after evidence supports them.",
+    "Layer the query: finance identity, successful authentication, unusual device or network context, sensitive resource access, then endpoint or session corroboration. Build a fixture with malicious valid-account use, MFA fatigue followed by success, token reuse, benign travel, VPN change, approved device replacement, service-account automation and boundary cases with late or missing fields. Replay it through the production parser and converted backend. Do not expose the ground-truth label to the query.",
+    "For illustration, use 100 labelled events with five malicious. A broad threshold matches 20 events: five malicious and 15 benign, giving 25% precision and 100% recall. A strict threshold matches six: four malicious and two benign, giving about 67% precision and 80% recall. False positives fall by about 87%, but one malicious event is missed. Compare absolute queue load with analyst capacity and review the missed event before choosing the strict path.",
+    "Map successful use of a compromised account to Valid Accounts only where the evidence supports unauthorised use. Map repeated authentication failures followed by success to the relevant authentication-failure behaviour. Map token reuse only if a session artefact shows it. Coverage requires both a supported technique and the necessary selected sources. Record gaps where endpoint or session telemetry is unavailable rather than marking the technique covered.",
+    "If matches show active unauthorised access, preserve identity, device and file-access records, then escalate to the incident lead. Revoke affected sessions and rotate exposed credentials under the approved playbook. Isolate endpoints only with scoped evidence and a finance-business fallback. If activity is ambiguous, collect and monitor while seeking independent corroboration. Record approval, action time, observed outcome and rollback for every disruptive step.",
+    "Promote a detection only after fixture replay, benign-population testing, owner assignment, runbook creation and monitoring. Open an incident when evidence supports malicious activity or high-impact suspicion requiring coordinated response. Fix telemetry for the stale agents with an owner, deadline and coverage acceptance test. Retire or revise the geography-only hypothesis because it lacks discrimination. Schedule a review after the VPN change and after any rule tuning."
+  ]}
+  takeaway="Threat hunting creates value when it turns a relevant question into reproducible evidence, honest coverage and an owned response or improvement—not when it merely produces a long list of matches."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Hypothesis-free searching | Large result sets with no decision | Saved search treated as a hunt | Require behaviour, scope and refuting evidence |
+| Geography-only detection | Travel and VPN changes dominate alerts | Weak behavioural discrimination | Correlate device, endpoint and resource access |
+| Silent telemetry gaps | Negative hunt overstates coverage | No freshness or field-null checks | Source health dashboard and bounded conclusions |
+| Polluted baseline | Malicious behaviour treated as normal | Incident data included in baseline | Exclude known incidents and review shifts |
+| Threshold gaming | Precision improves while recall collapses | Only one metric reviewed | Report absolute TP, FP, FN and impact |
+| Technique-tag theatre | ATT&CK matrix looks complete | Tags counted without evidence | Require source, behaviour and validation per cell |
+| Broad suppressions | Entire subnets disappear from visibility | Benign match handled too broadly | Narrow, owned, expiring exclusions |
+| Query drift | Rule behaves differently after deployment | Parser or backend semantics changed | Versioned fixtures and production replay |
+| Unreviewed automation | False positives trigger outages | High-impact action without gates | Confidence, approval, rate limit and rollback |
+| Hunt graveyard | Queries accumulate without outcomes | No owner or retirement path | Hunt lifecycle, review cadence and closure criteria |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Query returns no events | Wrong schema, time zone or stale source | Verify field mapping, window and source heartbeat |
+| Sudden match spike | Deployment, baseline shift or telemetry flood | Review change records and segment by asset |
+| High precision, low recall | Threshold or predicates too narrow | Review missed fixtures and add independent evidence |
+| High recall, low precision | Benign look-alikes dominate | Add context and narrow exclusions with owners |
+| ATT&CK coverage stays low | Required source unselected or behaviour absent | Inspect source dependencies and matched evidence |
+| Converted Sigma rule behaves differently | Backend mapping or function mismatch | Test through production parser and compiler |
+| Analyst cannot reproduce hunt | Query parameters or data version missing | Store query, dataset, schema and enrichment versions |
+| Automated block affects many hosts | Shared asset context or no rate limit | Scope action, add approval and rehearse rollback |
+| Negative result disputed | Coverage statement omitted | Report assets, sources, window and known gaps |
+| Detection stops finding known cases | Drift or fixture not updated | Replay versioned fixtures and inspect data changes |
+
+## Design review checklist
+
+- [ ] Every hunt has a trigger, falsible hypothesis, owner and relevant asset scope.
+- [ ] Required telemetry, fields, freshness, retention and privacy limits are documented.
+- [ ] Raw and normalised timestamps and identity mappings support reproducible joins.
+- [ ] Baselines are segmented, representative and reviewed for incident contamination.
+- [ ] Benign look-alikes and refuting evidence are defined before execution.
+- [ ] Queries are versioned, bounded and tested through the production backend.
+- [ ] Fixtures include malicious, benign, late, duplicated and missing-field cases.
+- [ ] Precision, recall, absolute counts and queue capacity are reported together.
+- [ ] ATT&CK coverage is tied to observed behaviour and required sources.
+- [ ] Suppressions are narrow, owned, tested and expire.
+- [ ] Response actions have authority, evidence preservation, audit and rollback.
+- [ ] Automation is scoped, idempotent, rate-limited and monitored.
+- [ ] Negative results state coverage and limitations rather than claiming absence.
+- [ ] Every outcome becomes an owned detection, instrumentation action or retirement decision.
+
+## Key takeaways
+
+- Threat hunting begins with a testable question, not an existing alert or a tool demo.
+- Telemetry observability and data quality bound every conclusion; missing data is not a negative finding.
+- Baselines must reflect the relevant population and exclude known malicious activity.
+- Precision, recall, coverage and queue impact must be evaluated together.
+- ATT&CK is an evidence map and coverage aid, not a checklist or attribution label.
+- Sigma makes detection logic portable, but conversion and backend replay are still required.
+- Proportionate response preserves evidence, respects business impact and records authority and rollback.
+- Hunt outcomes should become reusable detections, visibility improvements or explicit retirements.
+
+## Practice
+
+1. Write a hypothesis for lateral movement through remote services and list the endpoint, identity and network fields needed to test it.
+2. Build a ten-event fixture for Office-spawned PowerShell with four malicious, four benign and two boundary cases. Define ground truth separately.
+3. A rule produces 8 true positives, 12 false positives and 3 false negatives. Calculate precision and recall.
+4. Design a narrow suppression for an approved backup account and include owner, scope, expiry and validation.
+5. Create a coverage matrix row for DNS beaconing with required sources, query, validation date and known gaps.
+6. Draft a negative hunt conclusion for a search that covered 90% of managed hosts while 10% had stale telemetry.
+7. Compare monitoring, session revocation and endpoint isolation for a valid-account hypothesis, including evidence and rollback.
+
+<KnowledgeCheck
+  question="Why should benign look-alikes be included in detection fixtures?"
+  options={["They make precision look worse on purpose", "They estimate false positives and prevent overfitting to malicious examples", "They replace the need for production testing", "They prove the rule has full ATT&CK coverage"]}
+  answer={1}
+  explanation="Benign fixtures reveal noise, missing context and brittle predicates. They are essential for estimating precision and testing safe operational behaviour."
+/>
+
+<KnowledgeCheck
+  question="Which statement best describes ATT&CK coverage?"
+  options={["Every technique tag proves detection", "Coverage means the organisation owns a tool for the tactic", "Coverage requires evidence-linked tests against relevant behaviour and sources", "Coverage is complete when all techniques have tags"]}
+  answer={2}
+  explanation="Useful coverage is grounded in observable behaviour, available telemetry and validated detections or hunts. Tags and tool ownership alone do not demonstrate coverage."
+/>

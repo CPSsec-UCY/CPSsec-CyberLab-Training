@@ -3,7 +3,7 @@ slug: ml-kem
 title: "ML-KEM: module-lattice key encapsulation"
 subtitle: "From noisy linear algebra to the 1,088-byte ciphertext that protects your next TLS session."
 track: "Post-Quantum Cryptography"
-order: 12
+order: 23
 difficulty: "Advanced"
 readingTime: 100
 summary: "A complete pass over FIPS 203: Module-LWE, K-PKE, compression, the FO transform, decapsulation correctness, constant-time implementation and hybrid deployment."
@@ -14,6 +14,8 @@ prerequisites: ["ntt-polynomials", "asymmetric-primitives"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { MlKemNoiseBudgetLab } from "@/components/visualizers/MlKemNoiseBudgetLab";
 
 <Lens level={1} title="A box whose seal can be checked but not forged">
 
@@ -123,6 +125,10 @@ c_1 = \mathsf{Compress}_{d_u}(u), \qquad c_2 = \mathsf{Compress}_{d_v}(v).
 $$
 
 Decompression reconstructs an approximation. The parameters choose $d_u, d_v$ so the rounding error plus the LWE noise stays inside the decoding regions. Coarser compression saves bytes and consumes correctness margin.
+
+<Figure caption="Noise-budget explorer for one ML-KEM coefficient. Accumulate secret and error disturbances, vary compression and compare the live margin with the standardized failure bounds.">
+  <MlKemNoiseBudgetLab />
+</Figure>
 
 <Figure caption="Single-coefficient reconciliation. Move the noise or change the compression depth and watch the decoded bit cross a decision boundary. Real ML-KEM applies this across 256 coefficients with carefully bounded noise.">
   <MlKemCorrectness />

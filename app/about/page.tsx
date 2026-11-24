@@ -6,7 +6,7 @@ import { LENSES } from "@/lib/lenses";
 export const metadata: Metadata = {
   title: "About & roadmap",
   description:
-    "How CPSsec CyberLab is built: static Next.js, MDX modules, a validated citation engine, interactive security labs and GitHub Actions deployment.",
+    "How CPSsec CyberLab Training is built: static Next.js, MDX modules, a validated citation engine, interactive security labs and GitHub Actions deployment.",
 };
 
 const PHASES = [
@@ -18,12 +18,12 @@ const PHASES = [
   {
     title: "Phase 2 — Core concept modules",
     status: "done",
-    detail: "Fifteen courses across seven tracks: foundations, networks, distributed systems, SOC operations, advanced cryptography and post-quantum migration.",
+    detail: "Twenty-six courses across fourteen tracks: red team, application security, identity, cloud, malware, DFIR, SOC, networks, distributed systems, cryptography and post-quantum migration.",
   },
   {
     title: "Phase 3 — Animations & Wasm lab",
     status: "done",
-    detail: "Interactive visualisers plus a Rust→wasm NTT lab with a TypeScript fallback, and browser labs for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs.",
+    detail: "Thirty-two standalone workbenches plus a Rust→wasm NTT bench, covering red team ranges, web exploitation, malware reverse engineering, rootkits, DFIR timelines, threat hunting, cloud attack paths, supply chain, privacy, protocols and PQC mechanisms.",
   },
   {
     title: "Phase 4 — Learning features & community",
@@ -51,7 +51,7 @@ const STACK = [
   {
     icon: Sigma,
     title: "Real browser compute",
-    text: "Rust compiled to wasm32 plus browser-native labs for AEAD, hashing, DPI, federated learning and zero-knowledge proofs.",
+    text: "Rust compiled to wasm32 plus browser-native labs for red team, AppSec, IAM, cloud, malware, DFIR, SOC, privacy, protocols and PQC.",
   },
   {
     icon: Cpu,
@@ -73,7 +73,7 @@ export default function AboutPage() {
         An open teaching instrument for modern cybersecurity.
       </h1>
       <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
-        CPSsec CyberLab is maintained by the CPSsec research group at the University of Cyprus. It exists to
+        CPSsec CyberLab Training is maintained by the CPSsec research group at the University of Cyprus. It exists to
         make modern security teachable without flattening the details: the same concept is available as
         intuition, protocol mechanics, formal definitions and implementation reality. The curriculum spans
         cryptography, networks, distributed systems, SOC operations and post-quantum migration.
@@ -159,9 +159,9 @@ export default function AboutPage() {
             <li>Content review: cryptographic claims should be reviewed by someone with domain expertise.</li>
           </ul>
           <div className="mt-4 flex flex-wrap gap-3 font-mono text-[10px] uppercase tracking-[0.12em]">
-            <a href="https://github.com/CPSsec-UCY/pqc-cyberlab" className="text-brand-700 hover:underline">Repository</a>
-            <a href="https://github.com/CPSsec-UCY/pqc-cyberlab/blob/main/CONTRIBUTING.md" className="text-brand-700 hover:underline">Contributing</a>
-            <a href="https://github.com/CPSsec-UCY/pqc-cyberlab/blob/main/LICENSE" className="text-brand-700 hover:underline">License</a>
+            <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training" className="text-brand-700 hover:underline">Repository</a>
+            <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/blob/main/CONTRIBUTING.md" className="text-brand-700 hover:underline">Contributing</a>
+            <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/blob/main/LICENSE" className="text-brand-700 hover:underline">License</a>
           </div>
         </div>
       </section>
@@ -174,10 +174,10 @@ export default function AboutPage() {
           issue with the source and locator.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <a href="https://github.com/CPSsec-UCY/pqc-cyberlab/blob/main/CONTRIBUTING.md" className="btn-primary">
+          <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/blob/main/CONTRIBUTING.md" className="btn-primary">
             Authoring guide <ArrowRight className="h-4 w-4" />
           </a>
-          <a href="https://github.com/CPSsec-UCY/pqc-cyberlab/issues/new/choose" className="btn-ghost">
+          <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/issues/new/choose" className="btn-ghost">
             Open an issue
           </a>
         </div>

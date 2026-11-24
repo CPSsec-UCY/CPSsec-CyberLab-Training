@@ -3,17 +3,19 @@ slug: deep-packet-inspection
 title: "Deep packet inspection and network visibility"
 subtitle: "What a sensor can see, what TLS hides, and why packet-level detection still matters in an encrypted world."
 track: "Network & Protocol Security"
-order: 7
+order: 9
 difficulty: "Intermediate"
 readingTime: 75
 summary: "Follow packets through capture, decode, flow reconstruction, detection and action, then examine the limits and risks of DPI under modern encryption."
 outcomes: ["Trace packets through capture, decode, flow, detection and action.", "Explain what TLS 1.3 hides and what metadata remains observable.", "Design signature and anomaly detections with base-rate awareness.", "Evaluate inline versus passive deployment, evasion, privacy and performance."]
 citations: ["sp800-94", "zeek", "suricata", "rfc7011", "rfc5424", "rfc8446"]
 tags: ["network", "dpi", "ids", "monitoring"]
-prerequisites: ["tls-pki"]
+prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { PacketReassemblyLab } from "../../components/visualizers/PacketReassemblyLab";
 
 <Lens level={1} title="The guard who reads letters versus the guard who watches envelopes">
 
@@ -131,6 +133,10 @@ A stateful sensor joins packets by addresses, ports, protocol and TCP sequence s
   ]}
   result="Content detection must operate on the reconstructed stream. Packet-only matching both misses split patterns and creates false confidence when one fragment looks benign."
 />
+
+<Figure caption="Deliver TCP segments out of order, drop one, or shorten the reassembly timeout. Compare plaintext inspection with the limits of an encrypted payload.">
+  <PacketReassemblyLab />
+</Figure>
 
 The sensor records connection state and structured events: endpoints, TLS version, visible server name, certificate metadata, byte and packet counts, duration and close reason. Zeek exposes protocol semantics; Suricata matches protocol fields and reconstructed bytes. <Cite id="zeek" locator="Scripting and protocol parsers" /> <Cite id="suricata" locator="Rules, eve JSON output and flow handling" /> IPFIX flow export reduces storage but discards content needed for later analysis. <Cite id="rfc7011" locator="§3–5" />
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 48 48" className={className} role="img" aria-label="CPSsec CyberLab mark">
+    <svg viewBox="0 0 48 48" className={className} role="img" aria-label="CPSsec CyberLab Training mark">
       <defs>
         <linearGradient id="logo-grad" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
           <stop stopColor="#6C4DF6" />
@@ -30,7 +30,7 @@ export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
 
 export function Logo() {
   return (
-    <Link href="/" className="group flex items-center gap-3" aria-label="CPSsec CyberLab home">
+    <Link href="/" className="group flex items-center gap-3" aria-label="CPSsec CyberLab Training home">
       <LogoMark className="h-10 w-10 transition group-hover:scale-105" />
       <span className="leading-none">
         <span className="block font-sans text-lg font-bold tracking-tight text-navy">CPSsec</span>

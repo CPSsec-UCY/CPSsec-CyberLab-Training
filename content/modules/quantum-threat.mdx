@@ -3,7 +3,7 @@ slug: quantum-threat
 title: "The quantum threat: what actually breaks, and when"
 subtitle: "Shor, Grover, harvest-now-decrypt-later, and why migration is an engineering project rather than a maths problem."
 track: "Post-Quantum Cryptography"
-order: 1
+order: 21
 difficulty: "Introductory"
 readingTime: 75
 summary: "Separate the two quantum algorithms that matter, map them onto real primitives, and turn an uncertain timeline into a concrete migration plan."
@@ -198,6 +198,10 @@ For Shor’s factoring reduction, order finding does not return a factor directl
 The quantum part estimates the period through phase estimation and continued fractions, with repetition for ambiguous measurements. The algorithm is polynomial in $\log N$, but hides constants, circuit depth, logical-qubit count and error-correction overhead. Those quantities determine whether a relevant machine exists; they do not change the structural conclusion once it does.
 
 For Grover, the idealised success probability after one full iteration cycle is high, and repeated oracle calls recover a marked item with $O(\sqrt{N})$ work. The usual constant is about $\pi/4$ cycles for one marked item. A 128-bit key therefore presents roughly $2^{64}$ quantum search work rather than $2^{128}$; a 256-bit key presents roughly $2^{128}$. These are security comparisons, not benchmarks of a particular implementation. Quantum hardware must implement a coherent reversible cipher oracle and sustain enough error-corrected operations for the attack to be practical. <Cite id="grover1996" locator="pp. 212–219" />
+
+<Figure caption="Step through illustrative Shor order finding for factoring and discrete log, then compare it with Grover search. Toy values show the algorithmic structure and security-bit impact, not hardware resource estimates.">
+  <QuantumAttackLab />
+</Figure>
 
 Collision search needs a different analysis. In the ideal random-oracle model, quantum algorithms trade depth against memory and achieve a generic cost around $2^{n/3}$ for an $n$-bit output. This is not a universal lower bound, nor a reason to replace SHA-256 immediately. It explains why hash-based signature parameters preserve a quantum margin. NIST distinguishes these attack settings rather than treating every hash property as preimage search. <Cite id="nist-ir8105" locator="§4" />
 

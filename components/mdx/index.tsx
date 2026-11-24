@@ -38,6 +38,32 @@ import { FederatedThreatMatrix } from "@/components/illustrations/FederatedThrea
 import { GuidedWorkshop } from "@/components/course/GuidedWorkshop";
 import { WorkedExample } from "@/components/course/WorkedExample";
 import { ProcessFlow } from "@/components/course/ProcessFlow";
+import { QuantumAttackLab } from "@/components/visualizers/QuantumAttackLab";
+import { KemProtocolLab } from "@/components/visualizers/KemProtocolLab";
+import { NonceReuseLab } from "@/components/visualizers/NonceReuseLab";
+import { HmacHkdfLab } from "@/components/visualizers/HmacHkdfLab";
+import { ConsensusRoundLab } from "@/components/visualizers/ConsensusRoundLab";
+import { DifferentialPrivacyLab } from "@/components/visualizers/DifferentialPrivacyLab";
+import { PacketReassemblyLab } from "@/components/visualizers/PacketReassemblyLab";
+import { DetectionQueryLab } from "@/components/visualizers/DetectionQueryLab";
+import { HybridCombinerLab } from "@/components/visualizers/HybridCombinerLab";
+import { MpcSecretSharingLab } from "@/components/visualizers/MpcSecretSharingLab";
+import { PolynomialConvolutionLab } from "@/components/visualizers/PolynomialConvolutionLab";
+import { MlKemNoiseBudgetLab } from "@/components/visualizers/MlKemNoiseBudgetLab";
+import { MlDsaHintLab } from "@/components/visualizers/MlDsaHintLab";
+import { WotsChainLab } from "@/components/visualizers/WotsChainLab";
+import { PowerTraceLab } from "@/components/visualizers/PowerTraceLab";
+import { WebSecurityLab } from "@/components/visualizers/WebSecurityLab";
+import { IdentityFlowLab } from "@/components/visualizers/IdentityFlowLab";
+import { CloudAttackPathLab } from "@/components/visualizers/CloudAttackPathLab";
+import { MalwareTriageLab } from "@/components/visualizers/MalwareTriageLab";
+import { SupplyChainLab } from "@/components/visualizers/SupplyChainLab";
+import { RedTeamRangeLab } from "@/components/visualizers/RedTeamRangeLab";
+import { WebExploitToolingLab } from "@/components/visualizers/WebExploitToolingLab";
+import { MalwareReverseLab } from "@/components/visualizers/MalwareReverseLab";
+import { RootkitBootkitLab } from "@/components/visualizers/RootkitBootkitLab";
+import { DfirTimelineLab } from "@/components/visualizers/DfirTimelineLab";
+import { BlueTeamHuntLab } from "@/components/visualizers/BlueTeamHuntLab";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
   if (href.startsWith("/")) {
@@ -90,5 +116,31 @@ export const mdxComponents = {
   GuidedWorkshop,
   WorkedExample,
   ProcessFlow,
+  QuantumAttackLab,
+  KemProtocolLab,
+  NonceReuseLab,
+  HmacHkdfLab,
+  ConsensusRoundLab,
+  DifferentialPrivacyLab,
+  PacketReassemblyLab,
+  DetectionQueryLab,
+  HybridCombinerLab,
+  MpcSecretSharingLab,
+  PolynomialConvolutionLab,
+  MlKemNoiseBudgetLab,
+  MlDsaHintLab,
+  WotsChainLab,
+  PowerTraceLab,
+  WebSecurityLab,
+  IdentityFlowLab,
+  CloudAttackPathLab,
+  MalwareTriageLab,
+  SupplyChainLab,
+  RedTeamRangeLab,
+  WebExploitToolingLab,
+  MalwareReverseLab,
+  RootkitBootkitLab,
+  DfirTimelineLab,
+  BlueTeamHuntLab,
   a: MdxLink,
 };

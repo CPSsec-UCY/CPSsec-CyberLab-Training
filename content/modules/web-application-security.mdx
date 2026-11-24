@@ -1,0 +1,355 @@
+---
+slug: web-application-security
+title: "Web application security: attacks, trust boundaries and defence"
+subtitle: "Follow hostile input from an HTTP request to a dangerous sink, then place the right defence at the right boundary."
+track: "Application Security"
+order: 4
+difficulty: "Intermediate"
+readingTime: 85
+summary: "Trace untrusted web requests through parsing, authorisation, business logic and sensitive sinks. Compare SQL injection, cross-site scripting, server-side request forgery and path traversal, then build layered, testable defences and an operational review process."
+outcomes: ["Model an HTTP request across browser, service, data-store and outbound-fetch trust boundaries.", "Diagnose SQL injection, XSS, SSRF and path traversal with safe traces and OWASP/CWE mappings.", "Apply parameterised queries, context-aware output encoding, destination allowlists and object-level authorisation.", "Design negative, integration and regression tests that prove controls fail closed at their intended sinks.", "Use ASVS and OWASP guidance to produce an evidence-backed design review and remediation plan."]
+citations: ["owasp-top-10", "owasp-asvs", "owasp-cheatsheets", "cwe-top-25", "rfc9110", "rfc9700"]
+tags: ["web", "appsec", "owasp", "secure-coding"]
+prerequisites: ["hashing-mac-kdf"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+import { WebSecurityLab } from "../../components/visualizers/WebSecurityLab";
+
+<Lens level={1} title="A request is a collection of claims crossing boundaries">
+
+## Start with the request, not the vulnerability name
+
+A web application receives bytes and turns them into decisions. A route, query parameter, JSON field, cookie, header or uploaded filename may influence a database query, an HTML page, a server-side network request or a file read. The central security question is not simply whether an input looks dangerous. It is **where did this value come from, what meaning has the application assigned to it, and what authority will the next component give it?**
+
+HTTP defines method and response semantics, but it does not make application data trustworthy. GET is defined as safe and idempotent: a conforming client uses it to retrieve a representation rather than request a state change. That property does not make a GET endpoint public, and it does not prevent a poorly designed endpoint from causing side effects. HEAD and OPTIONS also have specific semantics. <Cite id="rfc9110" locator="§9.1–9.3" /> Application security begins by preserving those meanings while treating every supplied value as untrusted.
+
+OWASP's Top 10 is useful as a risk-family map, especially for broken access control, injection and authentication failures. It is not a complete inventory of every weakness, nor does a category label explain why a particular request is dangerous. The CWE Top 25 adds a weakness vocabulary for engineering work and trend discussions. <Cite id="owasp-top-10" locator="Risk categories and guidance" /> <Cite id="cwe-top-25" locator="Ranked software weakness list" /> Use both to organise review, then return to the concrete data flow.
+
+<Figure caption="A request crosses several trust boundaries. Validation, identity and authorisation are distinct gates; the sink-specific control must act before data becomes executable syntax or an outbound action.">
+  <ProcessFlow
+    steps={[
+      {title: "Receive", detail: "Transport delivers an HTTP request whose values are attacker-controlled.", tone: "brand"},
+      {title: "Parse", detail: "Framework decodes parameters, headers, cookies and content into internal values.", tone: "gold"},
+      {title: "Authenticate", detail: "A verified credential establishes a principal and relevant assurance context.", tone: "teal"},
+      {title: "Authorise", detail: "Policy checks this principal, action, tenant and object, not merely the route.", tone: "coral"},
+      {title: "Execute", detail: "Business logic reaches SQL, HTML, a URL fetch or a file sink.", tone: "gold"},
+      {title: "Respond", detail: "Encode the output, protect the session, minimise errors and audit the decision.", tone: "brand"}
+    ]}
+  />
+</Figure>
+
+## Draw the boundary before drawing the fix
+
+A trust boundary is a point where data or authority changes meaning. The browser is not a trusted client: a user can edit a request, bypass JavaScript validation or write a non-browser client. The edge is not a trusted validator: a gateway may normalise a path differently from the application. A background job is not automatically trusted: it can process an object that an untrusted user created. A database value is not automatically safe: stored XSS begins when untrusted content is persisted and later rendered.
+
+For a multi-tenant reporting service, a practical model contains at least six zones:
+
+- the user's browser and any injected content inside its origin;
+- the CDN, load balancer and application framework;
+- the application's authentication and authorisation layer;
+- business services and asynchronous workers;
+- databases, object stores and internal services;
+- outbound HTTP clients and external identity providers.
+
+Crossing a boundary requires an explicit decision. The application should derive the tenant from a verified server-side context, check permission on the object, and then construct a query. It should not copy a tenant identifier from the request into a privileged operation merely because it arrived on an HTTPS connection. TLS protects transport; it does not certify the user's intentions.
+
+## Authentication, validation and authorisation answer different questions
+
+Authentication asks who is making a request. Authorisation asks whether that principal may perform this action on this resource under current conditions. Validation asks whether a value fits the application's accepted representation and business constraints. These checks overlap in implementation but fail differently. A perfectly authenticated administrator can still request an object outside the intended scope. A valid date can be used in an unsafe SQL string. A syntactically valid URL can point at an internal service.
+
+A denial must be explicit and server-side. Hiding a button is a usability feature, not an access control. Checking a role name without considering tenant or object ownership can create a cross-tenant flaw. Caching an earlier successful authorisation decision without a version or expiry can preserve access after permissions change. Prefer a default-deny policy with a small, reviewable set of allowed actions.
+
+Applications that accept federated sign-in callbacks add another boundary. Exact redirect URI validation, transaction binding and authorization-code protection matter because an attacker may redirect a browser or capture a code. OAuth's security best-current-practice guidance treats redirect URI validation and code interception as protocol threats rather than ordinary form-validation problems. <Cite id="rfc9700" locator="§2–4, redirect URI and authorization-code protections" /> Keep that protocol work separate from the application's resource-level policy: a valid federated identity still needs permissions here.
+
+## Threat model one concrete journey
+
+Consider a report search page used by support teams. A user supplies a tenant filter, searches report titles, previews an uploaded document and downloads an attachment. A privileged worker renders titles back into a dashboard. A preview service fetches a user-supplied remote document. Each step creates a different adversary opportunity.
+
+An external attacker can submit unusual encodings, object identifiers and URLs. A malicious tenant can store content that a support analyst later views. An insider with limited privileges can alter request parameters to reach another tenant's data. A compromised worker can abuse its network position. The defender wants to preserve confidentiality, integrity and availability without turning every unusual but legitimate document into an outage.
+
+The most useful review follows one value end to end. Record where it enters, every transformation, every stored copy, every sink and every response. This exposes fixes that merely move the problem: trimming a value before validation but using the original later, encoding once and then decoding again, or normalising a path in one component while a worker opens the unnormalised form.
+
+<KnowledgeCheck
+  question="Why is a valid login insufficient to authorise a report download?"
+  options={["Because HTTPS does not authenticate users", "Because authentication establishes an identity but authorisation must check the action, tenant and specific object", "Because report downloads must always use POST", "Because database queries are inherently untrusted"]}
+  answer={1}
+  explanation="Identity is only one input to an access decision. The server must evaluate the requested action and object, including tenant boundaries, using server-derived context and a default-deny policy."
+/>
+
+## A boundary-first review record
+
+For each important route, write a compact record: caller, credential, input sources, parsed representation, subject, tenant, object, action, policy decision, sinks, outputs and audit event. Mark every point where a value is decoded, normalised, stored or re-used. The record makes gaps visible. If no one can say which subject and object the authoriser saw, the decision is not reviewable.
+
+Do not turn this into documentation theatre. The record should drive tests. A negative test for object ownership, a query-binding test and an outbound-destination test correspond directly to rows in the review. When a design changes, update the flow and the tests together.
+
+</Lens>
+
+<Lens level={2} title="Four attack families, four different sinks">
+
+## Injection is a grammar problem
+
+SQL injection occurs when untrusted data becomes part of a command's grammar. A string may look like a single value to the application but contain tokens that change the database's parse. The fix is not to remove a few suspicious characters. It is to keep values separate from syntax by using parameterised queries or prepared statements through a maintained driver.
+
+Dynamic table names, sort directions and JSON paths cannot be bound as ordinary values in many databases. They need a closed mapping from an application token to a reviewed identifier. Never place a user-provided identifier directly into SQL, even if another value is parameterised. ORMs reduce boilerplate but raw-query escape hatches, unsafe query-builder methods and hand-written fragments can reintroduce the flaw.
+
+<WorkedExample
+  title="Make the tenant predicate structural instead of textual"
+  steps={[
+    "An unsafe toy query is SELECT id, title FROM reports WHERE tenant_id = '<input>' AND title LIKE '%<term>%'. Both values are concatenated into SQL text.",
+    "A toy tenant value of demo' OR '1'='1 -- adds SQL tokens. The database may parse a different condition from the one the developer intended.",
+    "Replace the tenant value with a placeholder: SELECT id, title FROM reports WHERE tenant_id = ? AND title LIKE ?.",
+    "Bind the tenant value demo' OR '1'='1 -- and the search term as separate parameters. They remain data throughout database processing.",
+    "Derive tenant_id from the verified session rather than accepting it from the request, and authorise the report operation before executing the query."
+  ]}
+  result="Parameterisation protects query grammar, while server-derived tenant scope protects the business boundary. Neither control substitutes for the other."
+/>
+
+## Cross-site scripting is an output-context problem
+
+XSS occurs when untrusted content reaches a browser context where it can be interpreted as executable markup or script. Stored XSS persists the content; reflected XSS places request data into a response; DOM-based XSS performs the unsafe operation in client-side code. The same stored value can be safe in a plain-text response and dangerous when inserted into HTML, an attribute, a URL or JavaScript.
+
+HTML text encoding is the baseline for ordinary text. Attribute, URL, CSS and JavaScript contexts have different grammars, so one generic escaping function is not a universal solution. Prefer framework escaping and safe DOM APIs. Avoid constructing HTML from strings. If the product requires rich HTML, use a maintained allowlist-based sanitiser and define allowed elements, attributes and URL schemes. Content Security Policy can reduce impact but does not repair an injection sink.
+
+The browser's origin matters. Script executing in the application's origin may read data available to that page, act with the user's session and call same-origin endpoints. HttpOnly cookies can limit direct token reading but do not stop actions made with the cookie. Secure cookie attributes and SameSite policies are useful session controls; they are not alternatives to output encoding.
+
+## Server-side request forgery changes who can reach a destination
+
+SSRF occurs when an attacker influences a server-side network request. The server may reach loopback, private networks, link-local metadata endpoints or internal services unavailable to the browser. URL filters that inspect only a prefix are fragile. User information, alternate host representations, unexpected ports, redirects, DNS changes and URL-parser differences can all matter.
+
+Start with the strongest design: accept an identifier for a known resource rather than an arbitrary URL. If arbitrary destinations are a genuine requirement, parse the URL with a well-defined library, canonicalise it, and allowlist the exact scheme, host and port. Reject credentials and ambiguous forms. Validate the resolved destination against the egress policy, disable redirects or revalidate every hop, and restrict the worker's network access. DNS rebinding requires connecting to a validated address or using an egress control that does not rely on one early lookup.
+
+<WorkedExample
+  title="Decide an outbound fetch before opening a socket"
+  steps={[
+    "The toy destination is https://api.example.test/../../internal?host=localhost. A path segment alone does not prove a safe origin, and a query value named host is not the actual destination.",
+    "Parse the URL structurally. Record the scheme, canonical hostname, effective port and path without trusting string-prefix matching.",
+    "Compare the destination with an exact allowlist such as the approved API origin and port. Reject loopback, link-local and private destinations unless a separately reviewed internal use case requires them.",
+    "Resolve the hostname and apply network policy to the addresses that will actually be used. Bind the validation to the connection to reduce rebinding races.",
+    "Do not follow a redirect silently. Validate the next destination with the same policy, then record an audit event containing the approved resource identifier and decision."
+  ]}
+  result="A URL allowlist is a destination policy, not a substring filter. Egress controls and redirect revalidation are required because parsing and DNS resolution occur at different times."
+/>
+
+## Path traversal is a containment problem
+
+Path traversal occurs when untrusted path data escapes the directory or object namespace the application intended to expose. Concatenating a base directory and a filename is not containment proof. Parent-directory segments, encoded separators, platform-specific roots, symlinks and races between a check and an open can all break the assumption.
+
+Prefer opaque object identifiers mapped to server-side paths. Decode input once according to the interface contract, canonicalise using platform-aware routines, resolve it beneath a fixed root and verify containment on the resulting path. Reject absolute paths and unexpected separators. Where symlinks or concurrent replacement are possible, use directory-relative, no-follow filesystem operations or a storage layer with atomic semantics. Finally, authorise the resolved object rather than only the supplied identifier.
+
+<Figure caption="Safe simulation: choose an attack family, edit an inert toy payload and disable defences. Compare vulnerable and defended flows across the trust boundary; patterns are teaching heuristics, never a production scanner.">
+  <WebSecurityLab />
+</Figure>
+
+The OWASP Cheat Sheet Series provides implementation-oriented guidance for injection, XSS, input validation, access control and related controls. <Cite id="owasp-cheatsheets" locator="Injection Prevention, XSS Prevention, Input Validation and Access Control cheat sheets" /> Use it to review a design, not to replace tests against the actual framework and sink. CWE-89, CWE-79, CWE-918 and CWE-22 distinguish the four weakness families shown in the lab; they do not imply identical likelihood or impact.
+
+<KnowledgeCheck
+  question="A prepared statement protects a tenant value. Why should the server still derive tenant scope separately?"
+  options={["Prepared statements cannot bind strings", "Because query grammar safety does not prove the user may access that tenant's objects", "Because every database column must be encrypted", "Because parameterised queries allow cross-tenant reads by design"]}
+  answer={1}
+  explanation="Parameterisation keeps data from becoming SQL syntax. Authorisation determines whether the verified subject may act on the selected tenant and object; both controls are required."
+/>
+
+</Lens>
+
+<Lens level={3} title="Place controls where they change the decision">
+
+## Canonicalise once and preserve provenance
+
+A value should have a documented internal representation. If a query parameter is decoded by the framework, downstream code should not decode it again unless the contract explicitly requires that transformation. If a filename is normalised, use the normalised value for containment, storage and authorisation. Carrying both a raw and an interpreted form invites a mismatch between the component that validates and the component that acts.
+
+Keep provenance alongside sensitive values. A filename from an upload, a URL from a tenant configuration and a path from an internal worker may share a string type but have different trust levels. Types can help, but comments and naming are not enforcement. Construct separate request objects or commands with narrow fields rather than passing an entire untrusted dictionary into a privileged service.
+
+Business validation remains necessary. Length limits, character sets, allowed file types, numeric ranges and object-state transitions reduce attack surface and protect availability. They supplement sink controls. A maximum length on a URL does not make the destination trustworthy; rejecting angle brackets in a report title does not justify skipping HTML output encoding.
+
+## Defence placement by sink
+
+For SQL, keep the query structure in code and values in bind parameters. Review raw SQL, dynamic ordering and tenant filters. For HTML, use context-aware encoding or safe rendering APIs at the final output point. For outbound requests, enforce destination policy on the parsed and resolved target, then revalidate redirects. For files, enforce canonical containment and object authorisation before opening the resolved resource.
+
+<Figure caption="A control is effective only if it changes the data or decision before the sensitive sink. A gateway can reject known patterns and provide telemetry, while the application still enforces structural controls.">
+  <ProcessFlow
+    steps={[
+      {title: "Constrain", detail: "Limit methods, sizes, media types and accepted object shapes at the edge.", tone: "brand"},
+      {title: "Validate", detail: "Validate canonical business values and fail closed on ambiguity.", tone: "gold"},
+      {title: "Authorise", detail: "Check verified subject, tenant, action, object and current state.", tone: "coral"},
+      {title: "Protect", detail: "Bind SQL values, encode output, allowlist destinations or contain paths.", tone: "teal"},
+      {title: "Execute", detail: "Invoke the sink with the already validated command or representation.", tone: "gold"},
+      {title: "Observe", detail: "Record decision and control version without leaking secrets or raw payloads.", tone: "brand"}
+    ]}
+  />
+</Figure>
+
+A web application firewall can block known attack patterns, enforce coarse request limits and add visibility. It sees a different parser from the application and cannot reliably understand object-level business rules. Treat it as a compensating layer. Logging a suspicious payload after a vulnerable query executes is detection, not prevention.
+
+## Authorise the resolved object, then keep the decision fresh
+
+Centralise policy at the service or data-access boundary, not in scattered controller snippets. Inputs should include a verified subject, the action, the resolved object, tenant context and relevant attributes such as state or risk. Return a default denial when policy is unavailable. Avoid trusting a client-supplied role, tenant or ownership flag.
+
+Cache policy decisions only with explicit keys and bounded lifetimes. Include the policy version, subject, object, action and relevant attributes. Invalidate on entitlement, ownership or object-state changes. A cache key that omits tenant can leak data; a cache entry that survives revocation can preserve stale authority. For high-impact operations, re-evaluate close to execution.
+
+Prevent state changes through safe methods. Use the appropriate non-safe method and anti-CSRF protection where browser ambient credentials are involved. SameSite cookies reduce some cross-site cases but are not a complete design. Sensitive operations may require recent authentication or step-up verification, with the freshness requirement recorded in policy.
+
+## Test the sink, not only the validator
+
+Unit tests should prove that dangerous-looking data stays data. For SQL, assert the generated query structure and parameter list, then use an integration test against the real driver. For HTML, render representative values and inspect the DOM rather than searching only for substrings. For SSRF, instrument the connection layer and assert that rejected destinations never open a socket. For files, test canonical containment with encoded separators, absolute paths and symlinks where supported.
+
+Build a negative matrix for each route. Change one condition at a time: another tenant's object identifier, missing role, expired session, malformed encoding, unexpected method, stale policy version or a redirect to a forbidden destination. Verify both the response and the absence of a sink call. A 403 response is not sufficient evidence if the database query or outbound fetch already happened.
+
+Regression tests must include benign edge cases. Apostrophes in names, internationalised text and legitimate nested paths should not be rejected merely because a toy detector matched. Track blocked-request reasons by route and control version. Repeated false positives can pressure operators to disable a control, so tuning needs evidence and an owner.
+
+<Callout variant="warning" title="Escaping is contextual">
+A value safe in an HTML text node may be unsafe in an unquoted attribute or a JavaScript string. A value safe as a URL path segment may be unsafe when the URL is fetched by a server. Name the context in the code and test the exact sink.
+</Callout>
+
+## Availability is part of the threat model
+
+Injection and traversal can disclose data, but defensive controls can also create denial of service. A URL fetch without timeouts occupies a worker. A decompression bomb exhausts memory. A filesystem walk over attacker-controlled depth consumes CPU. An expensive authorisation lookup can amplify traffic. Bound concurrency, payload sizes, response sizes, redirects, execution time and recursion.
+
+Fail closed at security gates, but design safe error behavior. A temporary policy-service outage should not silently become allow. If availability requirements demand a degraded mode, define exactly which low-risk operations remain possible, for how long and with what audit trail. Emergency exceptions should be narrow, approved and visible.
+
+<KnowledgeCheck
+  question="Which test provides the strongest evidence for an SSRF allowlist?"
+  options={["Checking that the URL field is required", "Asserting that forbidden resolved destinations and redirects never open a socket", "Searching the source code for the word localhost", "Confirming that a normal preview still renders"]}
+  answer={1}
+  explanation="The control must change the connection behavior. Instrument the network boundary and test legitimate requests, forbidden destinations, redirects and parser edge cases; source-code searches and UI checks cannot prove enforcement."
+/>
+
+</Lens>
+
+<Lens level={4} title="Verify, operate and review the whole system">
+
+## Turn standards into review evidence
+
+OWASP ASVS organises verifiable security requirements and levels. Select a target level from the application's risk and obligations, then map important routes and data flows to requirements. Architecture, authentication, access control, validation and encoding, data protection, and files and resources are especially relevant to this module. <Cite id="owasp-asvs" locator="V1, V2, V4, V5, V8 and V12 verification requirements" /> A checkbox without a test, configuration review or code path is not evidence.
+
+A useful verification package contains the route inventory, threat model, policy definition, automated test results, manual negative tests and deployment settings. Record framework and library versions because escaping and path semantics can change. Re-run the package after dependency upgrades, parser migrations, CDN changes and new background workers.
+
+## Observe decisions without creating a second leak
+
+Security telemetry should answer which control made a decision, for which route and policy version, and whether execution reached the sink. Record request identifiers, subject identifiers where lawful, object class, reason code, control outcome and latency. Avoid logging raw payloads, session cookies, access tokens, full document bodies or secrets by default. Parameter values may contain personal data even when they are not credentials.
+
+Monitor authorisation denials separately from malformed requests. A spike can indicate an attack, a broken client or a policy rollout error. Monitor outbound fetch destinations, redirect counts and timeouts. Monitor template-rendering failures and sanitizer rejections. Correlate application events with gateway and database evidence, while preserving access controls and retention limits for the logs themselves.
+
+HTTP status codes provide a shared vocabulary. A malformed request, an authentication failure and an authorisation denial are not interchangeable. RFC 9110 defines the relevant status-code semantics, including client-error and server-error classes. <Cite id="rfc9110" locator="§15.3–15.5" /> Use consistent, minimal errors and a correlation identifier; do not expose stack traces, SQL fragments, internal paths or whether a hidden object exists.
+
+## Respond to a suspected sink failure
+
+When telemetry suggests a real vulnerability, first bound exposure. Identify affected routes, tenants, time window, deployed versions and sink calls. Preserve relevant request metadata and code/configuration versions without collecting unnecessary sensitive bodies. Disable the vulnerable feature or apply a narrow feature flag if that is safer than a broad emergency rule.
+
+Containment depends on the sink. For SQL injection, remove the unsafe query construction and review database audit evidence. For stored XSS, disable the rendering path and search persisted content. For SSRF, restrict egress and review outbound connection logs. For traversal, freeze the affected storage mount or route and verify which objects were readable. Rotate credentials only when evidence indicates exposure; do not treat rotation as a substitute for fixing execution.
+
+Recovery requires a regression test that fails on the vulnerable version and passes on the fixed version. Re-enable gradually, watch control outcomes and document residual risk. Post-incident review should update the route inventory, dependency constraints, tests and monitoring. The goal is not merely a patch; it is removal of the condition that allowed untrusted data to acquire authority.
+
+## A practical rollout sequence
+
+1. Inventory important routes, input sources, sinks and owners.
+2. Rank findings by exploitability, data sensitivity, exposure and detectability, not by CWE number alone.
+3. Fix structural issues at the sink and add default-deny object authorisation.
+4. Add negative integration tests and benign boundary fixtures before broad deployment.
+5. Canary the change with route-level error, latency and control-outcome metrics.
+6. Keep compensating controls until evidence shows the structural fix is effective.
+7. Rehearse rollback, incident containment and communication with affected service owners.
+
+</Lens>
+
+## Guided workshop: secure a multi-tenant report preview service
+
+Northstar Docs lets customers upload reports, search titles and request a remote preview. Support staff view customer titles in a dashboard. A new integration accepts a preview URL, while downloads accept a filename. The current implementation concatenates a tenant filter into SQL, inserts titles into an HTML template, fetches arbitrary URLs and joins filenames to a report directory. A product proposal adds a gateway rule blocking the word SELECT and a hidden download button for support staff.
+
+<GuidedWorkshop
+  id="web-application-security-workshop"
+  title="Build a boundary-first remediation and verification plan"
+  scenario="Protect tenant data and support staff without breaking legitimate document names, search terms or approved previews. The service uses browser sessions, background preview workers and a shared database. The gateway rule is already deployed but no sink-level tests exist."
+  tasks={[
+    "Draw the request-to-sink flows for search, dashboard rendering, preview fetch and download, marking every trust boundary.",
+    "Map each issue to an OWASP risk family and CWE weakness, then explain why the proposed gateway rule and hidden button are insufficient.",
+    "Specify sink-level fixes for SQL, HTML, outbound URLs and filesystem paths, including canonical representations and object authorisation.",
+    "Design positive, negative and benign-fixture tests that prove the controls execute before the sink and preserve availability.",
+    "Define rollout, telemetry and incident containment for each fix, including what evidence would justify re-enabling a feature.",
+    "Produce an ASVS-oriented design review checklist with owners and concrete verification artefacts."
+  ]}
+  hints={[
+    "Follow the same tenant value through the browser, controller, database query and cached response.",
+    "Blocking SELECT does not separate SQL values from grammar, and hidden UI elements do not enforce server-side permission.",
+    "The preview worker has different network reach from the browser; the resolved path and object matter for downloads.",
+    "Test absence of a sink call as well as the response status, and include apostrophes, Unicode and safe nested paths as benign cases.",
+    "A rollback that restores the vulnerable feature recreates exposure; prefer disabling only the unsafe capability.",
+    "Treat each checkbox as a claim that needs code, configuration or test evidence."
+  ]}
+  solution={[
+    "The search flow crosses browser, framework, authorisation and database boundaries. The dashboard adds storage and a privileged viewer's browser. Preview adds an outbound-fetch boundary with redirect and DNS resolution. Download adds filename decoding, canonical path resolution and filesystem access. For each flow, record the verified subject, tenant, action, object and sink. Mark asynchronous persistence as a new source of stored input rather than assuming data written earlier is safe.",
+    "Search maps to SQL injection, CWE-89, and OWASP's injection risk family. Dashboard rendering maps to XSS, CWE-79. Arbitrary server fetches map to SSRF, CWE-918, and filename traversal maps to CWE-22 with file-path validation guidance. The SELECT rule misses alternate query forms and does not protect the other sinks. The hidden button can be bypassed by a direct request and also fails when support staff legitimately need a narrowly authorised download action.",
+    "Bind search values as parameters, derive tenant scope from the verified session and authorise the search action. Render report titles with contextual HTML encoding, or sanitise explicitly approved rich text with a maintained library. Replace arbitrary preview URLs with approved resource identifiers where possible; otherwise allowlist the parsed destination, enforce egress policy and revalidate redirects. Map opaque download IDs to server-side paths, decode once, resolve beneath the report root and authorise the final object before opening it.",
+    "Use integration tests with the production driver to assert query structure and tenant predicates. Render stored titles in a DOM test and assert that markup remains text. Instrument the HTTP transport to prove forbidden hosts, addresses and redirects never connect. Test encoded separators, absolute paths, parent segments and symlinks against the file store. Add benign fixtures for names containing apostrophes, Unicode titles, ordinary report paths and approved preview origins. Bound request size, fetch time, redirects and concurrency so rejected content cannot exhaust workers.",
+    "Deploy search and output fixes together because they close related exposure paths but have independent tests. Canary preview restrictions with destination-denial and timeout metrics. Enable downloads through opaque identifiers behind a feature flag after containment tests pass. Record route, release, policy version, subject, decision reason and sink outcome without raw payloads. For an incident, disable the affected sink, preserve minimal correlated evidence, review access and outbound logs, and ship a regression test before re-enabling.",
+    "The review maps ASVS architecture, authentication, access control, validation and encoding, data protection, and file-resource requirements to owners and evidence. Artefacts include the data-flow inventory, central policy specification, automated negative-test report, dependency and configuration review, monitoring queries and incident runbook. A requirement is complete only when its evidence is attached and a reviewer can reproduce the decision."
+  ]}
+  takeaway="Fix the moment where data acquires authority. Structural sink controls, object-level authorisation and negative tests are stronger evidence than pattern filters or hidden interface elements."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Tenant ID trusted from request | Cross-tenant rows or objects returned | Identity is not mapped to object scope | Derive tenant server-side and authorise the resolved object |
+| SQL fragments assembled from input | Query shape changes with special values | Data concatenated into command grammar | Bind values and allowlist dynamic identifiers |
+| Generic escaping at every output | One context is safe while another executes | HTML, attribute, URL and JS grammars differ | Name the context and test the final sink |
+| URL prefix filtering | Internal destination reached after redirect | String checks do not bind resolved connection | Exact destination policy, egress controls and redirect revalidation |
+| Path prefix check without resolution | Parent segment or symlink escapes root | Check and open use different paths | Canonical containment and safe file operations |
+| Hidden UI used as permission | Direct request succeeds | Authorisation exists only in client | Default-deny server-side object policy |
+| Policy cache omits tenant or version | Stale or cross-tenant decision | Incomplete cache key and no invalidation | Include all decision inputs and bound freshness |
+| Defensive limits create outage | Workers stall on fetches or huge files | Unbounded time, size, recursion or concurrency | Explicit budgets and fail-closed, observable errors |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Prepared query still returns other tenants | Tenant value supplied by client or policy uses wrong key | Derive tenant from verified context and test object ownership |
+| Benign apostrophe breaks search | Value concatenated into SQL | Bind the value and test the actual driver |
+| Encoded title still executes | Wrong output context or later decoding | Inspect rendered DOM and encode at the final context |
+| Preview works but redirect reaches metadata service | Redirect destination was not revalidated | Disable redirects or validate every hop and restrict egress |
+| File test passes locally but fails in production | Platform separator, symlink or worker path differs | Test canonical resolution and open semantics in deployment |
+| Legitimate requests receive 403 after rollout | Policy key, role mapping or cache version mismatch | Trace subject, action, object and policy version server-side |
+| Gateway blocks attack but database logs query | Prevention occurs after sink execution | Add structural control in application and keep gateway as compensation |
+| Error page reveals internal path | Detailed exception returned to client | Return minimal status plus correlation ID and retain safe server logs |
+
+## Design review checklist
+
+- [ ] Every important route has a request-to-sink flow with owner, subject, tenant, action and object.
+- [ ] Untrusted data is decoded and canonicalised once, and the same representation reaches validation, authorisation and execution.
+- [ ] SQL values are bound; dynamic identifiers come from a closed allowlist.
+- [ ] Output encoding matches the final HTML, attribute, URL, CSS or JavaScript context.
+- [ ] Outbound fetches use approved destinations, resolved-address policy and redirect revalidation.
+- [ ] File operations enforce canonical containment and authorise the resolved object.
+- [ ] Authorisation is default-deny, server-side and tested for cross-tenant and cross-object access.
+- [ ] Session, CSRF, cookie and recent-authentication controls match the application's browser model.
+- [ ] Negative tests assert that forbidden operations never reach the sink.
+- [ ] Benign fixtures cover apostrophes, Unicode, safe nested paths and approved destinations.
+- [ ] Timeouts, size limits, concurrency bounds and safe failure modes protect availability.
+- [ ] Logs and errors exclude secrets and unnecessary personal data while retaining decision evidence.
+- [ ] ASVS target requirements have linked code, configuration or test evidence.
+- [ ] Rollback disables unsafe capability rather than restoring vulnerable execution.
+
+## Key takeaways
+
+- A request is untrusted data crossing boundaries; the sink determines which defence matters.
+- Authentication, validation and object-level authorisation solve different problems.
+- Parameterised queries, contextual encoding, destination allowlists and canonical containment are structural controls.
+- Gateways and validation reduce risk but cannot replace safe construction at the sink.
+- Negative integration tests, benign fixtures and decision telemetry make security claims reviewable.
+- Availability limits and incident containment belong in the design, not only in operations.
+
+## Practice
+
+1. Draw the complete flow for a password-reset link, including token storage, email delivery, callback handling and session establishment. Identify at least three trust boundaries.
+2. Write a negative-test matrix for a report download that covers another tenant, another owner, a stale role, an encoded path and a missing object.
+3. Review a rich-text reporting feature. Define the accepted HTML subset, the sanitisation boundary, the storage format and the test that proves a later rendering cannot bypass policy.
+4. Design an approved-preview architecture that avoids arbitrary URL fetching, then describe the additional controls required if arbitrary destinations must be supported.
+
+<KnowledgeCheck
+  question="Which statement best describes layered web defence?"
+  options={["A gateway rule replaces secure coding", "Input validation replaces output encoding", "Each layer reduces risk, while structural controls and authorisation still act at the application boundary", "A successful vulnerability scan proves a route is safe"]}
+  answer={2}
+  explanation="Layers have different visibility and failure modes. Coarse filtering and monitoring are valuable, but secure sink construction, server-side authorisation and route-specific tests remain necessary."
+/>

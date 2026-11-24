@@ -1,18 +1,18 @@
-# CPSsec CyberLab
+# CPSsec CyberLab Training
 
 **An open, citation-backed cybersecurity curriculum with interactive labs and a deep post-quantum track.**
 
-[![CI](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/ci.yml/badge.svg)](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/ci.yml)
-[![Deploy](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/deploy.yml/badge.svg)](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/deploy.yml)
+[![CI](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/actions/workflows/ci.yml/badge.svg)](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/actions/workflows/ci.yml)
+[![Deploy](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/actions/workflows/deploy.yml/badge.svg)](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/actions/workflows/deploy.yml)
 [![License: EUPL-1.2](https://img.shields.io/badge/license-EUPL--1.2-blue.svg)](./LICENSE)
 
-Live site: <https://cpssec-ucy.github.io/pqc-cyberlab/>
+Live site: <https://cpssec-ucy.github.io/CPSsec-CyberLab-Training/>
 
-CPSsec CyberLab is maintained by the [CPSsec research group](https://github.com/CPSsec-UCY) at the
+CPSsec CyberLab Training is maintained by the [CPSsec research group](https://github.com/CPSsec-UCY) at the
 University of Cyprus. It turns cybersecurity into version-controlled, reviewable courses with
 interactive visualisations, verifiable citations and browser-native labs. The curriculum spans
-cryptography, networks, distributed systems, security operations, advanced cryptography and
-post-quantum migration.
+red team, application security, identity, cloud, malware, DFIR, SOC operations, cryptography,
+distributed systems and post-quantum migration.
 
 ## Why this exists
 
@@ -36,23 +36,34 @@ lenses; CI fails if one is missing.
 
 | # | Module | Track |
 | --- | --- | --- |
-| 01 | [The quantum threat](content/modules/quantum-threat.mdx) | Post-Quantum Cryptography |
-| 02 | [Public-key primitives](content/modules/asymmetric-primitives.mdx) | Foundations |
-| 03 | [Symmetric cryptography and AEAD](content/modules/symmetric-crypto.mdx) | Foundations |
-| 04 | [Hashes, MACs and KDFs](content/modules/hashing-mac-kdf.mdx) | Foundations |
-| 05 | [Centralised vs decentralised systems](content/modules/centralised-decentralised.mdx) | Distributed Systems & Privacy |
-| 06 | [Federated learning](content/modules/federated-learning.mdx) | Distributed Systems & Privacy |
-| 07 | [Deep packet inspection](content/modules/deep-packet-inspection.mdx) | Network & Protocol Security |
-| 08 | [SOC operations](content/modules/soc-operations.mdx) | Security Operations |
-| 09 | [TLS, PKI and hybrid migration](content/modules/tls-pki.mdx) | Network & Protocol Security |
-| 10 | [Zero-knowledge proofs and MPC](content/modules/zero-knowledge-mpc.mdx) | Advanced Cryptography |
-| 11 | [NTT and polynomial rings](content/modules/ntt-polynomials.mdx) | Post-Quantum Cryptography |
-| 12 | [ML-KEM (FIPS 203)](content/modules/ml-kem.mdx) | Post-Quantum Cryptography |
-| 13 | [ML-DSA (FIPS 204)](content/modules/ml-dsa.mdx) | Post-Quantum Cryptography |
-| 14 | [SLH-DSA (FIPS 205)](content/modules/slh-dsa.mdx) | Post-Quantum Cryptography |
-| 15 | [Side channels and constant-time code](content/modules/side-channel.mdx) | Systems & Hardware |
+| 01 | [Public-key primitives: PKE, KEM, signatures and security notions](content/modules/asymmetric-primitives.mdx) | Foundations |
+| 02 | [Symmetric cryptography: AES, AEAD and key management](content/modules/symmetric-crypto.mdx) | Foundations |
+| 03 | [Hashes, MACs and KDFs: integrity, authentication and key stretching](content/modules/hashing-mac-kdf.mdx) | Foundations |
+| 04 | [Web application security: attacks, trust boundaries and defence](content/modules/web-application-security.mdx) | Application Security |
+| 05 | [Identity and access management: OAuth, OIDC, WebAuthn and authorisation](content/modules/identity-access-management.mdx) | Identity & Access |
+| 06 | [Cloud and container security: IAM, workloads, Kubernetes and attack paths](content/modules/cloud-container-security.mdx) | Cloud & Infrastructure |
+| 07 | [Malware analysis and endpoint forensics: from first alert to evidence](content/modules/malware-endpoint-forensics.mdx) | Malware & Forensics |
+| 08 | [Secure software supply chain: dependencies, builds, provenance and signing](content/modules/secure-software-supply-chain.mdx) | Software Supply Chain |
+| 09 | [Deep packet inspection and network visibility](content/modules/deep-packet-inspection.mdx) | Network & Protocol Security |
+| 10 | [SOC operations: detection, triage and incident response](content/modules/soc-operations.mdx) | Security Operations |
+| 11 | [TLS, PKI and the hybrid migration](content/modules/tls-pki.mdx) | Network & Protocol Security |
+| 12 | [Centralised vs decentralised systems: trust, consensus and failure](content/modules/centralised-decentralised.mdx) | Distributed Systems & Privacy |
+| 13 | [Federated learning: privacy, poisoning and secure aggregation](content/modules/federated-learning.mdx) | Distributed Systems & Privacy |
+| 14 | [Zero-knowledge proofs and secure multi-party computation](content/modules/zero-knowledge-mpc.mdx) | Advanced Cryptography |
+| 15 | [Red team penetration testing: scope, lab methodology and attack reasoning](content/modules/red-team-penetration-testing.mdx) | Red Team |
+| 16 | [Web exploitation and offensive tooling: from request trace to custom tool](content/modules/web-exploitation-offensive-tooling.mdx) | Red Team |
+| 17 | [Malware reverse engineering and data science: from disassembly to detection](content/modules/malware-reverse-engineering-data-science.mdx) | Malware & Forensics |
+| 18 | [Rootkits and bootkits: kernel hooks, firmware persistence and detection](content/modules/rootkits-bootkits.mdx) | Malware & Forensics |
+| 19 | [Digital forensics and incident response: memory, filesystems and defensible evidence](content/modules/digital-forensics-incident-response.mdx) | Digital Forensics & Incident Response |
+| 20 | [Blue team operations and threat hunting: hypotheses, detections and response](content/modules/blue-team-threat-hunting.mdx) | Security Operations |
+| 21 | [The quantum threat: what actually breaks, and when](content/modules/quantum-threat.mdx) | Post-Quantum Cryptography |
+| 22 | [NTT and polynomial rings: the arithmetic engine](content/modules/ntt-polynomials.mdx) | Post-Quantum Cryptography |
+| 23 | [ML-KEM: module-lattice key encapsulation](content/modules/ml-kem.mdx) | Post-Quantum Cryptography |
+| 24 | [ML-DSA: lattice signatures and the art of rejection](content/modules/ml-dsa.mdx) | Post-Quantum Cryptography |
+| 25 | [SLH-DSA: signatures from hash functions alone](content/modules/slh-dsa.mdx) | Post-Quantum Cryptography |
+| 26 | [Side channels and constant-time implementation](content/modules/side-channel.mdx) | Systems & Hardware |
 
-The platform also includes a searchable glossary, a citation registry with BibTeX export, and browser labs for NTT arithmetic, AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs.
+The platform also includes a searchable glossary, a citation registry with BibTeX export, and 32 standalone workbenches spanning red team, web exploitation, malware reverse engineering, rootkits, DFIR, threat hunting, cloud, supply chain, privacy, protocols and PQC.
 
 ## Architecture
 
@@ -87,8 +98,8 @@ Requirements:
 - Rust with the `wasm32-unknown-unknown` target (optional; a prebuilt Wasm artifact is checked in)
 
 ```bash
-git clone https://github.com/CPSsec-UCY/pqc-cyberlab.git
-cd pqc-cyberlab
+git clone https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training.git
+cd CPSsec-CyberLab-Training
 npm ci
 
 # optional: rebuild the Wasm lab
@@ -101,7 +112,7 @@ npm run dev
 For a production build with the GitHub Pages base path:
 
 ```bash
-NEXT_PUBLIC_BASE_PATH=/pqc-cyberlab npm run build
+NEXT_PUBLIC_BASE_PATH=/CPSsec-CyberLab-Training npm run build
 # static output in out/
 ```
 
@@ -152,7 +163,7 @@ scripts/                content validation, link checking, Wasm build
 - A scheduled workflow checks citation URLs for rot. Link failures are reported as workflow failures.
 
 Corrections are first-class contributions. Open a
-[citation correction issue](https://github.com/CPSsec-UCY/pqc-cyberlab/issues/new/choose) or a pull
+[citation correction issue](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/issues/new/choose) or a pull
 request.
 
 ## Contributing
@@ -168,15 +179,15 @@ template.
 ## Build plan status
 
 - **Phase 1 — Foundation & citation engine:** complete.
-- **Phase 2 — Core concept modules:** fifteen courses across seven tracks and all four lenses, complete.
-- **Phase 3 — Animations & labs:** protocol/maths visualisers, a Rust→Wasm NTT/compression bench, and browser labs for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs, complete.
+- **Phase 2 — Core concept modules:** twenty-six courses across fourteen tracks and all four lenses, complete.
+- **Phase 3 — Animations & labs:** 32 standalone workbenches plus a Rust→Wasm NTT/compression bench, covering red team, AppSec, IAM, cloud, malware, DFIR, SOC, privacy, protocols and PQC, complete.
 - **Phase 4 — Learning features & community:** roadmap, progress, glossary cross-links, knowledge checks,
   contributor templates; ongoing expansion and review.
 
 ## Maintainers
 
 Maintained by **CPSsec-UCY**. For project questions, use
-[GitHub Discussions](https://github.com/CPSsec-UCY/pqc-cyberlab/discussions); for security issues, use
+[GitHub Discussions](https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training/discussions); for security issues, use
 the private advisory channel in [SECURITY.md](./SECURITY.md).
 
 ## License

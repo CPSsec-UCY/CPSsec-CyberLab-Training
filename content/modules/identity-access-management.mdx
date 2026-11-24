@@ -1,0 +1,399 @@
+---
+slug: identity-access-management
+title: "Identity and access management: OAuth, OIDC, WebAuthn and authorisation"
+subtitle: "Separate proving identity, delegating access and authorising resources across browsers, APIs and passkeys."
+track: "Identity & Access"
+order: 5
+difficulty: "Intermediate"
+readingTime: 85
+summary: "Trace an OIDC authorization-code flow with PKCE from login to API call, then validate every token against its intended receiver and transaction. Compare passkey authentication with federated identity and design object-level authorisation, revocation and lifecycle controls."
+outcomes: ["Distinguish authentication, OAuth delegation, OIDC identity claims and resource authorisation.", "Trace authorization code plus PKCE and explain redirect, state, nonce and code-interception protections.", "Validate issuer, audience, expiry and nonce while handling signing-key rotation and token replay.", "Design passkey registration and assertion ceremonies without confusing authenticator assurance with OAuth access.", "Build least-privilege, object-level policies with tested revocation, recovery and identity lifecycle operations."]
+citations: ["rfc6749", "rfc7519", "rfc9700", "oidc-core", "nist-sp800-63b-4", "webauthn", "rfc5280", "sp800-207"]
+tags: ["identity", "oauth", "oidc", "webauthn", "authorisation"]
+prerequisites: ["hashing-mac-kdf"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+import { IdentityFlowLab } from "../../components/visualizers/IdentityFlowLab";
+
+<Lens level={1} title="Identity, delegation and permission are different promises">
+
+## Four questions that systems often collapse
+
+Identity and access management becomes confusing when one token is asked to answer four different questions. **Authentication** establishes that a claimant controls an authenticator associated with an identity. **OAuth delegation** grants a client scoped access to a protected resource. **OIDC authentication** adds an identity layer that lets a relying party consume claims about the authenticated user and session. **Authorisation** decides whether that subject may perform a specific action on a specific object now.
+
+The distinctions are operational. A user may authenticate successfully but possess no permission for a report. An OAuth access token may authorise a narrow API scope without telling the client who the user is. An ID token may identify the user to the relying party but must not be used as an API credential. A service identity may hold a valid credential without representing a human at all.
+
+OAuth 2.0 defines an authorization framework in which a client obtains an access token and uses it to request a protected resource. The authorization grant flows are specified separately from resource-server behaviour. <Cite id="rfc6749" locator="§1 and §4" /> OpenID Connect Core adds authentication on top of OAuth, including the authorization request, ID token and validation rules. <Cite id="oidc-core" locator="§3.1 and §3.1.3.3" /> Treating OAuth as a complete login protocol is a common source of confused-deputy and token-confusion bugs.
+
+## Name the actors and the boundary between them
+
+A useful OIDC diagram names four actors:
+
+- the **resource owner**, usually the person whose data or authority is involved;
+- the **relying party**, the application that wants an authenticated identity or delegated access;
+- the **authorization server**, which authenticates the user, obtains consent and issues tokens;
+- the **resource server**, which accepts an access token and enforces API policy.
+
+The browser carries messages but is not a trusted storage boundary for application secrets. The authorization server and relying party may be different security domains with different operators, retention rules and compromise assumptions. The resource server may be a separate service again. A token crossing each boundary needs receiver-specific validation and a clear purpose.
+
+Draw arrows for the authorization request, authorization code, token request, token response and protected-resource request. Label which values are visible in each hop. Then add local session creation at the relying party and object-level policy at the resource server. Those two steps are frequently omitted from diagrams even though they determine whether a successful protocol exchange becomes a secure application session.
+
+<Figure caption="Identity is a lifecycle, not a single login event. Credential issuance, authentication, token consumption, authorisation and revocation each need their own evidence and owner.">
+  <ProcessFlow
+    steps={[
+      {title: "Enrol", detail: "Bind an identity to an authenticator with recovery and proofing appropriate to risk.", tone: "brand"},
+      {title: "Authenticate", detail: "Verify possession or control of the authenticator and record assurance context.", tone: "gold"},
+      {title: "Delegate", detail: "Issue scoped, audience-specific credentials through an appropriate grant flow.", tone: "teal"},
+      {title: "Authorise", detail: "Evaluate subject, action, tenant, object and current policy at the resource.", tone: "coral"},
+      {title: "Observe", detail: "Audit decisions and credential use without recording reusable secrets.", tone: "gold"},
+      {title: "Revoke", detail: "End sessions and credentials, recover safely and verify that access is gone.", tone: "brand"}
+    ]}
+  />
+</Figure>
+
+## Authentication assurance is contextual
+
+An authentication event has more than a boolean success flag. It includes the authenticator type, whether user verification occurred, how the identity was proofed, when authentication happened and whether step-up authentication is required for the requested action. NIST SP 800-63B-4 addresses authentication and authenticator management, including assurance and lifecycle considerations. <Cite id="nist-sp800-63b-4" locator="§3–5, authenticator assurance and lifecycle" /> A product should choose requirements from its risk model rather than labelling every multifactor-looking login as equivalent.
+
+Recovery is part of authentication design. A weak help-desk process can bypass a strong passkey. A backup code with low entropy or unlimited attempts can become the easiest path into an account. Store recovery material using the protections appropriate to its purpose, rate-limit use, notify the user and require re-enrolment after recovery. Measure recovery success and abuse together.
+
+## Zero trust does not mean identity alone is enough
+
+NIST's Zero Trust Architecture treats access as a dynamic decision using multiple signals rather than assuming everything inside a network perimeter is trusted. <Cite id="sp800-207" locator="§2–3, tenets and architecture" /> Identity is one important signal. Device posture, resource sensitivity, session risk, policy version and requested action may also matter.
+
+For a hosted task manager, a valid employee identity does not imply permission to export every workspace. A contractor's device may be healthy but still lack entitlement to payroll data. A service token may be valid but scoped only to one queue. The practical policy question is: which subject may do which action on which object, under which current conditions? Answer that at the resource, not merely at the front door.
+
+## A scenario with three identities
+
+Imagine a customer workspace that contains employees, external collaborators and automation. A person signs in with a passkey through a workforce identity provider. A collaborator receives a scoped invitation. A background service reads a queue using its own workload identity. The browser application, workforce provider, collaboration service and task API all exchange claims or tokens.
+
+Now suppose the person creates an external sharing link. That action changes access for someone who may never authenticate to the workforce provider. The sharing service must record the grant, its scope and expiry. The API must enforce the grant on each request. Revoking the link must invalidate the grant without disabling the owner's workforce login. One undifferentiated session model cannot safely represent these relationships.
+
+<KnowledgeCheck
+  question="Which statement correctly separates OAuth and OIDC?"
+  options={["OIDC is a replacement for resource-server authorisation", "OAuth is an authentication standard and OIDC is an API encryption protocol", "OAuth provides delegated authorization, while OIDC adds an identity layer for authentication", "An OAuth access token is always an ID token"]}
+  answer={2}
+  explanation="OAuth defines scoped delegated access. OIDC builds on it to provide authentication claims and ID token semantics. The resource server still validates access tokens and authorises objects."
+/>
+
+## Write an identity inventory before choosing a protocol
+
+Record human identities, service identities, external collaborators and machine-to-machine workloads separately. For each, document issuer, authenticator, assurance requirement, token audience, scopes, session lifetime, owner, recovery method and revocation path. Include break-glass identities and legacy migrations.
+
+This inventory reveals where federation ends and local authorisation begins. It also prevents scope inflation: a background worker should not inherit every permission its developer possesses, and a read-only reporting client should not receive write scope merely because the issuer supports it. Least privilege starts with an explicit inventory of purpose.
+
+</Lens>
+
+<Lens level={2} title="Authorization code with PKCE, one message at a time">
+
+## Why this flow fits browsers and modern clients
+
+The authorization-code flow keeps the authorization response separate from token issuance. The client sends the user to the authorization server, receives a short-lived code through the browser and redeems that code for tokens. <Cite id="rfc6749" locator="§4.1, authorization code grant" /> PKCE adds a proof of possession derived from a high-entropy verifier created by the client. It is especially important for public clients that cannot keep a client secret, and it is also recommended for confidential clients.
+
+A safe implementation follows a precise sequence:
+
+1. The relying party creates a fresh, high-entropy PKCE verifier and derives its S256 challenge.
+2. It creates an unpredictable state value and, for OIDC, a nonce bound to this authentication attempt.
+3. It redirects the browser to the authorization server with the exact registered redirect URI, client identifier, requested scope and PKCE challenge.
+4. The authorization server authenticates the user and obtains any required consent.
+5. It returns a one-use authorization code to the registered redirect URI.
+6. The relying party exchanges the code over a protected back-channel, presenting the verifier and client authentication where applicable.
+7. The authorization server verifies the binding, consumes the code and returns tokens.
+8. The relying party validates the tokens and creates a local session with a bounded lifetime.
+9. The client uses the access token only at the intended resource server.
+
+## Redirect validation is exact matching, not a convenient pattern
+
+Register complete redirect URIs and compare them exactly. A wildcard or prefix match can send a code to an attacker-controlled path or host. Native applications and loopback callbacks have platform-specific considerations, so use a reviewed library and document the client type rather than copying a web callback rule into every environment.
+
+Reject unexpected query parameters, fragments and path normalisation at registration and validation time. The authorization server should require protected transport for browser and token endpoints. Never include a client secret in front-end JavaScript. A confidential web client can keep a secret server-side, but that secret does not replace redirect validation or PKCE.
+
+## State and nonce protect different bindings
+
+State binds the authorization response to a browser transaction at the relying party. Store the expected value server-side or in a protected, integrity-bound transaction record, compare it on return and consume it once. A missing or repeated state value can indicate login CSRF, in which an attacker causes a victim's browser to complete the attacker's login flow.
+
+Nonce binds an OIDC ID token to the authentication request. The relying party generates it, sends it in the request and requires the returned ID token to contain the same value. It helps detect token replay or substitution even when the signature is valid. State is not a JWT claim, and nonce is not a substitute for state. <Cite id="oidc-core" locator="§3.1.2.1 and §3.1.3.3" />
+
+## Understand code interception before testing the fix
+
+An adversary who observes an authorization code may try to redeem it before the legitimate client. Without PKCE, possession of the code may be enough for a public client. With S256 PKCE, the adversary cannot create the matching verifier from the challenge, so the forged redemption fails. The legitimate client then succeeds if its redirect binding and transaction state are intact.
+
+OAuth 2.0 Security Best Current Practice collects these threats and mitigations, including redirect URI handling, authorization-code threats and token protections. <Cite id="rfc9700" locator="§2–4, threats and mitigations" /> Use a maintained protocol library where possible, but still test its configuration. A library can perform correct cryptography while accepting an unsafe redirect list or omitting nonce validation.
+
+<Figure caption="Step through OIDC authorization code plus PKCE. Disable redirect validation, PKCE, audience or state/nonce checks, inspect the ID token claims, then replay the API token to see the gateway reject it.">
+  <IdentityFlowLab />
+</Figure>
+
+## Tokens have jobs, audiences and lifetimes
+
+An **access token** is presented to a resource server. It may be a JWT or an opaque string. Its audience is the API or resource that accepts it. A **ID token** is delivered to the relying party and contains claims about the authentication event. Its audience is the client. A **refresh token** is used at the authorization server to obtain new access tokens, subject to the grant's rules.
+
+Do not swap these jobs because a value happens to be a signed JWT. An API that accepts an ID token as an access token has confused two audiences and two trust decisions. A relying party that calls an API with its ID token has repeated the mistake in the other direction. Use separate configuration, names and tests for each receiver.
+
+Access tokens should be short enough to bound exposure but long enough for the application's availability needs. Refresh tokens need protected storage, rotation where supported, reuse detection and a revocation path. Rotation can limit the value of a stolen refresh token, but it does not automatically invalidate already issued access tokens. The resource server must have a strategy for those remaining credentials.
+
+<WorkedExample
+  title="Trace a code-interception attempt with and without PKCE"
+  steps={[
+    "The relying party starts a login with redirect URI https://app.example.test/callback, state=state-84, nonce=nonce-29 and an S256 challenge derived from a fresh verifier.",
+    "A toy observer copies the returned code toy-code-7f3a before the legitimate client can redeem it.",
+    "Without PKCE, the observer redeems the public client's code without proving possession of the original verifier. The legitimate exchange later fails because the code is one-use.",
+    "With PKCE, the observer cannot derive a verifier that matches the challenge. Its token request fails, while the legitimate client succeeds by presenting the original verifier.",
+    "The relying party then checks returned state against its transaction record and validates the ID token nonce before creating a local session."
+  ]}
+  result="PKCE protects code redemption; state and nonce bind the browser response and identity token to the intended transaction. Exact redirect validation prevents the code from being delivered to the wrong receiver in the first place."
+/>
+
+A front-end should not store long-lived credentials in broadly readable locations merely for convenience. A server-side session with protected cookie handling is often appropriate for a browser application, but the right design depends on the client type and XSS exposure. If tokens must reach browser code, minimise their lifetime and scope, protect against script injection and define a rotation and revocation strategy.
+
+<KnowledgeCheck
+  question="Why is state still required when an OIDC flow uses PKCE and nonce?"
+  options={["PKCE encrypts the authorization request", "State binds the browser response to the relying party's login transaction, while PKCE binds code redemption and nonce binds the ID token", "State replaces exact redirect URI validation", "Nonce can only be checked by the resource server"]}
+  answer={1}
+  explanation="The three values protect different links. State addresses login CSRF at the relying party, PKCE addresses intercepted-code redemption, and nonce binds the ID token to the authentication request."
+/>
+
+</Lens>
+
+<Lens level={3} title="JWT claims are assertions that require local validation">
+
+## A signature proves origin, not suitability
+
+JWT is a compact claims format with encoded header, payload and signature segments. Registered claims include issuer, subject, audience, expiration, not-before and issued-at values. <Cite id="rfc7519" locator="§4.1, registered claim names" /> OIDC adds requirements for using an ID token during authentication. <Cite id="oidc-core" locator="§3.1.3.3, ID token validation" />
+
+A valid signature answers a narrow question: did a holder of the selected issuer key sign these bytes? It does not answer whether the issuer is one this receiver trusts, whether the token was meant for this client, whether it is expired, whether it belongs to this login attempt or whether its subject may access the requested object. Decoding a token in a browser is inspection, not verification.
+
+## Validate the receiver's expectations explicitly
+
+Build a validation profile for each token type and receiver. For an OIDC ID token, the relying party normally checks the signature with an allowed algorithm and issuer key, exact trusted issuer, audience containing its client identifier, expiration and not-before against the current time, and the expected nonce. Depending on the flow, it may also require issuance time, authentication time or an authorised-party claim.
+
+For an API access token, the resource server checks its own trusted issuer, its own audience, lifetime and relevant scope or authority. It must not accept the OIDC client identifier as the API audience unless an explicitly reviewed shared-audience design says so. After token validation, it evaluates resource policy. A subject claim from a signed token is useful, but it does not establish ownership of a report.
+
+<Figure caption="Token validation is an ordered decision. The receiver supplies issuer, algorithm, key, audience, time and transaction expectations; the token alone cannot define trust.">
+  <ProcessFlow
+    steps={[
+      {title: "Parse", detail: "Require the expected compact token shape without trusting decoded claims.", tone: "brand"},
+      {title: "Verify", detail: "Allowlist the algorithm and verify with a key selected for the trusted issuer.", tone: "teal"},
+      {title: "Identify", detail: "Require the exact expected issuer and the receiver's own audience.", tone: "coral"},
+      {title: "Time", detail: "Check expiration, not-before and issuance constraints with bounded clock skew.", tone: "gold"},
+      {title: "Bind", detail: "Check nonce, transaction state and any required authentication-time claims.", tone: "teal"},
+      {title: "Authorise", detail: "Use validated identity and scopes as inputs to object-level resource policy.", tone: "brand"}
+    ]}
+  />
+</Figure>
+
+## Handle algorithms and keys as policy
+
+Do not accept an algorithm merely because it appears in the token header. Select an allowlist from the issuer's supported configuration and the receiver's security requirements. Reject unsigned tokens and algorithm-confusion attempts. A key identifier helps select a verification key; it does not establish trust by itself.
+
+Authorization servers rotate signing keys. Cache published JSON Web Key Sets with bounded freshness, key identifiers and retry behavior. A key rotation can temporarily produce an unknown key identifier. A safe response may refresh the key set once and retry verification, then fail closed. Do not disable signature checks during an outage, and do not accept a key supplied by the token presenter.
+
+Separate key rollover from issuer migration. A new key for the same issuer may be a routine rotation; a new issuer string is a different trust decision. Record both in telemetry and configuration, with an owner and rollback plan.
+
+## Expiry, replay and revocation are different controls
+
+Expiration limits how long a token can be accepted under normal validation. Nonce binds an ID token to one login transaction. Replay detection for bearer access tokens is harder: anyone who copies a valid token may present it before expiration, and self-contained JWT verification does not remember previous uses. A gateway token-identifier cache can detect some replays, but it is not a universal substitute for short lifetimes, protected storage, revocation or sender-constrained credentials.
+
+Revocation may happen through refresh-token revocation, session termination, account disablement or resource-server introspection. Each has a different propagation delay. Define how long a revoked session may remain usable and whether that delay is acceptable for the resource. Cache introspection results only with a bounded lifetime and clear failure policy.
+
+<WorkedExample
+  title="Validate a toy ID token before creating a session"
+  steps={[
+    "At reference time 1999996400, the relying party receives an ID token signed by a key in the trusted issuer's current JWKS. The signature and allowed algorithm check pass.",
+    "The expected issuer is https://id.example.test and the received iss matches exactly. The expected client audience is northstar-client.",
+    "The received aud is other-client.example.test. This token is well signed but belongs to another client, so the relying party must reject it rather than create a session.",
+    "The received exp is 2000000000, one hour after the reference time, so the lifetime check would pass. A passing time check cannot override the audience failure.",
+    "The expected nonce is nonce-29. If the received nonce differs or is absent, reject again even when issuer, signature and audience pass.",
+    "Only after all applicable checks succeed does the relying party map sub to a local account and evaluate whether that account may use the requested workspace."
+  ]}
+  result="JWT validation is receiver-specific and conjunctive. Signature, issuer, audience, time and transaction checks must all pass; resource authorisation remains a separate decision."
+/>
+
+JWT encodings use base64url, which is an encoding rather than encryption. Anyone who can see a JWT can read its claims. Never put passwords, private keys or unnecessary sensitive attributes in a token. Minimise claims, protect logs and redact authorization headers. Token size also affects headers and intermediaries, so keep custom claims proportionate to a real requirement.
+
+A useful negative-test suite covers a wrong issuer, another audience, expired token, future not-before value, wrong nonce, disallowed algorithm, unknown key identifier, malformed encoding and a valid token used at the wrong receiver. Run the suite against both local validation code and any gateway or sidecar that also makes token decisions. Two components with different issuer or clock configuration can create an outage or a security gap.
+
+<KnowledgeCheck
+  question="An ID token has a valid signature, trusted issuer and unexpired timestamp, but its audience names another client. What should the relying party do?"
+  options={["Create a session because the signature is valid", "Accept it only for GET requests", "Reject it because it was not issued for this relying party", "Change the aud claim locally"]}
+  answer={2}
+  explanation="Audience binds the token to its intended receiver. A token for another client must be rejected even when signature, issuer and lifetime checks pass."
+/>
+
+</Lens>
+
+<Lens level={4} title="Passkeys, authorisation and the identity lifecycle">
+
+## WebAuthn is a credential ceremony, not an OAuth grant
+
+WebAuthn lets a relying party create and later verify public-key credentials. During registration, the authenticator creates a new key pair and returns a credential identifier and public key after a ceremony involving a fresh challenge and relying-party context. During authentication, it signs a new challenge. The server verifies the assertion with the stored public key and its own expected relying-party identifier. <Cite id="webauthn" locator="§5–10, ceremony, credentials and assertions" />
+
+This removes the shared password secret from the authentication exchange and provides origin-bound, phishing-resistant proof under the ceremony's assumptions. It does not grant API scopes, create an OAuth access token or decide which records the user may read. OIDC may carry the result of a passkey authentication performed by an identity provider, while the application's resource server still authorises access.
+
+## Passkeys have deployment and assurance details
+
+A passkey may be device-bound or synchronised through a platform credential provider. Recovery, revocation and device-loss behavior differ. A synchronised credential is not automatically weaker or stronger; evaluate the provider, account recovery, attestation and threat model. Biometric comparison normally happens locally on the user's device. The server receives an assertion, not a fingerprint or face template.
+
+User presence and user verification are different ceremony properties. Configure the required policy explicitly and verify the returned result rather than assuming every authenticator behaves the same way. NIST assurance levels depend on the complete authentication method, authenticator characteristics and deployment, not the marketing term passkey. <Cite id="nist-sp800-63b-4" locator="§3–5, authenticator assurance and lifecycle" /> Require additional factors or proofing where the risk assessment demands them.
+
+Attestation can help assess authenticator properties, but it is not continuous proof that a device remains trustworthy. Decide which attestation roots or metadata your service trusts, how often to update them and what to do when attestation is unavailable. Do not confuse authenticator attestation with the authorization server's signing keys or the resource server's TLS certificate.
+
+<Figure caption="X.509 path building is relevant to TLS and authenticator attestation. JWT signing keys selected from issuer JWKS are not automatically an X.509 certificate chain, and certificate-path validation is only one part of token trust.">
+  <PkiChain />
+</Figure>
+
+RFC 5280 specifies certificate fields, extensions and certification-path validation. <Cite id="rfc5280" locator="§4.1–4.2 and §6" /> Use that model when validating a certificate chain, including signatures, validity, constraints and a configured trust anchor. A WebAuthn attestation certificate path should be evaluated under the relying party's attestation policy; a JWT key should be evaluated under the issuer and algorithm policy. Reusing a generic function called verifyKey without those distinctions can hide a serious boundary error.
+
+<WorkedExample
+  title="Verify a passkey assertion without turning it into an access grant"
+  steps={[
+    "At registration, the server supplies a fresh challenge, an allowed credential-type policy and its exact relying-party identifier. The authenticator returns a new credential identifier, public key and attestation data if required.",
+    "The server validates the registration ceremony, stores the public key against the correct account and defines recovery and additional-authenticator procedures.",
+    "At login, the server issues a new unpredictable challenge and the expected relying-party identifier. It rejects reused or expired challenges and binds the ceremony to the browser transaction.",
+    "The authenticator signs the challenge with the private key. The server verifies the signature with the stored public key, checks the relying-party identifier, challenge and required user-verification result, and applies signature-counter policy where supported.",
+    "The server creates a bounded local session or asks the identity provider to issue a federated assertion. It does not treat the WebAuthn signature as an API access token.",
+    "When the user requests a workspace export, the resource server separately checks subject, scope, workspace membership, object ownership and policy freshness."
+  ]}
+  result="Passkeys provide strong authentication evidence. Local sessions, federated tokens and resource permissions remain separate layers with separate validation and lifecycle rules."
+/>
+
+## Authorisation needs an object model
+
+Role-based access control is a useful starting point, but a role name rarely captures tenant, ownership, state and delegated grants. Define resources, actions, subjects, tenants and relationships. Decide whether permission is inherited, explicitly granted, time-bounded or conditional. Use a central policy component or service with versioned rules and deterministic tests.
+
+Evaluate policy close to the resource. A controller can pre-filter a list for usability, but the data layer or resource service must enforce the same boundaries for direct access and background jobs. Avoid checking only a parent object when a child has a different sensitivity. Export, share, delete and administrative impersonation often require stronger checks than ordinary reads.
+
+Policy inputs should come from validated identity and server-side state. Do not let a request assert its own role or tenant. If policy depends on group membership, define propagation delay and revocation expectations. If it depends on a device or risk signal, define stale-data behavior. Missing context should produce a deliberate decision, usually denial for protected resources.
+
+## Operate joiner, mover and leaver lifecycles
+
+Joining an identity involves proofing, authenticator enrolment, group assignment and owner approval. Moving roles requires removing old access as well as adding new access. Leaving requires disabling authentication, revoking sessions, rotating or removing credentials, transferring ownership and verifying that delegated grants no longer work.
+
+Service identities need the same discipline. Rotate workload credentials, store them in appropriate protected systems, scope them to resources and assign an owner. Avoid interactive developer credentials in production. Review unused grants and dormant clients on a schedule.
+
+<Callout variant="warning" title="Recovery is a privileged authentication path">
+Treat support-assisted recovery, backup authenticators and emergency access as production authentication mechanisms. Rate-limit them, require strong proofing, notify affected users, audit use and test that old credentials stop working after recovery.
+</Callout>
+
+## Test revocation end to end
+
+A successful logout button is not proof of revocation. Define which credentials are invalidated: the local session, refresh token, authorization-server session, access tokens and authenticator. Test each one. A copied access token may remain valid until expiry unless the resource server has a faster revocation signal. Record the maximum residual access window and get explicit risk acceptance where necessary.
+
+For passkeys, removing one credential should not remove every authenticator unless the account is compromised. For a lost device, revoke the specific credential and require recovery or another enrolled authenticator. For a suspected issuer compromise, rotate signing keys, invalidate affected sessions and communicate the trust change. For a departed administrator, remove privileged roles and review tokens or grants issued during the tenure.
+
+<KnowledgeCheck
+  question="What does a successful WebAuthn assertion establish?"
+  options={["That the user may read every resource at the relying party", "That the user controls a registered private key under the verified ceremony context", "That an OAuth access token has the correct API audience", "That the authenticator's manufacturer is trustworthy forever"]}
+  answer={1}
+  explanation="The assertion proves control of the registered credential and binds it to a fresh challenge and relying-party context. Authorisation, token validation and attestation policy remain separate decisions."
+/>
+
+</Lens>
+
+## Guided workshop: federated access for a clinic portal and partner scheduler
+
+Meridian Health uses a workforce identity provider for staff, passkeys for patients and a partner scheduling application that needs limited appointment access. The current proposal treats the patient ID token as an API credential, uses a wildcard redirect URI, omits PKCE and nonce for the partner, and gives the scheduler read/write access to every appointment. Support staff can reset any patient's passkeys after a phone call. A recent key rotation caused an outage, so an engineer disabled signature checking at the API for a day.
+
+<GuidedWorkshop
+  id="identity-access-management-workshop"
+  title="Design federated authentication, token validation and object policy"
+  scenario="Protect patient data while supporting workforce federation, patient passkeys and a narrowly delegated partner integration. The design must survive key rotation, account recovery, token replay and leaver events without silently bypassing authentication."
+  tasks={[
+    "Name the actors, identity types, issuers, relying parties, resource servers and token audiences for each user journey.",
+    "Redesign the partner authorization-code flow with exact redirects, PKCE, state, nonce, minimal scope and protected token storage.",
+    "Specify receiver-specific ID token and access-token validation, including key rotation, expiry, nonce and replay behavior.",
+    "Define object-level appointment policy for patients, staff, partners and background services, including delegation and emergency access.",
+    "Design passkey enrolment, recovery and revocation, then explain how workforce OIDC and patient passkeys can coexist.",
+    "Create a verification and rollout plan covering negative tests, revocation windows, telemetry, incident response and rollback."
+  ]}
+  hints={[
+    "A workforce subject, patient subject and partner workload are not interchangeable identities.",
+    "The ID token belongs to the relying party; the appointment API accepts its own access-token audience.",
+    "Wildcard redirects, missing PKCE and missing nonce fail at different points in the flow.",
+    "Permission to schedule does not imply permission to read clinical notes or all patients.",
+    "Key rotation should trigger bounded JWKS refresh, never disabled signature validation.",
+    "A reset that removes all authenticators can lock out a patient or leave a stolen credential active."
+  ]}
+  solution={[
+    "Staff authenticate through the workforce issuer and receive an OIDC identity at the portal relying party. Patients authenticate directly to the portal with registered passkeys, or through a reviewed patient identity provider. The partner is a separate OAuth client with its own exact redirect URI and token audience. The appointment API is the resource server and must not accept the portal's ID tokens. Background services use distinct workload identities scoped to the minimum queue or appointment operation.",
+    "Register the partner's complete callback URI and compare it exactly. Require authorization code with S256 PKCE, fresh state and OIDC nonce, and request only the scheduling scope. Redeem codes through a protected back-channel with appropriate client authentication. Store tokens server-side where possible, bound refresh-token use, rotate supported refresh tokens and define grant revocation. Never place a confidential client's secret in browser code.",
+    "The portal validates workforce ID tokens against the workforce issuer, portal client audience, expected nonce and transaction state. The API validates access tokens against its own configured issuer and appointment-api audience, allowed algorithm, lifetime and required authority. Cache issuer keys with bounded freshness; refresh once on an unknown key identifier, then fail closed. Define short access-token lifetimes, refresh-token reuse response and the residual access window for revocation. Use gateway replay controls where appropriate without claiming JWT validation alone prevents bearer replay.",
+    "Represent patients, care-team staff, scheduling partners, workspace services and emergency operators as distinct principals. Policy evaluates action, appointment, patient, clinic, tenant, relationship and current state. A partner may read availability and create or change an appointment within an approved clinic and purpose, but may not read clinical notes. Clinical-note access requires an explicit care-team or patient grant. Emergency access is time-bounded, requires a reason, alerts the patient or responsible team and receives separate review.",
+    "Passkey registration binds a fresh credential public key to the verified patient account with the correct relying-party identifier. Require the configured user-verification policy and record multiple authenticators where appropriate. Recovery uses strong proofing, not a casual phone call; notify the patient through an existing trusted channel, revoke suspected credentials and require re-enrolment. Workforce OIDC remains a separate federation path for staff and can be chained after passkey authentication if assurance requirements demand it.",
+    "Test wrong issuer, audience, nonce, algorithm, expired token, unknown key, replayed code, replayed token, cross-patient object access and revoked grants. Exercise JWKS rollover, clock skew, identity-provider outage and recovery abuse. Record issuer, key identifier, validation outcome, policy version and object decision without logging tokens. Canary the API validation configuration, alert on denial and key-refresh spikes, and rehearse revocation with real token lifetimes. Rollback to the previous policy version, never to disabled signature checks."
+  ]}
+  takeaway="Federation moves authentication evidence across a boundary; it does not erase local trust decisions. Bind every token to its receiver and every resource action to a specific subject, object and policy."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| ID token sent to API | API accepts a portal client token | Token purposes and audiences confused | Separate profiles and reject wrong API audience |
+| Wildcard callback | Code reaches attacker-controlled URI | Prefix or pattern redirect matching | Register and compare complete URIs exactly |
+| Public client without PKCE | Intercepted code redeemed | No proof of verifier possession | S256 PKCE and one-use authorization codes |
+| State or nonce omitted | Login CSRF or token substitution | Browser transaction not bound | Fresh state and OIDC nonce with one-time validation |
+| Signature-only JWT check | Wrong issuer or client token accepted | Receiver expectations omitted | Validate issuer, audience, time, nonce and algorithm |
+| Signature checks disabled during rotation | Invalid tokens accepted | Unsafe outage workaround | Bounded JWKS refresh and fail-closed retry |
+| Role-only authorisation | Cross-tenant or cross-patient access | Object relationships absent from policy | Tenant, ownership, state and delegation checks |
+| Recovery bypasses passkey | Account taken after support call | Weak proofing and no credential revocation | Privileged recovery workflow with notification and audit |
+| Logout leaves tokens usable | Access continues after sign-out | Revocation scope undefined | Specify session, refresh, access and grant invalidation |
+| Service identity inherits user roles | Excessive automated access | No workload identity model | Dedicated identity, narrow scopes and ownership |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Authorization server rejects callback | URI differs by slash, port, path or encoding | Register and compare the exact complete URI |
+| Code exchange succeeds but nonce fails | Stale transaction, cached response or token substitution | Bind fresh nonce to one attempt and reject mismatches |
+| API returns invalid_token for valid login | ID token used instead of access token | Use the API-audience access token and separate validation |
+| All logins fail after key rotation | JWKS cache stale or unknown key handling broken | Refresh once with backoff, then fail closed and alert |
+| Intermittent expiry failures | Clock skew or string-based date comparison | Use NumericDate rules and bounded clock synchronisation |
+| Replayed token succeeds before expiry | Stateless bearer validation has no memory | Shorten lifetime and add revocation or sender-constrained controls |
+| Partner sees unrelated appointments | Policy uses only role or client identifier | Enforce clinic, patient, purpose and delegation boundaries |
+| Patient locked out after device loss | Recovery removes every authenticator | Require proofed recovery or another enrolled authenticator |
+| Leaver retains delegated access | Grants and refresh tokens not revoked | Run a leaver checklist and verify residual token lifetime |
+| Workforce and patient sessions merge | Subject namespaces treated as one identity | Use issuer plus subject and separate local account mapping |
+
+## Design review checklist
+
+- [ ] Human, partner, service and emergency identities have separate owners and credential models.
+- [ ] Each OAuth client has exact registered redirect URIs, an appropriate grant type and protected storage.
+- [ ] Authorization-code flows use S256 PKCE, fresh state and OIDC nonce where authentication is requested.
+- [ ] ID tokens and access tokens have separate receiver-specific validation profiles and audiences.
+- [ ] JWT validation checks allowed algorithm, signature, issuer, audience, lifetime and transaction binding.
+- [ ] JWKS caching and rotation have bounded freshness, retry, alert and fail-closed behavior.
+- [ ] Refresh-token rotation, reuse response, revocation and residual access windows are explicit.
+- [ ] Resource policy evaluates subject, action, tenant, object, state and delegation close to the resource.
+- [ ] Passkey ceremonies verify challenge, relying-party identifier, credential ownership and user-verification policy.
+- [ ] Authenticator attestation and X.509 path validation are configured separately from JWT key trust.
+- [ ] Joiner, mover, leaver, recovery and emergency-access procedures revoke old access.
+- [ ] Logs and telemetry exclude tokens and unnecessary identity attributes while retaining decision evidence.
+- [ ] Negative tests cover wrong issuer, audience, nonce, algorithm, key, lifetime, replay and object ownership.
+- [ ] Rollback preserves authentication and does not restore disabled signature or authorisation checks.
+
+## Key takeaways
+
+- Authentication, delegated authorization, federated identity and resource authorization are separate decisions.
+- Authorization code with PKCE, exact redirects, state and nonce binds different parts of a browser flow.
+- A JWT signature proves origin only; the receiver must validate issuer, audience, time and transaction claims.
+- ID tokens belong to relying parties; access tokens belong to resource servers.
+- Passkeys provide phishing-resistant authentication evidence but do not replace object-level authorization.
+- Key rotation, recovery, revocation and identity lifecycle operations are part of the security boundary.
+
+## Practice
+
+1. Draw the authorization-code plus PKCE exchange for a public mobile client and a confidential web client. Mark where state, nonce, verifier and client authentication are created and checked.
+2. Write a JWT negative-test matrix that includes another audience, wrong issuer, expired token, wrong nonce and unknown signing key.
+3. Design an appointment-sharing policy for a patient, care-team member, scheduling partner and billing service. List allowed actions and denied object relationships.
+4. Define a lost-passkey recovery runbook that preserves account availability without allowing a help-desk social-engineering bypass.
+5. Calculate the maximum residual access after revoking a refresh token if access tokens remain valid for fifteen minutes, and propose a mitigation for a high-risk operation.
+
+<KnowledgeCheck
+  question="Which design best limits the impact of a stolen refresh token?"
+  options={["Give every client the same long-lived access token", "Disable signature checks so rotation cannot fail", "Rotate refresh tokens where supported, detect reuse, keep access tokens short-lived and define resource revocation", "Store refresh tokens in browser local storage without restrictions"]}
+  answer={2}
+  explanation="Rotation and reuse detection can expose theft, while short access-token lifetimes bound residual access. Resource-side revocation and protected storage are still needed; rotation alone does not invalidate every issued access token."
+/>

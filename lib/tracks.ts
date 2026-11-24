@@ -4,7 +4,7 @@ export interface TrackMeta {
   name: TrackName;
   short: string;
   description: string;
-  icon: "shield" | "atom" | "network" | "share" | "activity" | "cpu" | "key";
+  icon: "shield" | "atom" | "network" | "share" | "activity" | "cpu" | "key" | "code" | "cloud" | "bug" | "package" | "fingerprint" | "crosshair" | "search";
   accent: string;
   border: string;
   text: string;
@@ -23,6 +23,74 @@ export const TRACKS: TrackMeta[] = [
     text: "text-brand-700",
     dot: "bg-brand-500",
     cover: "from-brand-100 via-brand-50 to-white",
+  },
+
+
+  {
+    name: "Red Team",
+    short: "Red Team",
+    description: "Scoped penetration testing, safe lab methodology, web exploitation, binary reasoning and offensive tooling.",
+    icon: "crosshair",
+    accent: "bg-rose-50",
+    border: "border-rose-200",
+    text: "text-rose-700",
+    dot: "bg-rose-500",
+    cover: "from-rose-100 via-rose-50 to-white",
+  },
+  {
+    name: "Application Security",
+    short: "AppSec",
+    description: "Web attacks, input validation, access control, secure coding, testing and remediation.",
+    icon: "code",
+    accent: "bg-orange-50",
+    border: "border-orange-200",
+    text: "text-orange-700",
+    dot: "bg-orange-500",
+    cover: "from-orange-100 via-orange-50 to-white",
+  },
+  {
+    name: "Identity & Access",
+    short: "Identity",
+    description: "OAuth, OIDC, WebAuthn, JWT, authorisation, session security and identity lifecycle.",
+    icon: "fingerprint",
+    accent: "bg-fuchsia-50",
+    border: "border-fuchsia-200",
+    text: "text-fuchsia-700",
+    dot: "bg-fuchsia-500",
+    cover: "from-fuchsia-100 via-fuchsia-50 to-white",
+  },
+  {
+    name: "Cloud & Infrastructure",
+    short: "Cloud",
+    description: "Cloud shared responsibility, IAM, containers, Kubernetes, microservices and infrastructure attacks.",
+    icon: "cloud",
+    accent: "bg-sky-50",
+    border: "border-sky-200",
+    text: "text-sky-700",
+    dot: "bg-sky-500",
+    cover: "from-sky-100 via-sky-50 to-white",
+  },
+  {
+    name: "Malware & Forensics",
+    short: "Malware",
+    description: "Static and dynamic malware analysis, endpoint telemetry, memory forensics and evidence handling.",
+    icon: "bug",
+    accent: "bg-red-50",
+    border: "border-red-200",
+    text: "text-red-700",
+    dot: "bg-red-500",
+    cover: "from-red-100 via-red-50 to-white",
+  },
+  {
+    name: "Software Supply Chain",
+    short: "Supply Chain",
+    description: "Secure development, dependency risk, SBOMs, provenance, signing and build pipeline defence.",
+    icon: "package",
+    accent: "bg-lime-50",
+    border: "border-lime-200",
+    text: "text-lime-700",
+    dot: "bg-lime-500",
+    cover: "from-lime-100 via-lime-50 to-white",
   },
   {
     name: "Post-Quantum Cryptography",
@@ -56,6 +124,18 @@ export const TRACKS: TrackMeta[] = [
     text: "text-violet-700",
     dot: "bg-violet-500",
     cover: "from-violet-100 via-violet-50 to-white",
+  },
+
+  {
+    name: "Digital Forensics & Incident Response",
+    short: "DFIR",
+    description: "Memory, filesystem and timeline forensics, evidence integrity, incident handling and defensible reporting.",
+    icon: "search",
+    accent: "bg-cyan-50",
+    border: "border-cyan-200",
+    text: "text-cyan-700",
+    dot: "bg-cyan-500",
+    cover: "from-cyan-100 via-cyan-50 to-white",
   },
   {
     name: "Security Operations",

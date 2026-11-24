@@ -7,7 +7,7 @@ import { CITATIONS, citationHref, formatAuthors, toBibtex } from "@/lib/citation
 import { useCitation } from "@/components/citations/CitationProvider";
 import type { Citation } from "@/lib/types";
 
-const TYPES = ["all", "standard", "rfc", "paper", "specification", "report", "internet-draft", "source", "website"];
+const TYPES = ["all", "standard", "rfc", "paper", "book", "specification", "report", "internet-draft", "source", "website"];
 
 const TYPE_LABEL: Record<string, string> = {
   standard: "Standard",
@@ -18,6 +18,7 @@ const TYPE_LABEL: Record<string, string> = {
   specification: "Spec",
   source: "Source",
   website: "Web",
+  book: "Book",
 };
 
 export function CitationRegistry({ usage, moduleTitles }: { usage: Record<string, string[]>; moduleTitles: Record<string, string> }) {
@@ -52,7 +53,7 @@ export function CitationRegistry({ usage, moduleTitles }: { usage: Record<string
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "pqc-cyberlab-references.bib";
+    anchor.download = "CPSsec-CyberLab-Training-references.bib";
     anchor.click();
     URL.revokeObjectURL(url);
   }

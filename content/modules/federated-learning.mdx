@@ -3,7 +3,7 @@ slug: federated-learning
 title: "Federated learning: privacy, poisoning and secure aggregation"
 subtitle: "Train a shared model without collecting raw data — and learn why privacy does not automatically give you integrity."
 track: "Distributed Systems & Privacy"
-order: 6
+order: 13
 difficulty: "Intermediate"
 readingTime: 80
 summary: "How federated averaging works, what secure aggregation and differential privacy actually protect, and why poisoning, Sybil and inference attacks remain."
@@ -14,6 +14,8 @@ prerequisites: ["centralised-decentralised", "hashing-mac-kdf"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { DifferentialPrivacyLab } from "../../components/visualizers/DifferentialPrivacyLab";
 
 <Lens level={1} title="Learning without collecting the data">
 
@@ -198,6 +200,10 @@ $$
 $$
 
 In federated learning, DP can be applied at the record, client or update level. Each has different meaning and composition. Clipping bounds sensitivity; noise scales with sensitivity and the privacy budget. <Cite id="abadi2016" locator="pp. 308–318" />
+
+<Figure caption="A toy client-level DP workbench: clip a gradient, add deterministic illustrative Gaussian noise, and watch basic composition consume epsilon across training rounds.">
+  <DifferentialPrivacyLab />
+</Figure>
 
 ## Secure aggregation
 

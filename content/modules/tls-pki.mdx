@@ -3,17 +3,19 @@ slug: tls-pki
 title: "TLS, PKI and the hybrid migration"
 subtitle: "Where post-quantum keys actually land: handshakes, certificates, firmware and the buffers in between."
 track: "Network & Protocol Security"
-order: 9
+order: 11
 difficulty: "Intermediate"
 readingTime: 80
 summary: "Trace ML-KEM and ML-DSA through a TLS 1.3 handshake, then follow the operational consequences into X.509, HSMs, middleboxes and crypto agility."
 outcomes: ["Trace a TLS 1.3 handshake with hybrid PQC key exchange.", "Explain transcript binding, key schedule and certificate path validation.", "Calculate certificate and handshake size impacts.", "Plan PKI, HSM, firmware and protocol migration with crypto agility."]
 citations: ["rfc8446", "rfc9180", "rfc5280", "hybrid-design", "nist-ir8547", "fips203", "fips204", "fips205", "fips186-5", "rfc7748", "liboqs"]
 tags: ["tls", "pki", "deployment", "migration"]
-prerequisites: ["asymmetric-primitives", "ml-kem"]
+prerequisites: ["asymmetric-primitives", "symmetric-crypto"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { HybridCombinerLab } from "../../components/visualizers/HybridCombinerLab";
 
 <Lens level={1} title="A handshake that suddenly carries a suitcase">
 
@@ -182,6 +184,10 @@ A middlebox may drop a large ClientHello; a load balancer may fail to reassemble
 TLS 1.3 uses HKDF with SHA-256 or SHA-384. The early secret, handshake secret and master secret are derived by `HKDF-Extract` and `HKDF-Expand-Label`. The transcript hash binds the handshake messages, including the key shares and certificates. <Cite id="rfc8446" locator="§4.4" />
 
 For a hybrid group, the input keying material is a concatenation of the component shared secrets. The hybrid design draft specifies how the group is encoded and how the combined secret is formed, including domain separation. <Cite id="hybrid-design" locator="§3–4" />
+
+<Figure caption="Break either KEM component, or change one peer's context label, to see when a hybrid traffic key remains protected and when the peers derive different keys.">
+  <HybridCombinerLab />
+</Figure>
 
 <Callout variant="lab" title="Security argument sketch">
 If the KDF behaves as a random oracle and the concatenated secrets contain at least one unknown-to-the-adversary component, the derived traffic keys are indistinguishable from random. The proof must account for the transcript, the authentication signatures and the possibility that one component is broken. Hybrid combiners are designed so that the failure of one component does not compromise the output.

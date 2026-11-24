@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Github } from "lucide-react";
 import { LogoMark } from "@/components/site/Logo";
 
-const REPO_URL = "https://github.com/CPSsec-UCY/pqc-cyberlab";
+const REPO_URL = "https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training";
 
 export function Footer() {
   return (
@@ -11,11 +11,11 @@ export function Footer() {
         <div>
           <div className="flex items-center gap-3">
             <LogoMark className="h-10 w-10" />
-            <span className="font-sans text-lg font-bold tracking-tight">CPSsec CyberLab</span>
+            <span className="font-sans text-lg font-bold tracking-tight">CPSsec CyberLab Training</span>
           </div>
           <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">
-            An open, citation-backed curriculum for modern cybersecurity: cryptography, networks,
-            distributed systems, security operations and post-quantum migration.
+            An open, citation-backed curriculum for modern cybersecurity: red team, AppSec, identity,
+            cloud, malware, DFIR, SOC operations, cryptography and post-quantum migration.
           </p>
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40">
             University of Cyprus · EUPL-1.2
@@ -25,9 +25,10 @@ export function Footer() {
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-coral-300">Learn</p>
           <ul className="mt-4 space-y-2.5 text-sm text-white/70">
             <li><Link href="/curriculum/" className="hover:text-white">Course catalogue</Link></li>
+            <li><Link href="/learn/red-team-penetration-testing/" className="hover:text-white">Red team methodology</Link></li>
+            <li><Link href="/learn/digital-forensics-incident-response/" className="hover:text-white">DFIR &amp; evidence</Link></li>
             <li><Link href="/learn/ml-kem/" className="hover:text-white">ML-KEM deep dive</Link></li>
-            <li><Link href="/learn/federated-learning/" className="hover:text-white">Federated learning</Link></li>
-            <li><Link href="/lab/" className="hover:text-white">Interactive labs</Link></li>
+            <li><Link href="/lab/" className="hover:text-white">32 interactive labs</Link></li>
           </ul>
         </div>
         <div>

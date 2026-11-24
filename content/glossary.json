@@ -1294,5 +1294,247 @@
     "related": [
       "snark"
     ]
+  },
+  {
+    "id": "red-team",
+    "term": "Red team",
+    "definition": "An authorised adversarial exercise that tests detection, response and resilience using scoped techniques and evidence-backed findings.",
+    "citations": [
+      "book-weidman-pentest",
+      "mitre-attack"
+    ],
+    "modules": [
+      "red-team-penetration-testing"
+    ]
+  },
+  {
+    "id": "rules-of-engagement",
+    "term": "Rules of engagement",
+    "definition": "Written scope, targets, techniques, stop conditions, escalation contacts and evidence requirements that authorise and bound a security test.",
+    "citations": [
+      "book-weidman-pentest",
+      "nist-sp800-86"
+    ],
+    "modules": [
+      "red-team-penetration-testing"
+    ]
+  },
+  {
+    "id": "sqli",
+    "term": "SQL injection (SQLi)",
+    "definition": "A vulnerability in which untrusted input changes the structure of a database query, allowing unauthorised reading or modification.",
+    "citations": [
+      "owasp-top-10",
+      "cwe-top-25",
+      "book-stuttard-pinto-web-hacking"
+    ],
+    "modules": [
+      "web-application-security",
+      "web-exploitation-offensive-tooling"
+    ]
+  },
+  {
+    "id": "xss",
+    "term": "Cross-site scripting (XSS)",
+    "definition": "A vulnerability in which attacker-controlled content executes in another user's browser under a trusted origin.",
+    "citations": [
+      "owasp-top-10",
+      "owasp-cheatsheets"
+    ],
+    "modules": [
+      "web-application-security",
+      "web-exploitation-offensive-tooling"
+    ]
+  },
+  {
+    "id": "csrf",
+    "term": "Cross-site request forgery (CSRF)",
+    "definition": "An attack that causes a browser to send an authenticated request the user did not intend, exploiting ambient credentials.",
+    "citations": [
+      "owasp-top-10",
+      "book-stuttard-pinto-web-hacking"
+    ],
+    "modules": [
+      "web-application-security",
+      "web-exploitation-offensive-tooling"
+    ]
+  },
+  {
+    "id": "ssrf",
+    "term": "Server-side request forgery (SSRF)",
+    "definition": "A vulnerability in which an attacker makes a server issue requests to unintended destinations, often reaching internal services or metadata endpoints.",
+    "citations": [
+      "owasp-top-10",
+      "cwe-top-25"
+    ],
+    "modules": [
+      "web-application-security",
+      "web-exploitation-offensive-tooling"
+    ]
+  },
+  {
+    "id": "oauth",
+    "term": "OAuth 2.0",
+    "definition": "An authorisation framework that lets a client obtain scoped access to a protected resource without sharing the resource owner's credentials.",
+    "citations": [
+      "rfc6749",
+      "rfc9700"
+    ],
+    "modules": [
+      "identity-access-management"
+    ]
+  },
+  {
+    "id": "oidc",
+    "term": "OpenID Connect (OIDC)",
+    "definition": "An identity layer on OAuth 2.0 that adds authentication and standard identity claims through ID tokens.",
+    "citations": [
+      "oidc-core",
+      "rfc9700"
+    ],
+    "modules": [
+      "identity-access-management"
+    ]
+  },
+  {
+    "id": "webauthn",
+    "term": "WebAuthn / passkeys",
+    "definition": "A web authentication standard using public-key credentials and an authenticator ceremony to resist phishing and shared-secret theft.",
+    "citations": [
+      "webauthn",
+      "nist-sp800-63b-4"
+    ],
+    "modules": [
+      "identity-access-management"
+    ]
+  },
+  {
+    "id": "sbom",
+    "term": "Software bill of materials (SBOM)",
+    "definition": "A machine-readable inventory of components, dependencies and related metadata in a software artifact.",
+    "citations": [
+      "spdx",
+      "cyclonedx",
+      "nist-sp800-218"
+    ],
+    "modules": [
+      "secure-software-supply-chain"
+    ]
+  },
+  {
+    "id": "provenance",
+    "term": "Build provenance",
+    "definition": "Verifiable evidence describing where an artifact came from, which source and build process produced it, and what inputs influenced it.",
+    "citations": [
+      "slsa",
+      "nist-sp800-218"
+    ],
+    "modules": [
+      "secure-software-supply-chain"
+    ]
+  },
+  {
+    "id": "slsa",
+    "term": "SLSA",
+    "definition": "A framework for progressively improving build integrity through source, build and provenance security levels.",
+    "citations": [
+      "slsa"
+    ],
+    "modules": [
+      "secure-software-supply-chain"
+    ]
+  },
+  {
+    "id": "rootkit",
+    "term": "Rootkit",
+    "definition": "Malware or a mechanism that hides its presence or alters system views at user, kernel or firmware layers.",
+    "citations": [
+      "book-matrosov-rootkits-bootkits",
+      "nist-sp800-83r1"
+    ],
+    "modules": [
+      "rootkits-bootkits"
+    ]
+  },
+  {
+    "id": "bootkit",
+    "term": "Bootkit",
+    "definition": "Persistence that modifies the boot process, bootloader or firmware so malicious code executes before normal security controls are fully active.",
+    "citations": [
+      "book-matrosov-rootkits-bootkits"
+    ],
+    "modules": [
+      "rootkits-bootkits"
+    ]
+  },
+  {
+    "id": "uefi",
+    "term": "UEFI",
+    "definition": "The firmware interface that initialises hardware and starts the bootloader and operating system; it forms an early trust boundary.",
+    "citations": [
+      "book-matrosov-rootkits-bootkits"
+    ],
+    "modules": [
+      "rootkits-bootkits"
+    ]
+  },
+  {
+    "id": "secure-boot",
+    "term": "Secure Boot",
+    "definition": "A firmware verification mechanism that allows only trusted, correctly signed boot components to execute.",
+    "citations": [
+      "book-matrosov-rootkits-bootkits"
+    ],
+    "modules": [
+      "rootkits-bootkits"
+    ]
+  },
+  {
+    "id": "memory-forensics",
+    "term": "Memory forensics",
+    "definition": "Analysis of volatile RAM to identify processes, injected code, network artefacts, credentials and other evidence that may disappear on shutdown.",
+    "citations": [
+      "book-ligh-memory-forensics",
+      "volatility-docs"
+    ],
+    "modules": [
+      "digital-forensics-incident-response"
+    ]
+  },
+  {
+    "id": "filesystem-forensics",
+    "term": "Filesystem forensics",
+    "definition": "Analysis of file-system structures and metadata to reconstruct file activity, recover deleted records and validate evidence.",
+    "citations": [
+      "book-carrier-filesystem-forensics"
+    ],
+    "modules": [
+      "digital-forensics-incident-response"
+    ]
+  },
+  {
+    "id": "super-timeline",
+    "term": "Super timeline",
+    "definition": "A correlated chronological view combining events from multiple sources after normalising clocks and documenting uncertainty.",
+    "citations": [
+      "book-carrier-filesystem-forensics",
+      "book-luttgens-incident-response"
+    ],
+    "modules": [
+      "digital-forensics-incident-response"
+    ]
+  },
+  {
+    "id": "chain-of-custody",
+    "term": "Chain of custody",
+    "definition": "The documented history of evidence collection, hashing, handling, storage and transfer so its integrity can be demonstrated.",
+    "citations": [
+      "nist-sp800-86",
+      "book-luttgens-incident-response"
+    ],
+    "modules": [
+      "digital-forensics-incident-response",
+      "red-team-penetration-testing"
+    ]
   }
 ]

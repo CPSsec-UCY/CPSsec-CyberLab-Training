@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAllModules } from "@/lib/modules";
+import { LABS } from "@/lib/labs";
 
 export const dynamic = "force-static";
 
@@ -21,5 +22,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  return [...pages, ...modules];
+  const labs = LABS.map((lab) => ({
+    url: `${base}/labs/${lab.slug}/`,
+    lastModified: now,
+    changeFrequency: "monthly" as const,
+    priority: 0.75,
+  }));
+
+  return [...pages, ...modules, ...labs];
 }

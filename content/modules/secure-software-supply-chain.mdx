@@ -1,0 +1,558 @@
+---
+slug: secure-software-supply-chain
+title: "Secure software supply chain: dependencies, builds, provenance and signing"
+subtitle: "Follow one release from source to production, then attack every assumption that makes its evidence trustworthy."
+track: "Software Supply Chain"
+order: 8
+difficulty: "Advanced"
+readingTime: 90
+summary: "Threat-model dependencies and build systems, produce usable SBOMs, harden CI, evaluate SLSA build assurance, bind provenance and signatures to immutable digests, and operate deployment policy through compromise and recovery."
+outcomes: ["Threat-model dependencies, build infrastructure and release identities as one connected system.", "Evaluate SBOM completeness, vulnerability evidence and exception quality without confusing inventory with safety.", "Design hardened builds and verify SLSA provenance, signer identity and artifact subject binding.", "Operate fail-closed deployment policy, signing-identity incident response and evidence-based recovery."]
+citations: ["nist-sp800-218", "nist-sp800-161r1", "slsa", "spdx", "cyclonedx", "sigstore", "cwe-top-25"]
+tags: ["supply-chain", "dependencies", "sbom", "ci", "slsa", "provenance", "signing"]
+prerequisites: ["web-application-security", "cloud-container-security"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+import { SupplyChainLab } from "../../components/visualizers/SupplyChainLab";
+
+A production deployment is not created by one repository. It is assembled from source, pull-request decisions, package registries, build actions, runners, caches, signing identities, registries and admission controllers. Every participant can introduce code or evidence, and every automated handoff can confuse a mutable name with an immutable artifact.
+
+The central skill is therefore not collecting more security tools. It is asking what a piece of evidence actually proves, who could have influenced it, and which deployment decision it justifies. A lockfile hash can prove that resolution did not change; it cannot prove that the locked package is benign. A valid signature can prove possession of a key; it cannot prove that the key holder was authorised. An SBOM can enumerate declared components; it cannot guarantee that the deployed bytes contain nothing else.
+
+This course follows a fictional ledger service called `ledger-api` through eight stages: source, pull request, CI, build, SBOM, sign, provenance and deploy. The identifiers and vulnerabilities in the interactive lab are toy data. The security reasoning is not: each control must survive a specific adversary, produce verifiable evidence and fail safely when that evidence is absent.
+
+<Lens level={1} title="The release is a graph of authority">
+
+## Start with the system, not the scanner
+
+Supply chain risk begins when an organisation depends on software, services, people or processes outside its direct control. That includes an open-source parser, a commercial CI runner, a container base image, a compiler download, an internal platform team and the identity provider that issues a signing certificate. The dependency may be technical, operational or human.
+
+NIST SP 800-161r1 treats cybersecurity supply chain risk management as a risk discipline across the system life cycle, not as a one-time vendor questionnaire. <Cite id="nist-sp800-161r1" locator="§3 (supply chain risk management)" /> NIST SSDF 1.1 similarly connects organisational preparation, software production, protection of code and vulnerability response. <Cite id="nist-sp800-218" locator="§3, practices PO.1–PO.5 and PS.1–PS.3" /> These perspectives matter because a perfect dependency scanner cannot compensate for a build runner that gives an unreviewed workflow permanent registry credentials.
+
+Consider `ledger-api`. The application team owns the repository, but a package maintainer controls a transitive parser, a platform team controls the runner image, a CI provider controls token issuance, and a release engineer controls promotion. The registry operator controls artifact storage. A deployment controller decides which digest enters production. The attacker only needs one poorly protected edge to make later evidence describe the wrong thing.
+
+| Asset or actor | Trust question | Control | Evidence worth retaining |
+| --- | --- | --- | --- |
+| Source repository | Who can change code and workflow definitions? | Branch protection, reviewed changes, protected tags | Commit, review and ruleset history |
+| Package maintainer | Can published bytes replace expected content? | Approved sources, lockfiles, integrity checks, monitoring | Package coordinates, version, digest, resolution record |
+| CI workflow | Can a pull request or action gain unintended authority? | Restricted triggers, pinned actions, minimal permissions | Workflow digest, run identity, permission and egress events |
+| Build platform | Can jobs influence each other or signing material? | Ephemeral isolated runners, protected provenance signing | Builder identity, environment and run record |
+| Registry | Does the downloaded object equal the approved object? | Immutable digests, access control, retention | Manifest digest and retrieval record |
+| Signing identity | Is the signer expected for this artifact and environment? | Workload identity, scoped issuance, identity policy | Certificate identity, signature, transparency record |
+| Deployment controller | Are all required claims evaluated before execution? | Versioned admission policy, fail-closed behavior | Policy version, decision and failed predicates |
+
+## Threat model the handoffs
+
+A useful threat model names an adversary and an objective before listing controls. A package account attacker wants malicious code to execute during installation, build or runtime. A malicious contributor wants workflow changes to access secrets or alter release evidence. A compromised CI action wants to reuse the runner's identity. A registry attacker wants to substitute bytes after approval. A stolen signing identity wants to make an unauthorised release look authentic.
+
+Each objective crosses a different trust boundary. Package code crosses the dependency boundary into the build. A pull-request workflow crosses the contribution boundary into the CI identity. A registry substitution crosses the storage boundary into deployment. A stolen certificate crosses the signing boundary into the verifier's policy. Controls placed at the wrong boundary create the illusion of coverage: scanning the final image does not prevent secret theft during CI, and signing the final image does not prove that every dependency was approved.
+
+Three assumptions deserve explicit challenge. **The reviewed source is the built source.** Provenance and protected build parameters test that claim. **The declared inventory is the deployed inventory.** Subject-bound SBOMs and independent artifact analysis test it. **The valid signer is the intended signer.** Identity and workflow policy test it. When a system cannot test an assumption, record the uncertainty instead of converting it into a green check.
+
+<Callout variant="warning" title="A dependency is not only an open-source package">
+A compromised runner image, malicious build action, poisoned cache, stolen package-registry token or altered compiler can change a release without touching application source. Inventory the tools and services that execute during development as well as the libraries shipped at runtime.
+</Callout>
+
+## Four different kinds of evidence
+
+Teams often use “SBOM”, “provenance” and “signature” as interchangeable badges. They answer different questions. An SBOM describes components and relationships. Provenance describes how an artifact was produced, including source and materials. A signature authenticates a particular message or digest under a key or workload identity. A policy decision evaluates those claims against local expectations.
+
+| Evidence | What it can establish | What it cannot establish alone |
+| --- | --- | --- |
+| Lockfile and integrity digest | Which resolved content the build selected | That the content has no malicious behavior |
+| SBOM | Which components the generator found or declared | That the artifact contains no undeclared components |
+| Vulnerability result | A finding under a scanner's database and rules | That the vulnerable code is reachable in production |
+| Provenance | Declared builder, invocation, source and materials | That the statement is authentic or complete |
+| Signature | Integrity and possession of the signing credential | That the signer is authorised or the software is safe |
+| Admission decision | Whether evidence satisfied a specific policy version | That the policy covered every relevant threat |
+
+Evidence becomes useful when it is bound to a stable subject. For an image, that subject is normally the digest of the exact manifest or content that the runtime will retrieve. A tag such as `ledger-api:latest` can move between approvals. A filename can be reused. A screenshot of a successful scan can describe another build. The pipeline should carry an immutable digest from the build output through inventory, signing, attestation and deployment.
+
+<Figure caption="The release path is also an evidence path. Every handoff must preserve the subject digest and record the authority that produced or accepted the next claim.">
+  <ProcessFlow
+    steps={[
+      {title: "Source", detail: "Record the reviewed commit and dependency resolution.", tone: "brand"},
+      {title: "Pull request", detail: "Bind approval to source and workflow changes.", tone: "teal"},
+      {title: "CI", detail: "Execute with scoped, short-lived identity.", tone: "gold"},
+      {title: "Build", detail: "Produce immutable bytes and declared materials.", tone: "coral"},
+      {title: "SBOM", detail: "Describe components for the exact digest.", tone: "brand"},
+      {title: "Sign", detail: "Authenticate bytes under an expected identity.", tone: "teal"},
+      {title: "Provenance", detail: "Attest builder, invocation, source and inputs.", tone: "gold"},
+      {title: "Deploy", detail: "Verify every required predicate before execution.", tone: "coral"}
+    ]}
+  />
+</Figure>
+
+## Make risk decisions explicit
+
+A release decision combines likelihood, exposure, blast radius, detectability and recovery. A critical vulnerability in a reachable runtime parser that processes attacker-controlled payment messages is different from the same advisory in a test-only package on an isolated developer workstation. Conversely, a low-severity dependency issue can be urgent when it affects an internet-facing authentication component with no compensating control.
+
+Use a short decision record for exceptions: the failed policy predicate, affected digest, evidence, business owner, compensating control, expiry and remediation task. “False positive” is a conclusion that needs reasoning. “Under investigation” is not approval. Emergency exceptions should be narrow, time-bound and visible to the people who operate the affected service.
+
+A practical first month focuses on foundations rather than maximum maturity:
+
+1. Inventory repositories, package sources, build providers, signing identities, registries and deployment controllers.
+2. Make production deployment depend on immutable digests and named owners.
+3. Require reviewed workflow changes, pinned actions and least-privilege CI permissions.
+4. Generate subject-bound SBOMs and build provenance for one high-value release path.
+5. Sign that path with an expected workload identity and enforce signature plus provenance checks.
+6. Exercise a compromised-dependency and stolen-signer tabletop, then measure detection and recovery.
+
+This sequence produces evidence that can be verified before adding more scanners. It also exposes ownership gaps: if nobody can say which identity should sign a service, a cryptographic implementation will not answer that question.
+
+<KnowledgeCheck
+  question="A container has a valid signature from a developer who is not an approved release signer. What is the best conclusion?"
+  options={["The container is safe because the signature verifies", "The container is malicious because every developer is untrusted", "Integrity is established for the signed bytes, but signer authorisation has failed", "The SBOM must contain the developer's name"]}
+  answer={2}
+  explanation="Cryptographic verification and policy authorisation are separate checks. A valid signature from an unexpected identity must not satisfy a release policy that requires a specific build workload."
+/>
+
+</Lens>
+
+<Lens level={2} title="Dependencies and SBOMs: inventory with boundaries">
+
+## Model the real dependency graph
+
+A dependency graph includes direct imports, transitive packages, build tools, plugins, native libraries, container base layers, optional integrations and packages fetched by lifecycle scripts. The runtime graph is only one view. A malicious test framework or build plugin may execute earlier and possess more authority than the shipped application.
+
+Version ranges create a moving target. A manifest may allow updates that the lockfile has not selected, while a CI command may regenerate the lockfile and silently change the graph. Some ecosystems separate direct and transitive locks poorly; others support registry mirrors or private scopes with different trust. Determine the actual resolution behavior in each repository instead of assuming one lockfile command means the same thing everywhere.
+
+A lockfile integrity hash is valuable because it detects changes against an expected resolution. It does not attest that the package publisher is honest, that the registry returned the intended project, or that the code has safe behavior. A compromised maintainer can publish malicious bytes together with a matching lockfile update. Integrity protects a decision; it does not make the decision correct.
+
+| Failure pattern | How it enters | Useful controls | Residual risk |
+| --- | --- | --- | --- |
+| Dependency confusion | An internal name is requested from a public registry | Explicit registry mapping, private scopes, namespace reservation | Mirror or configuration mistakes |
+| Typosquatting | A similar package name is selected by a person or generator | Approved names, review of new dependencies, source verification | Social engineering remains possible |
+| Compromised maintainer | Valid account publishes malicious update | Pinning, update review, behavior tests, provenance from suppliers | The update can look completely legitimate |
+| Lifecycle script abuse | Install or build hooks execute unexpected commands | Isolated installation, restricted network and secrets, script review | Some ecosystems need hooks for legitimate builds |
+| Transitive surprise | A direct dependency pulls an unreviewed package | Full graph inventory, policy on new packages and licenses | Graph depth increases investigation cost |
+| Toolchain substitution | Compiler, base image or action is replaced | Pinned digests, approved mirrors, artifact verification | Supplier compromise can still produce valid artifacts |
+| Cache poisoning | Shared cache returns attacker-influenced content | Cache keys bound to trusted inputs, isolation and integrity checks | Local cache correctness must be monitored |
+
+Build dependencies deserve separate policy from runtime dependencies. A development package should not normally ship, but it may execute with repository credentials, signing access or network reachability. Classify dependencies by execution time and privilege, not just by whether they appear in the final SBOM. Record which stage installs them and what identity is active.
+
+Dependency updates should be small, reviewable and tested. A bot can propose an update, but policy should decide which changes may merge automatically. Require additional approval for new packages, changed install scripts, major versions, packages with native code and updates to release-critical dependencies. Keep the old and new lockfile in the review so a reviewer can distinguish a version bump from a graph rewrite.
+
+## What makes an SBOM usable
+
+SPDX provides a data model for software and licensing information, while CycloneDX provides a BOM format with component and vulnerability-oriented capabilities. <Cite id="spdx" locator="SBOM and license data model" /> <Cite id="cyclonedx" locator="BOM format and vulnerability data" /> Either format can support automation; format support alone does not make the inventory complete, current or bound to the right artifact.
+
+A usable SBOM needs enough identity to resolve ambiguity. At minimum, evaluate whether it contains:
+
+- the artifact or document subject, preferably a digest;
+- component name, ecosystem and stable package identifier;
+- exact version and, where available, content hashes;
+- direct and transitive relationships;
+- supplier or author information when known;
+- license expressions and license evidence;
+- component type, scope and whether it is runtime, build or optional;
+- generation time, generator identity and tool version;
+- known completeness limitations, including omitted vendored or generated code.
+
+Package identifiers are more reliable than display names because names collide across ecosystems and registries. Versions must be exact; a range cannot support precise vulnerability matching. Relationships matter because removing a vulnerable transitive package may require changing the direct parent rather than the child. Hashes help distinguish two artifacts published under the same coordinates.
+
+Subject binding is the difference between “an SBOM for ledger-api” and “an SBOM for this ledger-api digest”. Generate the inventory from the final artifact or from a build process whose output digest is recorded immediately. Attach or reference the BOM by digest, verify that reference at deployment, and avoid promoting an inventory from an earlier build simply because the version tag matches.
+
+An SBOM is also a snapshot. The component set can be accurate while the vulnerability database changes tomorrow. Consumers should retain the original BOM, record the scanner and database versions used for a decision, and rescan under an explicit policy. SPDX and CycloneDX can carry useful metadata, but neither format can discover code its generator was never configured to see. <Cite id="spdx" locator="SBOM and license data model" /> <Cite id="cyclonedx" locator="BOM format and vulnerability data" />
+
+<Callout variant="note" title="Inventory, scanning and VEX are different products">
+The SBOM says what is present. A scanner compares components with advisory data. A VEX record communicates an assessed status such as fixed, not affected or under investigation. None of these replaces the others, and a VEX assertion needs evidence and an owner.
+</Callout>
+
+## Scan findings are hypotheses, not verdicts
+
+A vulnerability match depends on component identity, version, platform, database freshness and scanner rules. It can be wrong in either direction. Aliases, backports, distro package versions and vendored copies complicate matching. An absent finding can mean no known vulnerability, an incomplete inventory or stale advisory data. Treat scanner output as evidence to investigate, not as an oracle.
+
+Prioritise using exploitability, reachability, exposure, asset criticality and compensating controls. The CWE Top 25 can inform which weakness classes deserve engineering attention, but it is a ranked weakness list rather than a release-specific risk score. <Cite id="cwe-top-25" locator="Current ranked weakness list" /> A high CVSS value in an unreachable optional component may be less urgent than a lower-scored issue in an exposed parser that handles untrusted input.
+
+Reachability analysis must be tied to the real application. A function existing in a package does not prove the service calls it. A static call graph may miss reflection, plugins or dynamically loaded code. Dynamic tests can demonstrate exercised paths but may miss uncommon branches. Record the method, code version, test coverage and confidence. If reachability is unknown, do not silently translate it into “not affected”.
+
+Exception quality is part of the control. A defensible `not_affected` statement explains why the vulnerable behavior cannot occur in this artifact and environment. An `under_investigation` statement communicates uncertainty and should not bypass a blocking rule indefinitely. Expire assertions when the component, advisory, configuration or application usage changes.
+
+<Figure caption="Dependency intake ends in a policy decision, not merely a successful install. The same flow applies to a direct update, a transitive graph change and a new build tool.">
+  <ProcessFlow
+    steps={[
+      {title: "Request", detail: "Identify package, ecosystem, purpose and execution stage.", tone: "brand"},
+      {title: "Resolve", detail: "Review the full graph and lockfile change.", tone: "teal"},
+      {title: "Verify", detail: "Check source, integrity and supplier expectations.", tone: "gold"},
+      {title: "Execute", detail: "Install and test under restricted identity.", tone: "coral"},
+      {title: "Inventory", detail: "Generate a subject-bound SBOM and scan it.", tone: "brand"},
+      {title: "Decide", detail: "Approve, remediate or record a bounded exception.", tone: "teal"}
+    ]}
+  />
+</Figure>
+
+<WorkedExample
+  title="The lockfile hash passes, so is the update safe?"
+  steps={[
+    "The manifest allows `payments-parser` version 4.8.x. The previous lockfile selected 4.8.0 and recorded an integrity digest for that package.",
+    "An automated update proposes 4.8.1 and updates the integrity digest. A second local install reproduces the new digest exactly.",
+    "The review sees only a patch-version increase and a green integrity check, so it assumes the release is safe.",
+    "The truth is narrower: the resolver consistently selected the published 4.8.1 content. The hash did not establish publisher integrity or safe behavior.",
+    "Require source and maintainer checks, release-note review, install-script inspection and tests under restricted credentials before approving the new lockfile.",
+    "After approval, retain both graph versions and the evidence so a later advisory or incident can be mapped to affected builds."
+  ]}
+  result="Reproducible resolution protects against accidental drift. It does not turn an attacker-controlled package into a trusted one. The update decision must include supplier and behavior evidence."
+/>
+
+<WorkedExample
+  title="A critical advisory, limited exposure and a weak exception"
+  steps={[
+    "The SBOM reports a critical vulnerability in `report-renderer`, which is a transitive dependency of an optional PDF export feature.",
+    "The production service disables PDF export, but the package is still installed in the runtime image and its initialization code executes at startup.",
+    "A developer proposes `not_affected` because the vulnerable function appears related to PDF generation. No call-path evidence or configuration test is attached.",
+    "The reviewer asks for the vulnerable code path, affected versions, application call sites, configuration behavior and a startup test with the feature disabled.",
+    "The investigation shows initialization is reachable but the vulnerable parser is not called while export remains disabled. A regression test now fails deployment if that configuration changes.",
+    "The exception is approved for the exact digest with an owner, compensating test and expiry. Removing the unused package remains the preferred remediation."
+  ]}
+  result="The exception is defensible because it states a bounded reachability argument and a control that detects change. “The feature is off” without evidence would only be an opinion."
+/>
+
+## Operate dependency and SBOM policy
+
+Run policy at pull request, build and deployment with different responsibilities. Pull-request policy can reject unapproved registries, new high-risk dependency types and unexplained graph changes. Build policy can require a lockfile, restricted install and a generated BOM. Deployment policy can require a subject-bound BOM, evaluate current vulnerability data and reject missing evidence.
+
+Do not make every finding an automatic outage. Define severity, exposure and exception routes in advance, then measure how often each route is used. A policy that is routinely bypassed without learning is not a policy; it is friction. Track new dependency introductions, time to update critical components, exception age, SBOM generation failures and percentage of production releases with verified subject binding.
+
+NIST SSDF calls for ongoing vulnerability identification, prioritisation, remediation and root-cause analysis. <Cite id="nist-sp800-218" locator="§3, practices PW.4 and RV.1–RV.3" /> That means dependency findings should feed engineering improvements: remove unnecessary packages, improve update automation, constrain registry access and fix the process that introduced the exposure.
+
+<KnowledgeCheck
+  question="Which statement best describes an SBOM with zero scanner findings?"
+  options={["The artifact is proven benign", "The generator found components that did not match the scanner's current data and rules", "The artifact has no transitive dependencies", "No deployment verification is needed"]}
+  answer={1}
+  explanation="A clean scan is bounded by inventory completeness, matching quality and database freshness. It is useful evidence, not proof that undeclared or unknown malicious content is absent."
+/>
+
+</Lens>
+
+<Lens level={3} title="Builds, provenance and signing: prove the path">
+
+## Treat CI as a hostile execution environment
+
+A build workflow executes code and consumes authority. Pull-request code may influence scripts, configuration, generated files and caches. Third-party actions execute inside the job. Self-hosted runners may retain credentials, workspaces or network access between jobs. A successful test suite says nothing about whether an action attempted to steal a token.
+
+Start by separating trust classes. Code from an external fork should not receive production secrets or signing identity. Release workflows should run only from protected refs and approved workflow definitions. Actions should be pinned to reviewed commit digests rather than mutable tags. Permissions should be explicit and minimal, with token write access granted only to the job and step that needs it.
+
+Prefer ephemeral, isolated build environments. Clean workspaces prevent one job from inheriting another job's files. Separate caches by trust and bind cache keys to trusted inputs. Restrict egress to approved package, build and evidence services where practical. Monitor unusual token audiences, unexpected network destinations, changes to workflow files and attempts to access signing material.
+
+The build must also control its inputs. Record source revision, build parameters, toolchain versions, dependency lock digest and platform details. Fetch tools from approved sources and verify their integrity. Avoid downloading an unpinned installer during a release. Reproducibility can help compare builds, but bit-for-bit reproducibility is not the same as provenance: two identical outputs do not prove who built either one or whether the process was authorised.
+
+## Read SLSA levels precisely
+
+SLSA provides increasing guarantees against specific threats. The lab uses the SLSA v1.1 Build track because its level boundaries are explicit: Build L1 requires provenance to exist, Build L2 adds a hosted platform that generates and signs provenance, and Build L3 adds a hardened platform with strong isolation and protection of signing material from user-defined steps. <Cite id="slsa" locator="SLSA v1.1 Build track, levels L1–L3" />
+
+| Level | Evidence-backed claim in the v1.1 Build track | Typical upgrade |
+| --- | --- | --- |
+| Build L1 | Provenance exists and describes the build | Generate complete provenance automatically |
+| Build L2 | A hosted build platform generates and signs provenance | Move builds to a managed, authenticated platform |
+| Build L3 | Strong isolation and protected signing material resist build-time tampering | Ephemeral isolated jobs and signing outside user steps |
+
+Do not treat the number as a software-safety grade. A hardened builder can faithfully build vulnerable or malicious source and produce accurate provenance. A missing SBOM can block deployment even when the build platform deserves L3. A signed artifact can be unsafe. The level says something about resistance to particular integrity threats, not that all security objectives are satisfied.
+
+Also pin the SLSA version and track when writing policy. Source, build, dependency and provenance terminology has evolved across SLSA versions. A requirement written as “SLSA 3” without a version, track and expected builder identity is ambiguous. The consumer needs a concrete predicate it can evaluate against the actual statement.
+
+## Provenance is a set of testable claims
+
+Useful provenance identifies the artifact subject, builder, invocation, source, resolved materials and build parameters. The exact fields depend on the attestation format and build system, but the consumer should be able to answer: who built this, from what, with which process, and does the statement refer to the bytes we are about to run?
+
+| Claim | Verification question | Failure example |
+| --- | --- | --- |
+| Subject | Does the statement name the registry artifact digest? | Statement names a previous build |
+| Builder | Is the builder identity expected for this service? | A developer laptop signs as the release builder |
+| Source | Is the source repository and revision approved? | Statement points to an unreviewed branch |
+| Materials | Are dependency and toolchain digests acceptable? | Materials omit a fetched binary |
+| Parameters | Do build flags match the approved recipe? | Debug or insecure options were enabled |
+| Authenticity | Is the statement signed by an trusted authority? | Attestation was edited after generation |
+
+Verification must compare claims to expectations, not merely parse them. A statement that faithfully says “built by attacker-laptop” can be authentic and still fail policy. A statement with the right source but the wrong subject can be signed correctly and still describe another artifact. Preserve the original statement and verification result so failures can be investigated without rerunning an opaque script.
+
+A provenance mismatch is not fixed by generating another signature over the same false statement. First determine whether the artifact, statement or registry reference is wrong. Recover the clean build record, compare subjects and materials, and rebuild from approved inputs if the chain cannot be reconciled. Never edit an attestation in place and present it as contemporaneous build evidence.
+
+## Signing authenticates bytes, not intentions
+
+Sigstore supports keyless signing and verification through workflows involving Cosign, Fulcio and Rekor. In a typical keyless flow, an identity provider supplies short-lived identity, a certificate authority issues a certificate bound to that identity, the signer signs the artifact or attestation, and a transparency log records the event. <Cite id="sigstore" locator="Cosign, Fulcio and Rekor workflows" />
+
+Keyless does not mean identityless. The verifier still needs an expected issuer and subject identity, trust roots, validity rules and an artifact subject. A certificate proves that an identity provider authenticated some workload at some time. It does not prove that the workload followed the release recipe or that its output is benign.
+
+A complete signature policy evaluates at least four things:
+
+1. **Subject:** the signature covers the exact digest being deployed.
+2. **Integrity:** the signature verifies under an accepted trust chain.
+3. **Identity:** the signer matches the expected workload for this repository and environment.
+4. **Freshness and context:** certificate validity, transparency evidence and release context satisfy policy.
+
+Transparency is valuable because it makes signing events observable and supports detection of unexpected certificates. It is not automatic revocation, and log inclusion does not authorise a signer. A stolen signing identity can produce a perfectly valid signature and transparency entry. The deployment policy must reject the unexpected identity, and the incident process must invalidate its authority for future releases.
+
+NIST SSDF includes verification of software release integrity and protection of release artifacts as secure-development practices. <Cite id="nist-sp800-218" locator="§3, practices PO.3 and PS.2–PS.3" /> In practice, verification belongs at the consumer boundary. A producer-side “signing succeeded” log cannot protect a registry substitution that happens later.
+
+<Figure caption="Run the source-to-deploy pipeline, introduce one fault at a time, and compare where the risk becomes visible with where policy finally blocks it. Then combine faults to test layered controls.">
+  <SupplyChainLab />
+</Figure>
+
+The lab deliberately separates detection from enforcement. A malicious CI step may trigger egress monitoring after execution. A stolen identity may pass cryptographic verification. A missing SBOM may become obvious only at deployment preflight. Watch the stage assessment and the final decision: a signal that is detected but not enforced does not protect the release.
+
+Try these experiments:
+
+- Enable only **unsigned artifact**. The build can retain its SLSA evidence level, but production must block because artifact authenticity is missing.
+- Enable only **compromised dependency**. The scanner detects the toy finding at the SBOM stage, yet deployment still needs an enforcing vulnerability policy.
+- Enable **stolen signing identity** without other faults. The signature remains valid, demonstrating why signer identity is a separate predicate.
+- Enable **provenance mismatch**. The subject link fails even if the statement and artifact signatures are mathematically correct.
+- Combine **malicious CI step** and **missing SBOM**. The inventory is both absent and unable to reveal the undeclared build output.
+
+<WorkedExample
+  title="A valid signature over the wrong subject"
+  steps={[
+    "Build A produces image digest A. The registry initially stores digest A under the release tag.",
+    "A later registry operation stores digest B under the same mutable tag. The deployment request still resolves the tag rather than pinning digest A.",
+    "The signature verifies against digest A, and the signature bundle is genuine. The deployment controller, however, retrieves digest B.",
+    "A tag-only verifier reports success because it checked a signature associated with the release name, not the digest actually admitted.",
+    "The corrected policy resolves the deployment to an immutable digest and verifies that exact subject before scheduling it.",
+    "It also compares the provenance statement subject with the same digest and records the policy version and decision."
+  ]}
+  result="Cryptographic success does not repair a subject-selection error. Every evidence check must name the exact artifact that the runtime will execute."
+/>
+
+<Figure caption="A production verifier is a policy engine with explicit expectations. Parsing an attestation or checking a signature algorithm is only the beginning.">
+  <ProcessFlow
+    steps={[
+      {title: "Resolve", detail: "Pin the immutable artifact digest requested for deployment.", tone: "brand"},
+      {title: "Authenticate", detail: "Verify signature, trust chain and expected signer identity.", tone: "teal"},
+      {title: "Bind", detail: "Compare provenance subject and SBOM subject to the digest.", tone: "gold"},
+      {title: "Evaluate", detail: "Check source, builder, materials, vulnerabilities and licenses.", tone: "coral"},
+      {title: "Decide", detail: "Allow only when every required predicate passes.", tone: "brand"},
+      {title: "Record", detail: "Retain policy version, evidence references and failed checks.", tone: "teal"}
+    ]}
+  />
+</Figure>
+
+<KnowledgeCheck
+  question="Why can an artifact remain SLSA Build L3 while still being blocked?"
+  options={["SLSA levels measure software safety", "Build hardening and artifact policy answer different questions; vulnerabilities or missing artifact evidence can still block", "L3 forbids dependency updates", "A signed artifact must always deploy"]}
+  answer={1}
+  explanation="SLSA Build L3 concerns resistance to particular build-integrity threats. Release policy must still evaluate vulnerabilities, SBOM completeness, artifact signatures and local authorisation."
+/>
+
+</Lens>
+
+<Lens level={4} title="Deployment, operations and recovery">
+
+## Turn verification into an operating control
+
+Deployment verification fails when it is a report that nobody enforces. The controller that admits production workloads should evaluate the immutable digest, accepted signature identity, provenance expectations, SBOM subject and current vulnerability policy. The same evidence should be reusable across environments, while policy can differ by exposure and criticality.
+
+Promote digests, not rebuilds. A release approved in test should be the same artifact promoted to production. If environment-specific configuration is required, externalise it and bind the approved configuration separately. Rebuilding “the same commit” can select different dependencies, timestamps or tool output and creates a new subject that needs its own evidence.
+
+Policy should be versioned, reviewed and tested with positive and negative fixtures. Include a missing signature, a valid signature from an unexpected identity, an expired certificate, a digest mismatch, an SBOM for another artifact and an unavailable verification service. Decide whether uncertainty fails closed or uses a narrowly defined degraded mode. Production identity and provenance checks should normally fail closed; a broad emergency bypass becomes a permanent alternative path.
+
+| Policy layer | Example predicate | Failure behavior |
+| --- | --- | --- |
+| Artifact identity | Requested digest is immutable and approved | Reject mutable or unknown subject |
+| Signature | Signature verifies for that digest | Reject missing or invalid signature |
+| Signer | Issuer and subject match the release workload | Reject unexpected or overbroad identity |
+| Provenance | Subject, source, builder and materials match expectations | Reject mismatch or incomplete statement |
+| SBOM | BOM names the same digest and meets format policy | Reject missing or unbound inventory |
+| Vulnerability | Findings satisfy environment threshold or valid exception | Block, quarantine or require bounded approval |
+| License | Components satisfy distribution policy | Block or route to legal review |
+| Audit | Decision and evidence references are retained | Alert on logging failure and preserve the decision |
+
+## Protect CI and signing identities
+
+CI identity should be short-lived, audience-scoped and tied to a protected workflow. Avoid exporting long-lived cloud keys or package tokens into every job. Give build jobs only the permissions needed to fetch approved inputs and publish to a staging location. Give a separate release job the authority to sign or promote, and protect that job from untrusted pull-request execution.
+
+Separate duties where the risk justifies it. A developer may propose code, while an approved build workload produces release provenance. A release approver may authorise promotion, while an admission controller verifies the result. Two-person review is valuable for workflow and signing-policy changes because those changes can alter the authority of every later build.
+
+Monitor the meaning of identities, not only failed authentication. Track new certificate subjects, unusual repositories or refs, signing outside the expected schedule, unexpected token audiences and bursts of signatures for one artifact. Rekor and related transparency data can support monitoring, but alerts need ownership and a response path. <Cite id="sigstore" locator="Cosign, Fulcio and Rekor workflows" />
+
+Protect the build platform itself. Patch runners, restrict administrative access, isolate tenants, inventory third-party actions and review changes to build images. A hardened platform loses its value if a user-defined step can read provenance-signing credentials or modify another job's workspace. These are the kinds of controls that distinguish higher SLSA build assurance from merely hosting a build service. <Cite id="slsa" locator="SLSA v1.1 Build L2–L3 requirements" />
+
+## Measure evidence quality, not badge counts
+
+Useful metrics expose whether the release path can survive an incident. Track the percentage of production deployments pinned by digest, signature verification success and failure reasons, unexpected signer identities, provenance subject mismatches, SBOM binding failures and policy exceptions by age. A high signature rate is not meaningful if verification never runs at admission.
+
+Measure detection and recovery separately. Time to detect a compromised dependency, time to block affected digests, time to revoke an identity, time to rebuild a clean release and time to verify rollback are different intervals. Record the evidence used for each decision. Supply chain risk management includes ongoing assessment, response and monitoring rather than a static approval at procurement. <Cite id="nist-sp800-161r1" locator="§3 (supply chain risk management)" />
+
+Review policy bypasses and near misses. If teams repeatedly request the same exception, the package may be unnecessary, the vulnerability may be misunderstood or the deployment boundary may be wrong. NIST SSDF connects vulnerability response to root-cause analysis and improvement. <Cite id="nist-sp800-218" locator="§3, practices RV.2–RV.3" /> Close the loop with an owned engineering change rather than renewing the exception forever.
+
+## Respond to compromise without destroying the evidence
+
+When a dependency, build action or signing identity is suspected compromised, first preserve the records needed to scope impact: source and workflow revisions, lockfiles, run logs, artifact digests, SBOMs, signatures, certificate identities, transparency entries and deployment events. Restrict access to that evidence and record collection times. Speed matters, but an undocumented cleanup can make the blast radius impossible to determine.
+
+Containment should target immutable artifacts and authorities. Block affected digests at registries and admission controllers, prevent further promotion, revoke or disable compromised CI permissions, and suspend unexpected signing identities. Do not assume that removing a repository secret invalidates every token already issued. Determine token lifetime, sessions, caches and artifacts that may have been signed.
+
+Recovery means producing a new release from approved source and inputs, generating fresh SBOM and provenance, signing under an expected identity and verifying before promotion. Roll back only to a previously verified digest that is compatible with current data and configuration. A signature cannot be retroactively made never to have existed; the response must invalidate the identity's authority and make the suspicious artifacts distinguishable to consumers.
+
+<Figure caption="Supply chain incident response preserves the distinction between suspicious evidence, affected artifacts and trusted recovery. Re-signing an unverified artifact is not remediation.">
+  <ProcessFlow
+    steps={[
+      {title: "Preserve", detail: "Retain runs, identities, digests, attestations and deployment events.", tone: "brand"},
+      {title: "Scope", detail: "Map affected source, materials, identities and immutable artifacts.", tone: "gold"},
+      {title: "Contain", detail: "Block digests and revoke compromised authority.", tone: "coral"},
+      {title: "Rebuild", detail: "Produce clean artifacts with fresh subject-bound evidence.", tone: "teal"},
+      {title: "Verify", detail: "Apply the full policy and approve rollback or promotion.", tone: "brand"},
+      {title: "Learn", detail: "Fix root causes, detections and recovery controls.", tone: "gold"}
+    ]}
+  />
+</Figure>
+
+<WorkedExample
+  title="A stolen release identity signs an unauthorised build"
+  steps={[
+    "An attacker steals a developer token and obtains a valid certificate for a signing identity that is not the expected release workload.",
+    "The attacker builds an image containing an undeclared administrative binary, signs the exact digest and publishes it with apparently genuine provenance.",
+    "The signature verifies cryptographically, but admission policy requires the release-workload identity and rejects the unexpected subject.",
+    "The response team preserves the signature, certificate, transparency entry, artifact digest and deployment attempts, then blocks the digest across environments.",
+    "Identity owners disable the stolen credential, review issued certificates and tokens, and rotate any authority the attacker could have reused.",
+    "The team rebuilds from approved source in the protected release workflow, generates a new SBOM and provenance statement, signs under the expected identity and verifies the new digest.",
+    "Monitoring now alerts on any certificate for the retired developer signing path, and policy tests include a valid signature from that identity as a negative fixture."
+  ]}
+  result="Cryptographic validity did not imply authorisation. Containment targeted the artifact and identity; recovery produced fresh evidence instead of asking the stolen identity to legitimise old bytes."
+/>
+
+## Design for availability without creating a bypass
+
+Fail-closed verification can stop malicious releases and can also stop legitimate ones during an identity-provider or transparency-service outage. Define trust-root distribution, caching, validity windows and service-level objectives. Use bounded, reviewed degraded procedures only for the risks the organisation explicitly accepts, and record every use.
+
+Test recovery before the incident. Can operators identify every production digest? Can they retrieve its original SBOM and provenance? Can they distinguish a signature that is mathematically valid from one that is authorised? Can they promote a previously verified rollback without weakening policy? A tabletop that answers these questions is more valuable than a dashboard showing a high compliance percentage.
+
+The strongest supply chain programme makes the secure path the easiest path. Developers get fast dependency updates and reproducible local builds. Release engineers get one promotion command that carries immutable evidence. Security teams get legible failures and bounded exceptions. Operators get verified rollback artifacts. When secure behavior depends on memory and heroics, the system is fragile regardless of how many tools it owns.
+
+</Lens>
+
+## Guided workshop: decide whether release 2.4.0 may deploy
+
+The `ledger-api` team is preparing release 2.4.0. A pull request updates `payments-parser` from 4.8.0 to 4.8.1, changes the lockfile integrity value and pins a reusable build action to a commit digest. Review approves it as a patch update. During CI, an egress monitor reports that the action contacted an unexpected endpoint after tests passed; the release ticket notes the alert but does not link an investigation.
+
+The build produces image digest `sha256:7a…e21`. A 37-component SBOM is attached to that digest. The scanner reports a critical advisory in a runtime dependency. A VEX entry says `not_affected`, but its justification only says “feature disabled”. The release workflow signs the exact digest using a developer-token identity rather than the expected release workload. The provenance statement is genuine but names an earlier clean-build digest `sha256:3c…90b`. The deployment request targets digest `sha256:7a…e21`. No rollback verification has been rehearsed this quarter.
+
+<GuidedWorkshop
+  id="secure-software-supply-chain-workshop"
+  title="Build a release decision, containment plan and recovery path"
+  scenario="Decide whether the requested digest may deploy, which evidence can be trusted, which claims remain uncertain, and how to recover without blessing the current artifact."
+  tasks={[
+    "Separate observed facts, supported inferences and unsupported assumptions in the release record.",
+    "Map each suspicious event to a trust boundary and name the control that should have prevented or detected it.",
+    "Evaluate the dependency update and lockfile change without treating integrity as a safety proof.",
+    "Decide what the CI egress alert requires before the build output can be trusted.",
+    "Assess the SBOM, scanner result and VEX assertion as three distinct pieces of evidence.",
+    "Evaluate signature verification and signer authorisation independently.",
+    "Reconcile the provenance subject with the deployment digest and define the immediate deploy decision.",
+    "Write containment, clean rebuild, rollback verification and follow-up actions with owners and evidence."
+  ]}
+  hints={[
+    "A successful test, valid hash and genuine signature can all be true while the release is still unauthorised.",
+    "Ask where package code, reusable-action code, runner credentials, registry bytes and signing identity cross authority boundaries.",
+    "The lockfile can prove consistent resolution while saying nothing about publisher compromise or install-script behavior.",
+    "Detection after execution is not prevention; determine what the action could access and whether its output is now suspect.",
+    "A component inventory does not prove completeness, and a VEX status is an assertion that needs a bounded justification.",
+    "Check the exact artifact subject, certificate issuer and subject identity, and the policy's expected signer.",
+    "A statement for another digest cannot establish the path of the requested digest, even when its signature is valid.",
+    "Block the requested digest, preserve evidence, revoke the unexpected signing path and produce a fresh verified release."
+  ]}
+  solution={[
+    "Observed facts include the approved dependency update, changed lockfile integrity, unexpected egress alert, attached SBOM, critical scanner finding, VEX assertion, developer-token signature, provenance subject mismatch and requested deployment digest. Supported inferences include a possible compromised reusable action and a possible vulnerable runtime dependency. Unsupported assumptions include that patch versions are safe, that the egress was harmless, that the VEX assertion is correct, and that a valid signature authorises deployment. The release ticket should distinguish these categories explicitly.",
+    "The dependency crosses the supplier-to-build boundary; the action crosses the third-party-to-CI boundary; the token crosses the developer-to-signing boundary; the provenance crosses the build-to-attestation boundary; and the deployment crosses the registry-to-runtime boundary. Expected controls include approved package sources, isolated action execution, scoped CI identity, release-workload-only signing, provenance subject verification and fail-closed admission. The observed failures are late egress detection, a weak exception process, an overprivileged signing path and a deployment process that has not yet reconciled evidence.",
+    "Review the package source, release notes, maintainer and registry history, install scripts, full dependency graph and behavior tests. Reproduce resolution in a clean environment and compare the lockfile digest, but do not call that a safety proof. Determine whether 4.8.1 is actually the vulnerable version and whether the advisory affects the included build. Until the critical finding is remediated or supported by a defensible exception, the dependency is a blocking release risk under the stated policy.",
+    "Preserve action logs, network telemetry, token-use records, runner state and the exact action commit. Determine what data left the job, whether credentials were accessible, whether files or caches were modified and whether the action could influence the generated image or SBOM. Quarantine the digest and rebuild in a clean environment after removing or replacing the action. An alert that fires after execution can scope the incident, but it cannot make the current output trustworthy.",
+    "Verify that the SBOM names the requested digest and identify how it was generated. Check package identifiers, versions, relationships, licenses and omitted vendored or generated content. Re-run vulnerability matching with recorded database versions and inspect the affected code path. The VEX assertion needs a reachability argument, configuration evidence, a regression control and an owner. “Feature disabled” is insufficient when initialization or another path may still execute vulnerable code.",
+    "The signature covers the requested digest, so its mathematical verification can pass. The signer is nevertheless a developer-token identity rather than the approved release workload, so authorisation fails. Revoke or suspend that signing path, review certificates and tokens issued from it, and add a negative policy fixture containing a valid signature from the unexpected identity. Do not solve the problem by changing policy to accept every valid developer signature.",
+    "The genuine provenance statement names another digest and therefore cannot establish how the requested digest was produced. Block deployment for at least four independent reasons: unresolved CI behavior, an inadequately justified critical vulnerability, unexpected signer identity and provenance subject mismatch. Record each failed predicate and the policy version. Generating a new signature or editing the existing statement would not repair the missing evidence chain.",
+    "Containment owners should block the digest in every registry and admission controller, preserve release evidence and disable the unexpected signing authority. A clean-build owner should remove the compromised action, rebuild from approved source and locked materials, generate a fresh subject-bound SBOM and provenance, sign with the release workload and pass the complete policy. A service owner should verify a previously approved rollback digest against current configuration and data compatibility before using it. Follow-up owners should investigate the dependency, improve VEX review, restrict signing identities, add egress-to-release gating and rehearse rollback verification."
+  ]}
+  takeaway="A release is approved only when independent evidence describes the exact artifact, comes from expected authorities and satisfies current policy. Genuine evidence can still be irrelevant, incomplete or unauthorised."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Tag-based approval | Verified release differs from deployed bytes | Mutable tag promoted after signing | Pin and admit immutable digests |
+| Integrity equals safety | Lockfile passes after malicious update | Hash mistaken for supplier trust | Review source, behavior and graph changes |
+| SBOM without subject | Inventory exists but belongs to another build | Version name used as identity | Bind BOM to artifact digest |
+| Scanner oracle | Clean scan treated as proof of benign code | Inventory and database limits ignored | Record coverage, tool and database versions |
+| Weak VEX | Repeated “not affected” with no evidence | Exception workflow rewards speed | Require justification, owner, control and expiry |
+| PR secrets | External code receives cloud or registry credentials | Workflow triggers and permissions too broad | Separate untrusted and release workflows |
+| Mutable actions | Behavior changes under an unchanged tag | Action referenced by branch or tag | Pin reviewed commit digests |
+| Signing on developer laptops | Valid signatures from many identities | No dedicated release workload | Scope issuance and enforce expected signer |
+| Provenance parsing only | Wrong subject or builder passes verification | Claims not compared with expectations | Test every policy predicate |
+| Signature worship | Unsafe artifact deploys because it is signed | Cryptographic and safety claims conflated | Evaluate vulnerabilities and authorization separately |
+| Bypass normalization | Emergency exception never expires | No owner, alert or review | Time-bound exceptions with expiry metrics |
+| Recovery by re-signing | Suspicious bytes receive a fresh signature | Authority reused to legitimise uncertainty | Rebuild from approved inputs and verify fresh evidence |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Diagnostic | Fix |
+| --- | --- | --- | --- |
+| Signature works locally but fails in deployment | Different digest or trust root | Compare exact subject and verifier configuration | Pin digest and distribute reviewed trust roots |
+| Valid signature is rejected | Signer identity outside policy | Inspect certificate issuer, subject and expected workload | Correct identity issuance or policy through review |
+| Provenance always mismatches | Statement generated before final packaging | Compare statement subject with registry manifest | Generate attestation after final digest is known |
+| SBOM has fewer components than expected | Generator misses native, vendored or generated code | Compare package manager output and filesystem inventory | Configure multiple evidence sources and document gaps |
+| Scanner reports a fixed vulnerability | Backport or distro version not modelled | Inspect package version, vendor advisory and patched code | Improve matching or record a justified status |
+| Build differs on every run | Timestamps, network inputs or unlocked tools | Diff materials, environment and output metadata | Pin toolchains and make inputs explicit |
+| CI action behaves differently | Mutable tag or compromised upstream | Inspect resolved commit and action release history | Pin a reviewed digest and monitor upstream changes |
+| Policy fails during identity outage | Trust service unavailable or cache expired | Check issuer, timestamp, cache and service health | Define bounded caching and reviewed degraded behavior |
+| Rollback is blocked | Old digest lacks current evidence | Retrieve original SBOM, signature and provenance | Re-verify retained evidence or promote a newly verified build |
+| Stolen identity keeps signing | Tokens or certificates remain usable | Review issuance, token lifetime and revocation path | Disable authority, rotate credentials and monitor new events |
+
+## Design review checklist
+
+### Authority and source
+
+- [ ] Every repository, package source, build provider, registry and signing identity has an accountable owner.
+- [ ] Pull-request and fork code cannot access production secrets or release identity.
+- [ ] Branch, tag and workflow changes require appropriate review and are protected from direct modification.
+- [ ] Third-party actions, tools and base images are pinned to reviewed immutable content.
+
+### Dependencies and inventory
+
+- [ ] Resolution is locked and graph changes are reviewable, including transitive and build-time dependencies.
+- [ ] Registry mapping prevents internal names from resolving to unintended public packages.
+- [ ] Install hooks and native build steps execute with restricted credentials and network access.
+- [ ] SBOMs identify the exact artifact digest and include stable component identifiers, versions and relationships.
+- [ ] Inventory limitations, generation time, tool version and database version are retained.
+- [ ] Vulnerability exceptions state evidence, compensating control, owner and expiry.
+
+### Build and evidence
+
+- [ ] Builds run in isolated ephemeral environments with protected provenance-signing material.
+- [ ] Provenance names the exact subject, expected builder, approved source, materials and parameters.
+- [ ] Artifact signatures cover the exact deployment digest and use an expected workload identity.
+- [ ] Transparency and certificate events are monitored for unexpected signers and issuance patterns.
+- [ ] SLSA requirements name a version, track and concrete verification predicates.
+
+### Deployment and response
+
+- [ ] Production promotes immutable digests and does not rebuild approved source under the same identity.
+- [ ] Admission policy checks signature, signer, provenance, SBOM and environment-specific risk requirements.
+- [ ] Policy failures are fail-closed, auditable and tested with negative fixtures.
+- [ ] Operators can identify affected digests, revoke identities and preserve incident evidence.
+- [ ] Rollback artifacts retain verifiable evidence and are rehearsed against current compatibility needs.
+- [ ] Metrics pair verification coverage with failure causes, exception age and recovery time.
+
+## Key takeaways
+
+- A software supply chain is a graph of authority, not merely a list of open-source packages.
+- Lockfile integrity, SBOM completeness, provenance authenticity and signature authorisation are different claims.
+- Bind every piece of evidence to the immutable artifact digest that will actually run.
+- SLSA build levels measure specific integrity protections, not software safety.
+- A valid signature from an unexpected identity must fail release policy.
+- Detection without enforcement does not protect a release; deploy policy must consume the evidence.
+- Exceptions need evidence, compensating controls, ownership and expiry.
+- Recovery preserves evidence, revokes authority and rebuilds clean artifacts instead of re-signing uncertainty.
+
+## Practice
+
+1. Draw the authority graph for one production service, including package registries, reusable actions, runners, caches, signing identities and admission controllers.
+2. Compare two SBOMs for the same version tag but different digests. List the evidence needed to decide which inventory belongs to the deployed artifact.
+3. Write a policy predicate that accepts a signature only from the expected release workload and rejects a mathematically valid developer signature.
+4. Create negative verification fixtures for a missing SBOM, wrong provenance subject, unexpected signer and mutable deployment tag.
+5. Draft a VEX justification for one vulnerability, including reachability evidence, a compensating test, an owner and an expiry condition.
+6. Run a tabletop in which a reusable action is compromised after obtaining an OIDC token. Scope affected artifacts, revoke authority and define clean recovery.
+
+<KnowledgeCheck
+  question="Which recovery action best addresses a stolen signing identity?"
+  options={["Re-sign every suspicious artifact with the same identity", "Delete the old provenance and regenerate it later", "Preserve evidence, block affected digests, revoke the identity and rebuild under an expected workload", "Ignore the incident because the signatures verify"]}
+  answer={2}
+  explanation="Recovery must invalidate compromised authority and produce fresh, verifiable artifacts. A valid signature or newly generated statement does not legitimise bytes whose build path is untrusted."
+/>

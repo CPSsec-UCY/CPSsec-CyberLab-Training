@@ -15,6 +15,13 @@ const warnings = [];
 
 const TRACKS = [
   "Foundations",
+  "Red Team",
+  "Application Security",
+  "Identity & Access",
+  "Cloud & Infrastructure",
+  "Malware & Forensics",
+  "Digital Forensics & Incident Response",
+  "Software Supply Chain",
   "Post-Quantum Cryptography",
   "Network & Protocol Security",
   "Distributed Systems & Privacy",
@@ -32,6 +39,7 @@ const CITATION_TYPES = [
   "specification",
   "source",
   "website",
+  "book",
 ];
 
 const citationSchema = z.object({

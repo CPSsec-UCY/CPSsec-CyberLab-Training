@@ -3,7 +3,7 @@ slug: symmetric-crypto
 title: "Symmetric cryptography: AES, AEAD and key management"
 subtitle: "The workhorse of secure systems: fast encryption, authenticated integrity, and the key lifecycle that makes it safe."
 track: "Foundations"
-order: 3
+order: 2
 difficulty: "Intermediate"
 readingTime: 80
 summary: "Understand AES, ChaCha20, GCM, AEAD interfaces, nonces, key rotation and the failure modes that turn strong primitives into broken systems."
@@ -121,6 +121,10 @@ Two messages encrypted under the same key and nonce leak the XOR of their plaint
 </Callout>
 
 
+
+<Figure caption="Edit two toy plaintexts and toggle nonce reuse. Repeated XOR keystreams cancel out of the ciphertext XOR, while the separate authentication view illustrates GCM's tag-mask and authentication-key risk.">
+  <NonceReuseLab />
+</Figure>
 
 ## Worked example: a TLS record
 

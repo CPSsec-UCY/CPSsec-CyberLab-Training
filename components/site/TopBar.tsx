@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, BookOpen, FlaskConical, Github, ShieldCheck } from "lucide-react";
 
-const REPO_URL = "https://github.com/CPSsec-UCY/pqc-cyberlab";
+const REPO_URL = "https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training";
 
 export function TopBar() {
   return (

@@ -29,7 +29,7 @@ export default function CurriculumPage() {
               Find the cybersecurity course you need.
             </h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
-              Seven tracks, {stats.modules} self-contained courses and a four-lens reading model. Search by
+              {stats.tracks} tracks, {stats.modules} self-contained courses and a four-lens reading model. Search by
               topic, filter by level, or follow a role-based learning path.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">

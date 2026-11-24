@@ -3,14 +3,14 @@ slug: asymmetric-primitives
 title: "Public-key primitives: PKE, KEM, signatures and security notions"
 subtitle: "The interfaces and attacker games that every post-quantum scheme must satisfy — before a single parameter is chosen."
 track: "Foundations"
-order: 2
+order: 1
 difficulty: "Intermediate"
 readingTime: 85
 summary: "Learn the difference between encryption and encapsulation, why IND-CCA2 is the relevant target, and how signatures, KEMs and PQC families fit together."
 outcomes: ["Explain PKE, KEM and signature APIs and their different failure modes.", "Analyse IND-CCA2 and EUF-CMA attacker games.", "Trace the Fujisaki–Okamoto transform and implicit rejection.", "Evaluate hybrid combiners, serialization and implementation requirements."]
 citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012"]
 tags: ["foundations", "kem", "signatures", "security-models"]
-prerequisites: ["quantum-threat"]
+prerequisites: []
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
@@ -202,6 +202,10 @@ The FO transform converts a CPA-secure PKE into a CCA-secure KEM by deriving the
 $$
 r = G(m \,\|\, H(ek)), \qquad c = \mathsf{Enc}(ek, m; r).
 $$
+
+<Figure caption="Run a toy KEM state machine with clean and tampered ciphertexts. Decapsulation returns a rejection key rather than an error, and the later AEAD tag provides the single observable failure; the compact signature flow contrasts authenticity.">
+  <KemProtocolLab />
+</Figure>
 
 ## Signatures
 

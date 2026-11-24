@@ -3,7 +3,7 @@ slug: soc-operations
 title: "SOC operations: detection, triage and incident response"
 subtitle: "From telemetry to a defensible decision — how a security operations centre actually works."
 track: "Security Operations"
-order: 8
+order: 10
 difficulty: "Intermediate"
 readingTime: 85
 summary: "Log pipelines, SIEM, detection-as-code, MITRE ATT&CK, alert triage, incident response, metrics and the human factors that determine whether a SOC works."
@@ -14,6 +14,8 @@ prerequisites: ["deep-packet-inspection"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { DetectionQueryLab } from "../../components/visualizers/DetectionQueryLab";
 
 <Lens level={1} title="The emergency room for security events">
 
@@ -191,6 +193,10 @@ $$
 $$
 
 When attacks are rare, even a small $q$ can make most alerts false. This is why context and base rates are central to detection engineering. NIST's IDPS guidance stresses tuning and operational integration. <Cite id="sp800-94" locator="§2–4" />
+
+<Figure caption="Toggle process, parent, command-line, user and host predicates, then move the risk threshold. Compare the generated query's precision and recall against a hidden deterministic ground truth.">
+  <DetectionQueryLab />
+</Figure>
 
 ## Coverage versus noise
 

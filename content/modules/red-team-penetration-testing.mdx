@@ -1,0 +1,487 @@
+---
+slug: red-team-penetration-testing
+title: "Red team penetration testing: scope, lab methodology and attack reasoning"
+subtitle: "Turn authorisation, evidence and causal reasoning into a repeatable offensive assessment."
+track: "Red Team"
+order: 15
+difficulty: "Intermediate"
+readingTime: 95
+summary: "Learn to plan and execute a bounded penetration test in an isolated toy range, moving from reconnaissance to validated findings and evidence-backed reporting. The course connects hands-on testing methodology with low-level reasoning about memory, control flow and exploitability without providing live exploit code."
+outcomes: ["Write an engagement scope with explicit assets, techniques, stop conditions and escalation contacts.", "Build an isolated lab with synthetic data, controlled egress and reproducible snapshots.", "Separate reconnaissance observations from validated vulnerabilities and proven impact.", "Reason about source-to-sink paths, memory layout and control-flow preconditions for binary findings.", "Produce chain-of-custody evidence, ATT&CK mappings, remediation priorities and a verified cleanup record."]
+citations: ["book-weidman-pentest", "book-erickson-hacking", "owasp-asvs", "nist-sp800-86", "mitre-attack"]
+tags: ["red-team", "penetration-testing", "lab-methodology", "binary-reasoning"]
+prerequisites: ["asymmetric-primitives", "web-application-security"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+import { RedTeamRangeLab } from "../../components/visualizers/RedTeamRangeLab";
+
+An engagement is not a licence to explore everything that responds to a probe. It is a bounded investigation with a decision to support, an owner who can stop it, and evidence another person can review. This course uses a fictional organisation, **Cobalt Canary Works**, and a toy network whose hostnames end in `.test` or `.example.test`. No host in the course is a live target. The objective is to learn the reasoning that connects scope, observation, validation, impact and remediation while keeping every action reversible and authorised.
+
+The two core books approach that reasoning from different directions. Georgia Weidman's *Penetration Testing: A Hands-On Introduction to Hacking* provides an engagement arc from virtual-lab preparation through information gathering, vulnerability analysis, exploitation, post-exploitation and reporting. <Cite id="book-weidman-pentest" locator="Ch. 0, “The Stages of the Penetration Test,” and Ch. 1, “Setting Up Your Virtual Lab”" /> Jon Erickson's *Hacking: The Art of Exploitation* explains the lower-level relationship among program state, memory layout, control flow and exploitation. <Cite id="book-erickson-hacking" locator="Ch. 0x200, “Programming,” and Ch. 0x300, “Exploitation”" /> We use their methodology and reasoning, not their exercises, commands or exploit implementations.
+
+<Callout variant="warning" title="Authorisation comes before capability">
+Every action in a real engagement needs a documented owner, asset scope, permitted technique, testing window and stop condition. If scope is unclear, pause and obtain written clarification. Technical ability never substitutes for permission.
+</Callout>
+
+<Lens level={1} title="Authorisation is the first exploitability condition">
+
+## Start with the decision the client needs to make
+
+A useful penetration test begins with a decision rather than a tool. Cobalt Canary Works might need to know whether an internet-facing partner portal can reach its synthetic reporting data, whether a legacy parser is safe to retire, or whether its incident team can detect a controlled credential-abuse scenario. Each decision implies a different scope, success criterion and evidence requirement. “Test the network” is too vague to govern a safe engagement.
+
+Translate the decision into a small set of testable questions. For the portal, the questions might be: Can an unauthenticated visitor enumerate hidden routes? Can one tenant read another tenant's synthetic records? Does the edge reject malformed requests without reaching the application? Does the monitoring stack record a validation attempt? State which questions are in scope, which are explicitly excluded and which require a separate approval. This prevents a technically interesting diversion from consuming the testing window or creating unplanned business risk.
+
+Weidman places pre-engagement, threat modeling, vulnerability analysis, exploitation, post-exploitation and reporting inside a staged penetration-test lifecycle. <Cite id="book-weidman-pentest" locator="Ch. 0, “The Stages of the Penetration Test” (pre-engagement, threat modeling and reporting)" /> The modern engagement adds operational details around data handling, third-party services and emergency communication, but the core discipline remains: define the work, gather information, form hypotheses, validate safely and communicate results.
+
+## Write scope as an enforceable contract
+
+A scope document should identify legal entities, named systems, IP ranges, domains, cloud accounts, application environments, source repositories and people authorised to receive findings. It should distinguish an asset that merely resolves in DNS from an asset the team may actively test. Include shared services, content delivery networks, identity providers and support vendors whose behaviour could be affected by the test. If a dependency is owned by another party, obtain that party's approval or mark it out of scope.
+
+Technique constraints matter as much as asset constraints. Specify whether social engineering, password spraying, denial-of-service testing, physical access, wireless testing, persistence, privilege escalation and data extraction are permitted. Define limits on request volume, concurrency, test accounts and duration. A test that proves availability risk by taking a service offline may still violate the engagement if disruption was not authorised. The report should never have to explain that an unapproved action was necessary to answer the agreed question.
+
+Build a rules-of-engagement table with six columns: objective, permitted action, forbidden action, evidence to collect, stop trigger and escalation contact. For Cobalt's parser, a permitted action could be submitting a bounded malformed fixture to a disposable test process. A forbidden action could be sending the fixture to a production endpoint or reusing a real customer file. The stop trigger might be memory growth beyond a stated threshold, host instability or any unexpected outbound connection. The contact must be reachable during the test, not merely listed in a report template.
+
+## Build the lab before building the attack
+
+Weidman devotes substantial attention to setting up a virtual lab because tool behaviour, target versions and network configuration are part of the experiment. <Cite id="book-weidman-pentest" locator="Ch. 1, “Setting Up Your Virtual Lab” (network configuration and target virtual machines)" /> A safe lab is not just a vulnerable application on a laptop. It is a controlled environment where the attacker, target, observer and evidence store have known relationships and where accidental reach toward production is difficult.
+
+Use separate virtual networks for the range client, target services and monitoring. Deny production routes, remove real credentials and replace customer records with generated fixtures. Snapshot targets before testing so a crash or configuration change can be reversed. Record hypervisor, operating-system, application and tool versions, because a result that depends on one build is not automatically a finding about another. Synchronise clocks across the client, target and log collector; otherwise a convincing sequence can be impossible to reconstruct.
+
+Control egress deliberately. A target that cannot resolve or reach an external service may behave differently from production, while unrestricted egress can turn a lab accident into a real incident. Use a simulated gateway for expected callbacks and external APIs. Log denied attempts. If the scenario requires a callback, route it to an isolated listener and document why. Weidman's discussion of traffic capture reinforces the value of observing the test path rather than assuming a tool reached the intended service. <Cite id="book-weidman-pentest" locator="Ch. 7, “Capturing Traffic” (capture setup, filters and stream analysis)" />
+
+## Facts, inferences and unknowns
+
+Maintain three separate columns in the engagement notebook. A **fact** is directly supported by an artefact: a response contained a specific header, a process wrote a marker file, a log recorded a denied role assumption. An **inference** explains facts under a hypothesis: the banner suggests an outdated component, the marker read suggests the role can reach that path. An **unknown** names evidence still required: the banner may be spoofed, the marker path may be synthetic, the role may be constrained by a network policy not yet tested.
+
+This separation is essential when offensive work produces ambiguous signals. A scanner may report a vulnerability because a version string matches, but the vulnerable code path may be disabled. A crash may indicate memory corruption, a resource limit or an ordinary exception. A successful login with a supplied test account proves that account works, not that authentication is bypassed. Record the observation first, then the interpretation, then the next discriminating test. This makes the engagement reviewable and prevents a plausible narrative from becoming unsupported fact.
+
+MITRE ATT&CK provides a common vocabulary for adversary behaviour across tactics such as reconnaissance, discovery, credential access and collection. <Cite id="mitre-attack" locator="Enterprise Reconnaissance, Discovery, Credential Access and Collection tactics" /> Use it after describing the observed behaviour, not before. A technique tag organises findings and supports detection discussions, but it does not establish intent, identify an actor or prove that a particular procedure occurred. The evidence should remain primary.
+
+## Stop conditions are part of test design
+
+Define stop conditions before the first active probe. They include unexpected production traffic, access to real personal data, instability in a shared service, loss of logging, evidence-store failure, credential exposure and scope ambiguity. The tester must have authority to pause without waiting for a meeting. Record the time, reason, affected assets, actions already taken and whether evidence needs preservation. A disciplined stop is a successful safety outcome, not a failed test.
+
+For a web-facing component, OWASP ASVS can help translate architectural promises into verifiable requirements. Relevant areas include architecture and threat modeling, authentication, access control, validation and encoding, data protection, and files and resources. <Cite id="owasp-asvs" locator="V1, V2, V4, V5, V8 and V12 verification requirements" /> The engagement should select requirements that support its decision, then define what evidence would satisfy each one. A requirement such as “the service rejects unauthorised object access” becomes testable only when the tester identifies the object, role, request and expected denial.
+
+<Figure caption="The six phases of this course's toy engagement. Each transition has a scope check, a required artefact and an explicit stop option.">
+  <ProcessFlow
+    steps={[
+      {title: "Recon", detail: "Confirm the approved destination and capture a baseline with synthetic data.", tone: "brand"},
+      {title: "Enumerate", detail: "Inventory only exposed toy services, roles and routes within the allowlist.", tone: "teal"},
+      {title: "Validate", detail: "Test a harmless canary that distinguishes a hypothesis from a banner claim.", tone: "gold"},
+      {title: "Simulate", detail: "Demonstrate impact with a marker object; never run a live exploit.", tone: "coral"},
+      {title: "Evidence", detail: "Preserve requests, responses, policy decisions and clock context.", tone: "brand"},
+      {title: "Clean up", detail: "Remove toy state, restore snapshots and confirm the agreed baseline.", tone: "teal"}
+    ]}
+  />
+</Figure>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Which item most directly authorises an active test against a named host?"
+  options={["A public DNS record", "A scanner that reports the host as reachable", "A signed scope entry naming the host, permitted techniques and testing window", "A vulnerability listed in a public database"]}
+  answer={2}
+  explanation="Reachability and public vulnerability information do not grant permission. Authorisation must name the asset, allowed activity, timing and constraints."
+/>
+
+## Review the engagement as a risk experiment
+
+Before testing, walk through the most plausible harmful outcomes. Could a probe corrupt a database, trigger a costly cloud workflow, send mail to a customer, lock an account or expose a secret in logs? For each outcome, identify prevention, detection and recovery. Reduce the chance of harm before increasing technical depth. A smaller test that answers the decision is better than a comprehensive test that creates avoidable operational risk.
+
+The first lens ends with a scope review, not a scan. Confirm that every planned action maps to an objective, every destination maps to an approved asset and every risky action has a stop condition. If the team cannot explain why an action is necessary, remove it from the plan. The next lens turns the approved surface into observations and testable hypotheses without confusing discovery with proof.
+
+</Lens>
+
+<Lens level={2} title="Reconnaissance and enumeration turn claims into hypotheses">
+
+## Passive information reduces unnecessary interaction
+
+Passive reconnaissance uses information that already exists outside the target interaction: public registrations, published documentation, job postings, certificate transparency records, source repositories and vendor advisories. It can reveal technologies, naming conventions, ownership and likely dependencies. It can also be wrong, stale or intentionally misleading. Preserve the source, retrieval time and exact observation rather than copying a conclusion from a third party.
+
+For Cobalt Canary Works, the fictional public material might mention a partner portal, a reporting API and a migration from an older document parser. That suggests where to look, but it does not prove those components are deployed or reachable. A certificate names a host; it does not prove the corresponding service is authorised for testing. A job posting names a framework; it does not prove the running version. Treat passive results as a queue of hypotheses constrained by scope.
+
+Weidman separates open-source intelligence gathering from active port scanning in the information-gathering phase. <Cite id="book-weidman-pentest" locator="Ch. 5, “Information Gathering” (open-source intelligence, DNS reconnaissance and port scanning)" /> That separation is operationally important. Passive collection can often be performed with less target impact, while active scanning changes the target's observed state and must be explicitly permitted. Record which category each action belongs to so the engagement log accurately reflects interaction.
+
+## Active enumeration needs a budget
+
+Active enumeration asks the target about services, routes, roles or configurations. It should be rate-limited, time-bounded and tied to a question. “Find every open port” is less useful than “determine whether the approved management interface is reachable from the range network.” A request budget prevents a misconfigured loop or an unexpectedly large address space from becoming an accidental denial of service.
+
+Use the smallest probe that distinguishes the hypotheses. A normal request can establish a baseline. A single OPTIONS request may clarify supported methods, but frameworks differ in what they return. A HEAD request can reveal headers without transferring a large body, yet a poorly implemented endpoint may still perform expensive work. Record response time, status, headers and body size, but do not infer health or vulnerability from one metric. Compare repeated observations before claiming instability or a timing side channel.
+
+Weidman's vulnerability-analysis discussion combines scanner output with research and manual analysis, explicitly warning against treating scanner rankings as final truth. <Cite id="book-weidman-pentest" locator="Ch. 6, “Finding Vulnerabilities” (scanner policy, research and manual analysis)" /> A scanner is an evidence generator. It may identify a promising version or configuration, but the tester must confirm that the vulnerable component exists, the relevant feature is enabled, the input reaches it and the security boundary is meaningful in this deployment.
+
+## Build an asset and surface inventory
+
+An inventory should connect each observation to an owner and a trust zone. Record hostname, approved address range, environment, service, protocol, authentication requirement, role, data classification and evidence source. For a web application, extend the inventory to routes, parameters, cookies, headers, object identifiers, asynchronous jobs and outbound integrations. For a binary target, record build, architecture, dependencies, exposed input interfaces and runtime privileges.
+
+The inventory is also a scope-control tool. When a service returns a link to an unapproved host, do not follow it automatically. When a certificate reveals a related domain, add it to the question list and request approval. When a cloud endpoint redirects to a shared provider console, stop. A useful engagement notebook makes out-of-scope discoveries visible without turning them into unauthorised tests.
+
+Map observed actions to ATT&CK only when the behaviour is clear. Service discovery may align with Network Service Discovery, while gathering host software details may align with Gather Victim Host Information. <Cite id="mitre-attack" locator="Enterprise Discovery tactic and host-discovery techniques" /> Keep the mapping next to the evidence, not as a replacement for it. A detection team needs to know which request produced which event, which user context was used and whether the target had seen similar benign activity.
+
+## Distinguish exposure, weakness and vulnerability
+
+Three terms are often collapsed. **Exposure** means an asset or interface is reachable under some conditions. A **weakness** is a property that may undermine a security requirement, such as accepting an untrusted path without canonicalisation. A **vulnerability** is a weakness in a particular deployment that can be exercised to cross a security boundary. An exposed health endpoint may disclose only a version. A version may correspond to a known weakness. The weakness becomes a validated vulnerability only when the relevant path and conditions are demonstrated.
+
+Consider a toy gateway that advertises an old parser build in a banner. The banner is a fact. The advisory suggests that some builds mishandle a particular document feature. The deployment runs an experimental profile, but the vulnerable feature is disabled. A scanner might still report high severity. The correct finding is a hardened-inventory issue and an unvalidated hypothesis, not confirmed code execution. The discriminating test is a harmless fixture in the isolated parser instance that reveals whether the feature is reachable and how failure is handled.
+
+A second example involves object identifiers. The API returns a different response code for existing and nonexistent synthetic records. That establishes an enumeration oracle, which may help discover valid identifiers. It does not establish unauthorised read access. The next test uses two approved tenant accounts and a marker record to determine whether the authorisation boundary is enforced. This is why access-control testing must preserve both identity and object context.
+
+<Figure caption="Evidence ladder for Cobalt's toy gateway. Each rung adds a necessary condition; no rung alone proves a complete vulnerability.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[680px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted">
+        <tr><th className="px-3 py-2">Rung</th><th className="px-3 py-2">Observed evidence</th><th className="px-3 py-2">What it supports</th><th className="px-3 py-2">What remains unknown</th></tr>
+      </thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">1 · Reachability</td><td className="px-3 py-2">Approved host answers from the range network.</td><td className="px-3 py-2">A route exists.</td><td className="px-3 py-2">Whether the interface should be exposed and what authority it grants.</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">2 · Identity</td><td className="px-3 py-2">Banner and build metadata identify a candidate component.</td><td className="px-3 py-2">A testable version hypothesis.</td><td className="px-3 py-2">Whether metadata is accurate and the affected feature is enabled.</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">3 · Input path</td><td className="px-3 py-2">A toy fixture reaches the parser in an isolated process.</td><td className="px-3 py-2">The relevant input path exists.</td><td className="px-3 py-2">Whether the weakness causes a security-boundary crossing.</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">4 · Effect</td><td className="px-3 py-2">A synthetic marker is returned or a bounded state change is observed.</td><td className="px-3 py-2">Demonstrated impact in the toy model.</td><td className="px-3 py-2">Production reachability, real data impact and detection coverage.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+<WorkedExample
+  title="Validate a stale banner without claiming code execution"
+  steps={[
+    "The approved toy gateway returns a banner naming an older parser build. Record the exact response and retrieval time as a fact.",
+    "Research the build and create a hypothesis that a specific document feature may be enabled. Do not reuse a book exercise or a live exploit.",
+    "In an isolated parser instance, submit a benign document that exercises only the disputed feature and emits a synthetic marker when processed.",
+    "Observe that the marker appears, proving the feature path is reachable. Also record that the process remains stable and writes no unexpected files.",
+    "Test a bounded malformed fixture under a resource limit. The parser returns a controlled error, so memory corruption and code execution are not demonstrated.",
+    "Report the outdated component and reachable feature as facts, the malformed-input behaviour as a controlled test, and code execution as unproven. Recommend upgrade and regression tests rather than an exploit claim."
+  ]}
+  result="The engagement produces an actionable hardening finding while preserving the distinction between exposure, reachable weakness and proven impact. The report does not overstate a scanner or banner match."
+/>
+
+## Capture traffic as evidence, not just decoration
+
+Traffic capture can confirm which host, port, protocol and payload actually participated in a test. It can also expose accidental secrets, so captures need the same access controls as sensitive evidence. Use filters to reduce unrelated traffic, synchronise clocks and preserve the original capture before analysing a copy. A screenshot of a proxy history is useful for explanation but cannot replace the underlying request and response.
+
+When a proxy or client retries a request, record the retry behaviour. A timeout may mean the service is slow, a middlebox dropped the connection or the client never sent the body. When TLS is involved, the proxy may see only connection metadata unless the test environment explicitly permits interception with a controlled certificate. Never install an interception certificate on a user's production browser as an informal testing convenience. The lab should make the observation method part of the experimental setup.
+
+Weidman's traffic-capture chapter connects protocol observation with testing rather than treating packet inspection as an end in itself. <Cite id="book-weidman-pentest" locator="Ch. 7, “Capturing Traffic” (filters, TCP streams and packet dissection)" /> Apply the same principle to application traces: preserve enough context to explain the result, but collect no more sensitive data than the decision requires. Evidence quality comes from relevance, provenance and reproducibility, not volume.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="A scanner reports a critical vulnerability because a service banner matches an affected version. What is the strongest next step?"
+  options={["Report confirmed critical code execution", "Run every available exploit to be certain", "Validate the affected feature and input path in the authorised isolated environment", "Ignore the banner because scanners are unreliable"]}
+  answer={2}
+  explanation="Version matching creates a hypothesis. Validation must establish that the affected feature is reachable and that the claimed effect crosses a meaningful security boundary."
+/>
+
+## Decide whether to continue
+
+At the end of enumeration, review the inventory against scope and the original decision. Remove duplicate hypotheses, merge observations that test the same condition and prioritise paths with plausible impact. If evidence shows that a suspected route is blocked by a control, record the control and stop testing that route unless a different bypass hypothesis is justified. If a new asset appears, seek approval before interacting with it.
+
+A good enumeration report can be mostly negative: the approved management interface is not reachable, the expected feature is disabled, the role cannot read the marker object, and the monitoring stack records the probes. These results reduce uncertainty and may answer the client's question without exploitation. The next lens begins only when the team has a specific, evidence-backed path worth validating.
+
+</Lens>
+
+<Lens level={3} title="Validation and simulation require causal reasoning">
+
+## A finding needs a source, a path and a consequence
+
+Validation asks whether a hypothesis survives a discriminating test. Start by drawing the source of untrusted data, every transformation it passes through, the security decision that should constrain it and the sink where authority is exercised. If the team cannot draw that path, it is not ready to test impact. A missing transformation is a clue; a missing authorisation decision may be the actual weakness.
+
+For web paths, the sink might be a query interpreter, an HTML renderer, a filesystem operation or an outbound fetch. For binary paths, the sink might be a memory write, an indirect call, a format operation or a privilege boundary. The source-to-sink model works at both levels because it forces the tester to explain causality. A response difference is not enough; the team should be able to say which condition changed, which component interpreted it and what security property was lost.
+
+Weidman moves from vulnerability discovery to exploitation only after candidate weaknesses have been investigated. <Cite id="book-weidman-pentest" locator="Ch. 6, “Finding Vulnerabilities,” and Ch. 8, “Exploitation”" /> In this course, exploitation is represented by a simulation: a synthetic marker, a controlled read, a denied write or a bounded state change. That preserves the causal question while removing the need for a working exploit. A real engagement may permit stronger validation, but it still requires the same reasoning and explicit impact limits.
+
+## Read memory as a state machine
+
+Erickson's programming chapters build the foundation for exploitation by explaining variables, pointers, functions, process memory and stack frames. <Cite id="book-erickson-hacking" locator="Ch. 0x200, “Programming,” especially 0x263 “Pointers” and 0x270 “Memory Segmentation”" /> For a tester, the important shift is to stop treating a crash as a mysterious event and start treating it as a transition between program states. Memory holds code, static data, heap allocations, stack frames and runtime values. Function calls establish expectations about saved state, return addresses and local object boundaries.
+
+A toy function that copies a label into a fixed-size stack buffer creates a simple state model. The input has a length, the destination has a capacity and the copy operation has a bound. If the bound is absent or calculated incorrectly, bytes may overwrite adjacent stack data. The existence of an unsafe copy is a weakness. Whether it is exploitable depends on what lies adjacent, whether the overwritten value affects control flow, which mitigations are enabled and whether the effect can be observed safely.
+
+Erickson's treatment of stack-based overflow vulnerabilities connects those conditions rather than presenting a crash as automatic code execution. <Cite id="book-erickson-hacking" locator="Ch. 0x300, “Exploitation,” 0x320 “Buffer Overflows” and 0x321 “Stack-Based Buffer Overflow Vulnerabilities”" /> Modern compilers and operating systems add protections such as stack canaries, non-executable memory and address randomisation. Their presence changes the exploitation argument, not the need to fix the underlying memory-safety defect. A canary may turn an overwrite into a controlled abort; it does not make the original operation correct.
+
+<Figure caption="A conceptual toy stack frame. The diagram names state and boundaries only; it contains no offsets, payload or exploit instructions.">
+  <div className="not-prose grid gap-2 md:grid-cols-4">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-brand-700">Caller state</p>
+      <p className="mt-2 text-xs font-bold text-navy">Arguments and return context</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">The caller expects the callee to preserve defined state and return to a valid continuation.</p>
+    </div>
+    <div className="rounded-xl border border-coral-200 bg-coral-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-coral-700">Fixed buffer</p>
+      <p className="mt-2 text-xs font-bold text-navy">Label storage with a capacity</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">The test varies input length while a resource monitor watches for out-of-bounds behaviour.</p>
+    </div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-800">Integrity metadata</p>
+      <p className="mt-2 text-xs font-bold text-navy">Canary, saved registers or bounds</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">A detected change can stop execution. The report records the detection rather than claiming control-flow hijack.</p>
+    </div>
+    <div className="rounded-xl border border-line bg-mist-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">Continuation</p>
+      <p className="mt-2 text-xs font-bold text-navy">Return or error path</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">A safe validation result is a bounded rejection, a logged error or an unchanged synthetic marker.</p>
+    </div>
+  </div>
+</Figure>
+
+## Reason about heap and format-string classes without weaponising them
+
+Not every memory-safety issue lives on the stack. Erickson discusses overflows in other memory segments, including heap objects and function pointers. <Cite id="book-erickson-hacking" locator="Ch. 0x340, “Overflows in Other Segments,” 0x341 “A Basic Heap-Based Overflow” and 0x342 “Overflowing Function Pointers”" /> The causal questions change with allocation layout, object metadata and lifetime. A tester should ask which object is adjacent, which pointer or length is trusted afterward and whether the effect changes a later security decision. Heap corruption may manifest far from the original input, so correlation across allocation, access and failure events matters.
+
+Format-string weaknesses arise when untrusted data is treated as formatting instructions rather than a value. Erickson separates format parameters from the format-string vulnerability and explains why controlling a format string can expose or alter memory. <Cite id="book-erickson-hacking" locator="Ch. 0x350, “Format Strings,” especially 0x351 “Format Parameters” and 0x352 “The Format String Vulnerability”" /> The defensive test is simple in principle: confirm that user-controlled text is always passed as a value to a fixed format, never as the format itself. A safe lab fixture can use a distinctive inert token and a debugger to inspect argument handling without reading real secrets or producing a working exploit.
+
+The point of learning these classes is not to memorise payload shapes. It is to recognise the invariant that was broken. Memory writes must stay within their object, pointers must reference valid objects of the expected type, lengths must remain consistent and formatting data must never become instructions. Those invariants can be reviewed in source code, checked with sanitizers in a disposable build and validated with bounded fuzz fixtures. Weidman's exploit-development chapters connect fuzzing and controlled debugging to the same discovery process. <Cite id="book-weidman-pentest" locator="Ch. 16, “A Stack-Based Buffer Overflow in Linux,” and Ch. 19, “Fuzzing, Porting Exploits, and Metasploit Modules”" />
+
+## Use a validation record for every candidate
+
+A validation record should contain the hypothesis, prerequisites, exact fixture, environment, expected safe outcome, observed outcome, evidence identifiers and confidence. Include contrary evidence. If a malformed input is rejected before the parser, the input-path hypothesis fails. If the parser logs an error but continues normally, the impact hypothesis weakens. If a marker file appears, record its synthetic origin and confirm that no real data was accessed.
+
+Rate the claim, not the tool output. **Confirmed** means the team directly observed the stated effect under recorded conditions. **Probable** means multiple independent observations support the claim but one condition remains untested. **Unvalidated** means only a banner, advisory or scanner result exists. **Not reproducible** means the test was attempted and the expected effect did not occur. These categories are more useful to a client than a single severity number because they describe the quality of the evidence.
+
+For a simulated account-abuse path, the marker might be a read-only record that only the test role should reach. Record the role policy, the authenticated request, the response and the corresponding audit event. Do not use a real employee credential or copy a real token into the report. If the action succeeds, the demonstrated impact is access to a synthetic object under that role. Production impact still depends on whether the same role and route exist outside the lab.
+
+<WorkedExample
+  title="A parser crash is evidence of failure, not proof of execution"
+  steps={[
+    "A disposable parser receives a bounded set of generated documents. One fixture causes the process to exit with a non-zero status.",
+    "Repeat the fixture under a debugger and resource monitor. The process stops at a bounds check before any synthetic marker is returned.",
+    "Compare with a normal document and a truncated document. Both malformed cases follow the same controlled rejection path, which weakens the memory-corruption hypothesis.",
+    "Inspect the parser logs and find that the fixture exceeds a configured document-size limit. The failure is an expected resource guard.",
+    "Report the crash as a reproducible availability observation with low security impact in this configuration. Recommend a clearer client error and monitoring, not an exploitation claim.",
+    "Keep the fixture and environment hash so the development team can reproduce the behaviour and later verify the improvement."
+  ]}
+  result="The tester preserves a useful operational finding while rejecting an unsupported code-execution narrative. The causal chain, not the dramatic symptom, determines the claim."
+/>
+
+## Operate the scoped range simulator
+
+<Figure caption="RedTeamRangeLab: choose a toy target, edit the scope allowlist and advance through guarded phases. Toggle the out-of-scope neighbour to see the stop decision prevent new evidence collection.">
+  <RedTeamRangeLab />
+</Figure>
+
+The simulator deliberately makes safety visible. Select the demo portal and advance through recon, enumeration and validation. Each completed phase adds one artefact to the ledger. At exploitation simulation, the guardrail allows only a synthetic marker; at evidence, it requires a minimal package; at cleanup, it restores the toy baseline. The ATT&CK label describes the modelled action but is not treated as proof that a real technique occurred.
+
+Now edit the allowlist so the selected host is absent. The decision changes to STOP and the next action is suppressed. Add the host back and apply the new scope; the toy run restarts so stale evidence cannot imply that earlier actions were authorised under the new rules. Finally, enable the out-of-scope neighbour. It remains blocked even if a broad wildcard is present, because this exercise reserves it as unauthorised. That models an important principle: a technically matching scope expression cannot override an explicit exclusion.
+
+Use the lab to rehearse conversations as well as clicks. What would you tell the range owner when scope fails? Which artefact proves the check happened? What would you preserve before cleanup? How would you distinguish a blocked control from a failed test? The simulator's evidence ledger is intentionally small, but the discipline scales to engagements with hundreds of observations.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="What does a controlled abort from a stack canary establish?"
+  options={["Successful arbitrary code execution", "That the program detected an integrity violation and stopped", "That every memory operation in the program is safe", "That the input never reached the vulnerable function"]}
+  answer={1}
+  explanation="The abort supports the conclusion that a protection detected corruption. It does not by itself prove execution, locate the root cause or establish safety elsewhere."
+/>
+
+## Move from simulation to evidence
+
+Once a toy path is validated, stop adding technical variations unless they answer a new question. The most valuable next step is often to make the result reproducible and understandable. Preserve the exact fixture, build, configuration and request. Record which mitigations were active. Separate the observed effect from assumptions about production. If detection is part of the objective, preserve the relevant logs and note gaps in timestamps or fields.
+
+Weidman's post-exploitation chapter emphasises that access is only useful when it supports the assessment objective. <Cite id="book-weidman-pentest" locator="Ch. 13, “Post Exploitation” (using a foothold to answer assessment questions)" /> In a safe simulation, the equivalent question is whether the demonstrated marker access reveals a broader design problem: excessive role permissions, weak network segmentation, missing object authorisation or insufficient monitoring. The report should explain that design consequence rather than celebrating the mechanics of the test.
+
+</Lens>
+
+<Lens level={4} title="Evidence, cleanup and reporting turn activity into assurance">
+
+## Preserve evidence through a defined process
+
+NIST's forensic guidance organises work into collection, examination, analysis and reporting, with attention to integrity and provenance. <Cite id="nist-sp800-86" locator="§3–4 (collection, examination, analysis and reporting)" /> Penetration testing is not a forensic investigation, but it benefits from the same discipline. A finding that cannot be traced to an original request, response or log record is difficult to reproduce or defend. Evidence handling should be designed before the first test, not improvised after a disputed result.
+
+Collect the minimum artefact that supports the finding. For a web issue, that may be the request, response, account role, object identifier and relevant server log. For a binary issue, it may be the source revision, build flags, fixture hash, debugger transcript, sanitiser output and resource trace. For an access-control issue, it may be the policy document, two test identities and a side-by-side allow-and-deny comparison. Redact secrets and personal data from working copies while preserving the authorised original under appropriate controls.
+
+Use stable evidence identifiers and a manifest. Record the collector, collection time, time zone, tool and version, source asset, storage location and hash where appropriate. A hash supports integrity comparison; it does not prove that collection was complete, lawful or correctly attributed. Keep an original and analyse a working copy. If evidence must be transferred, record the sender, recipient, method and time. These practices make handoffs and retests reliable.
+
+## Normalise time without destroying the original
+
+Distributed systems rarely share a perfect clock. Record the time source and known offset for the range client, target and log collector. Preserve original timestamps before normalising them into a common timeline. A response that appears before its request may indicate clock skew, asynchronous processing or an incomplete trace rather than a protocol anomaly. The timeline should state uncertainty instead of hiding it.
+
+For each finding, connect the technical event to the business asset. “The toy API returned marker record M-17 to role R-2” becomes useful when the report explains that R-2 represents a support integration which should only read its own tenant's records. The mapping from technical role to business function is part of the evidence. Without it, a reader cannot judge whether the observed access is expected, excessive or irrelevant.
+
+NIST also stresses examination and analysis as distinct activities. <Cite id="nist-sp800-86" locator="§3.2–3.3 (examination and analysis)" /> Examination extracts relevant information from collected data; analysis interprets it against hypotheses. Keep those steps separate in the working notes. A grep result or packet excerpt is an examination product. A conclusion about tenant isolation is an analysis product that must cite the supporting products and state its assumptions.
+
+## Clean up without erasing the story
+
+Cleanup is an authorised phase, not an excuse to delete inconvenient evidence. Remove only the toy accounts, marker files, temporary routes and configuration changes created by the team. Close sessions, revoke temporary credentials and restore snapshots where approved. Confirm that the baseline response, permissions and data checksums match the pre-test state. If cleanup cannot restore something, document the residual change and assign an owner.
+
+Some findings require preserving a vulnerable configuration long enough for the client to reproduce it. Coordinate this explicitly. Options include a retained isolated snapshot, a recorded demonstration, a minimal regression fixture or a developer-owned test environment. Do not leave a backdoor, privileged test account or exposed evidence share in production for convenience. Evidence retention and production restoration are separate decisions with separate owners.
+
+The cleanup record should list every created artefact and its disposition. “Removed test data” is too vague. Prefer “deleted synthetic marker M-17 from the isolated object store, revoked role R-2's temporary credential, restored gateway snapshot G-14 and verified the pre-test health response.” Attach the verification result. A clean closeout protects the client and makes the engagement easier to audit.
+
+## Report by decision, risk and evidence
+
+A strong report begins with the decision the engagement supported, not a catalogue of tool output. Summarise the approved scope, testing dates, major constraints and overall conclusion. Then present findings in order of business risk. For each finding, state the affected asset, security property, preconditions, evidence, demonstrated impact, confidence, remediation and retest criterion. Include negative results that materially reduce uncertainty.
+
+Severity should consider exposure, exploitability, asset criticality, data sensitivity, existing controls and detection coverage. A confirmed synthetic read in a lab does not automatically have the same production impact as a live cross-tenant read. Conversely, a low-complexity authorisation flaw affecting a critical service may deserve urgent attention even when the demonstration looks simple. Explain the reasoning so the client can adjust priorities using context the tester may not have.
+
+ATT&CK mappings can make the report useful to detection engineers. Map the observed behaviour to the relevant tactic and technique, then describe the telemetry that did or did not record it. <Cite id="mitre-attack" locator="Enterprise tactics and techniques; procedure-level evidence and detection context" /> Avoid attributing the activity to a named group unless independent evidence supports attribution. A technique mapping is a communication aid, not an identity claim or a severity score.
+
+<Figure caption="A complete toy finding record. Evidence supports the claim, confidence states uncertainty and the retest criterion defines closure.">
+  <div className="not-prose grid gap-3 md:grid-cols-3">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-brand-700">Claim</p>
+      <p className="mt-2 text-xs font-bold text-navy">Support integration can read a marker outside its tenant.</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Preconditions: valid R-2 session, approved toy API route and synthetic marker M-17.</p>
+    </div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-800">Evidence</p>
+      <p className="mt-2 text-xs font-bold text-navy">EV-03 request, response and policy snapshot.</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Confidence: confirmed in the toy deployment. Production reachability remains a separate question.</p>
+    </div>
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-700">Closure</p>
+      <p className="mt-2 text-xs font-bold text-navy">Server-side tenant policy and a denied cross-tenant retest.</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Retest uses two approved identities, the same marker and a captured denial plus audit event.</p>
+    </div>
+  </div>
+</Figure>
+
+<WorkedExample
+  title="A shared proxy creates a false positive"
+  steps={[
+    "A tester believes a request reached the toy application because the proxy recorded a response containing the application's marker.",
+    "The evidence review finds that the marker came from a cached response generated before the test account's permissions changed.",
+    "A direct request from the isolated range client, with caching disabled and a fresh correlation identifier, returns the expected denial.",
+    "The server log shows the original response was served by the shared proxy and never reached the application.",
+    "Revise the finding from confirmed authorisation bypass to unvalidated. Preserve both traces and document the cache condition.",
+    "Add cache-aware fixtures to the retest plan so a future tester does not confuse a proxy behaviour with an application decision."
+  ]}
+  result="Evidence review changes the conclusion without hiding the original observation. The final report is more accurate and the retest is stronger because the proxy condition is now explicit."
+/>
+
+## Verify remediation, not just deployment
+
+A fix is not complete because a ticket is closed or a new build is deployed. Retest the original path with the same preconditions and confirm that the control changes the outcome before the sink. Also test the legitimate path to ensure the fix did not block required functionality. For an authorisation flaw, verify both the denied cross-tenant request and the allowed same-tenant request. For a parser flaw, verify the malformed fixture is rejected safely and normal documents still work.
+
+Where possible, turn the original demonstration into a regression test owned by engineering. OWASP ASVS provides a structure for verifiable requirements, but the test must still name the actual route, role, input and expected result. <Cite id="owasp-asvs" locator="V4 access control and V5 validation, sanitisation and encoding requirements" /> Record the test environment and date. A passing test in a different build or configuration may not close the finding.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why should cleanup preserve evidence?"
+  options={["To keep vulnerable test accounts available", "Because deleting evidence prevents independent review and retest", "Because production data should be copied into the report", "Because hashes replace the need for authorisation"]}
+  answer={1}
+  explanation="Cleanup restores authorised toy state, while evidence preserves the basis for the finding. The two goals require separate, documented handling."
+/>
+
+## Close the engagement with residual risk
+
+Some questions will remain unresolved because of time, access, shared-service constraints or missing production context. State those limits clearly. Assign an owner and next step for each unresolved item. If the test did not cover a critical route, say so; do not let a clean result in the tested subset imply that the entire system is secure. Residual risk belongs in the executive summary as well as the technical appendix.
+
+The final handoff should include the scope, methodology, evidence manifest, findings, ATT&CK mappings, remediation priorities, retest results, cleanup record and recommended next tests. The client should be able to reconstruct what was done without access to the tester's personal notebook. That is the difference between an offensive activity log and an assurance artefact.
+
+</Lens>
+
+## Run the guided engagement workshop
+
+<GuidedWorkshop
+  id="red-team-guided-engagement"
+  title="Plan, validate and close Cobalt's toy parser assessment"
+  scenario="Cobalt Canary Works has approved a two-hour assessment of a disposable document parser and a synthetic reporting API. The allowlist contains parser.example.test and api.example.test. A neighbouring operations host, ops-legacy.example.net, is explicitly excluded. The client wants to know whether the parser handles malformed documents safely and whether a support integration can read only its own tenant's marker records. No production data, real credentials, persistence or denial-of-service testing is permitted."
+  tasks={[
+    "Rewrite the broad request to test the parser into three decision-focused questions with explicit success criteria.",
+    "Create a rules-of-engagement row for malformed document testing, including permitted action, forbidden action, evidence and stop trigger.",
+    "List the lab's trust zones and define which routes must be denied to prevent accidental production access.",
+    "Build a fact, inference and unknown table for the parser banner and the support role's observed permissions.",
+    "Design a harmless canary that proves the relevant parser feature is reachable without executing an exploit.",
+    "Describe the memory-safety preconditions that would have to hold before a crash could support a control-flow claim.",
+    "Use RedTeamRangeLab to advance the approved portal through all six phases and record the evidence identifiers.",
+    "Toggle the out-of-scope neighbour and explain why no new evidence should be collected.",
+    "Write a finding that separates confirmed toy impact from unverified production reachability.",
+    "Produce a cleanup checklist and a retest criterion that includes both denied and allowed access cases."
+  ]}
+  hints={[
+    "Start with the decision the client must make, not the scanner you want to run.",
+    "A stop condition should describe an observable event and a named escalation path.",
+    "A banner is a fact about the response; the deployed version is still an inference until corroborated.",
+    "A canary should be synthetic, bounded and easy to remove.",
+    "Memory corruption, control-flow influence and useful code execution are different claims.",
+    "Out-of-scope attempts may be logged as blocked decisions, but they are not engagement evidence against that host."
+  ]}
+  solution={[
+    "The three questions are whether the parser's experimental feature is reachable, whether bounded malformed input causes only controlled rejection, and whether support role R-2 is denied marker M-17 from another tenant. Success means a reachable feature with safe failure handling and an enforced cross-tenant denial, each supported by a reproducible artefact.",
+    "The permitted action is sending a bounded generated fixture to the disposable parser under a time and memory limit. Forbidden actions include production uploads, real documents, unbounded fuzzing and persistence. Evidence includes the fixture hash, build, resource trace and logs. Any unexpected outbound connection, host instability or real-data exposure triggers an immediate stop and contact with the range owner.",
+    "The lab separates the range client, target services, simulated gateway and evidence store. Production routes, corporate identity, real object storage and unrestricted internet egress are denied. Snapshots and clock synchronisation make state changes reversible and timelines interpretable.",
+    "The banner is a recorded response fact. The inference is that the corresponding build is deployed. Unknowns include feature state, mitigations and whether the same build exists in production. For the role, a successful read of its own marker is a fact; access to another tenant's marker remains untested until the approved two-identity comparison is run.",
+    "The canary is an inert marker value emitted only when the experimental feature processes a benign document in the isolated parser. It proves reachability without altering memory deliberately, executing attacker code or touching real data. A malformed fixture is then tested separately under resource limits.",
+    "A control-flow claim requires an actual out-of-bounds effect on security-relevant state, not merely a crash. The tester must understand the affected object, adjacent metadata, active mitigations, observable continuation and sandbox boundary. In this workshop, a controlled abort supports a memory-safety investigation but not a code-execution claim.",
+    "The approved portal run creates one artefact per completed phase: recon baseline, enumeration inventory, validation canary, synthetic simulation marker, evidence bundle and cleanup confirmation. The ledger preserves the host and phase for each item.",
+    "The out-of-scope neighbour is blocked by policy even if a wildcard expression appears to match it. The stop decision is recorded, but no probe result or evidence item is created for that host. This preserves both safety and the distinction between a scope decision and target evidence.",
+    "The finding states that R-2 read synthetic marker M-17 in the toy deployment under recorded conditions. It lists the policy, request and response as evidence. It does not claim production compromise because the production role, route and data classification were not tested.",
+    "Cleanup removes the marker, revokes temporary role material, restores the parser snapshot and verifies the baseline response and dataset checksum. Retest first confirms the cross-tenant denial and corresponding audit event, then confirms that a same-tenant read still succeeds."
+  ]}
+  takeaway="A defensible engagement is a chain of authorised decisions and reproducible evidence, not a sequence of successful exploits."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Authorise", detail: "Agree assets, techniques, data limits, stop triggers and contacts.", tone: "brand"},
+    {title: "Isolate", detail: "Build synthetic targets, controlled egress, snapshots and time sync.", tone: "teal"},
+    {title: "Observe", detail: "Capture passive and active evidence within the approved surface.", tone: "gold"},
+    {title: "Validate", detail: "Test source-to-sink hypotheses with bounded, reversible fixtures.", tone: "coral"},
+    {title: "Report", detail: "Separate facts, impact, confidence and residual uncertainty.", tone: "brand"},
+    {title: "Retest", detail: "Verify the fix on the original path and the legitimate path.", tone: "teal"}
+  ]}
+/>
+
+## Common failure modes
+
+| Failure mode | Why it happens | Better practice |
+| --- | --- | --- |
+| Treating reachability as permission | Public DNS and open ports feel like an invitation to test. | Require an explicit scope entry and permitted technique before interaction. |
+| Testing every scanner result | Tool output is easier to collect than to validate. | Prioritise hypotheses by decision value, exposure and plausible impact. |
+| Mixing facts with inferences | A plausible story compresses uncertainty. | Keep separate fact, inference and unknown columns in the notebook. |
+| Claiming execution from a crash | Failure is dramatic and easy to demonstrate. | Identify the failing condition and control-flow effect before making the claim. |
+| Letting the lab reach production | Convenient identity or network routes blur boundaries. | Deny production routes, use synthetic credentials and test the isolation. |
+| Collecting excessive evidence | More data feels like stronger proof. | Collect the minimum relevant artefact and protect it appropriately. |
+| Mapping ATT&CK before observing | Labels provide a ready-made narrative. | Describe behaviour first, then map it and cite the supporting event. |
+| Closing on deployment | A ticket status replaces technical verification. | Retest the original and legitimate paths, then preserve the result. |
+
+## Troubleshooting
+
+**The target stops responding during a toy probe.** Stop the test, preserve the last request and response, and check whether the failure is caused by the probe, a resource limit or an unrelated service condition. Restore the approved snapshot only after the evidence is secured. Do not increase intensity to see whether the service recovers.
+
+**The scanner and manual tests disagree.** Compare the exact build, feature flags, route, authentication context and request transformation. Re-run one minimal probe with logging enabled. Report the disagreement as uncertainty until a discriminating test resolves it.
+
+**A marker appears but the source is unclear.** Check proxy caches, asynchronous workers, shared fixtures and prior test state. Add a fresh correlation identifier and repeat from the isolated client. The marker's presence is a fact; its cause is still a hypothesis.
+
+**Timestamps do not line up.** Record clock sources and offsets, preserve original times and normalise a working copy. Look for proxy, queue and log-ingestion delay. Never silently edit original timestamps to make a sequence fit.
+
+**The evidence hash changes after copying.** Determine whether the copy process altered content, line endings or metadata. Hash file content separately from filesystem metadata and preserve the original. A changed content hash invalidates the claim that the copy is byte-identical.
+
+**The fix blocks the legitimate path.** Verify whether the control is scoped too broadly or applied at the wrong layer. Capture the denied normal request and compare policy context with the malicious fixture. Closure requires both security and functionality evidence.
+
+## Design review checklist
+
+- [ ] Every tested asset has a named owner and an explicit scope entry.
+- [ ] Every active technique has permission, a request budget and a stop condition.
+- [ ] Shared services and third-party dependencies have separate approval or exclusion.
+- [ ] The lab denies production routes and contains no real customer data or credentials.
+- [ ] Targets can be restored from a recorded snapshot after a failed test.
+- [ ] Client, target and evidence-store clocks have documented sources and offsets.
+- [ ] Each candidate finding has a source-to-sink path and a discriminating test.
+- [ ] Binary claims distinguish memory corruption, control-flow influence and execution.
+- [ ] ATT&CK mappings cite observed behaviour rather than replacing evidence.
+- [ ] Evidence has stable identifiers, provenance, access control and a manifest.
+- [ ] Cleanup removes only authorised toy state and preserves the evidence record.
+- [ ] Retesting covers the original attack path and the required legitimate path.
+
+## Key takeaways
+
+1. Scope is a security control. It defines what may be touched, how far impact may go and when to stop.
+2. A safe lab is part of the method: isolation, synthetic data, snapshots and time synchronisation make results reproducible.
+3. Reconnaissance produces hypotheses. Validation produces evidence. Exploitation claims require a complete causal chain.
+4. Low-level reasoning asks which invariant failed and which state changed; a crash alone is not proof of control-flow hijack.
+5. Evidence, cleanup and retest convert offensive activity into assurance the client can review and act on.
+
+## Practice
+
+**Safe exercise 1: scope rewrite.** Take a vague request such as “check whether the portal is secure” and rewrite it as three decision-focused questions. Add permitted and forbidden actions, evidence requirements and stop triggers. Exchange drafts with a peer and identify any action that cannot be mapped to an approved asset.
+
+**Safe exercise 2: evidence ladder.** Use only the toy gateway and offline screenshots or generated fixtures to build a four-rung evidence ladder. Mark each statement as fact, inference or unknown. Write one test that would move an inference to a fact without increasing impact beyond a synthetic marker.
+
+**Safe exercise 3: binary reasoning review.** Draw a conceptual stack or heap object containing an input buffer, integrity metadata and a continuation. Name the invariants that must hold. For each possible failure, state what a safe test could observe and what it still would not prove. Do not write or run an exploit.
+
+**Safe exercise 4: retest design.** Turn one finding from the workshop into an engineering regression test. Specify the route, identities, fixture, expected denial, expected allow case and audit evidence. Include a test that confirms the control fails closed when its policy store is unavailable.

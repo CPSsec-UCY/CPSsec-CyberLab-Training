@@ -25,8 +25,8 @@ const siteUrl = `https://cpssec-ucy.github.io${base}/`;
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "CPSsec CyberLab — Open Cybersecurity & Cryptography Courses",
-    template: "%s · CPSsec CyberLab",
+    default: "CPSsec CyberLab Training — Open Cybersecurity & Cryptography Courses",
+    template: "%s · CPSsec CyberLab Training",
   },
   description:
     "An open, citation-backed cybersecurity curriculum covering cryptography, networks, distributed systems, SOC operations and post-quantum migration, with interactive labs and four depth lenses.",
@@ -46,15 +46,15 @@ export const metadata: Metadata = {
   creator: "CPSsec-UCY",
   openGraph: {
     type: "website",
-    title: "CPSsec CyberLab",
+    title: "CPSsec CyberLab Training",
     description:
       "Cybersecurity, cryptography, networks, distributed systems and SOC operations, explained at four depths with verifiable citations and interactive labs.",
     url: siteUrl,
-    siteName: "CPSsec CyberLab",
+    siteName: "CPSsec CyberLab Training",
   },
   twitter: {
     card: "summary_large_image",
-    title: "CPSsec CyberLab",
+    title: "CPSsec CyberLab Training",
     description: "An open, citation-backed cybersecurity and cryptography learning platform.",
   },
   robots: { index: true, follow: true },

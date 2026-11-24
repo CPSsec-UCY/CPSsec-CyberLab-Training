@@ -25,7 +25,7 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
     title: learningModule.title,
     description: learningModule.summary,
     openGraph: {
-      title: `${learningModule.title} · CPSsec CyberLab`,
+      title: learningModule.title,
       description: learningModule.summary,
     },
   };

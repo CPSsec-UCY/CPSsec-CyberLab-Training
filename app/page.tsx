@@ -22,38 +22,46 @@ import { ModuleCard } from "@/components/modules/ModuleCard";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 
 const FEATURED = [
+  "web-application-security",
+  "identity-access-management",
+  "cloud-container-security",
+  "malware-endpoint-forensics",
   "soc-operations",
-  "federated-learning",
-  "deep-packet-inspection",
-  "tls-pki",
-  "ml-kem",
-  "zero-knowledge-mpc",
+  "red-team-penetration-testing",
 ];
 
 const PATHS = [
   {
-    title: "Blue team & SOC",
-    description: "Detection engineering, packet-level visibility, incident triage and response.",
-    slugs: ["deep-packet-inspection", "soc-operations", "tls-pki"],
+    title: "Blue team & DFIR",
+    description: "Detection engineering, malware triage, memory and filesystem forensics, and incident response.",
+    slugs: ["deep-packet-inspection", "soc-operations", "malware-endpoint-forensics", "digital-forensics-incident-response"],
     className: "from-blue-50 to-white border-blue-200",
     accent: "text-blue-700",
     icon: ShieldCheck,
   },
   {
-    title: "Cryptography",
-    description: "Symmetric and public-key primitives, hashing, zero-knowledge and post-quantum schemes.",
-    slugs: ["asymmetric-primitives", "symmetric-crypto", "hashing-mac-kdf", "zero-knowledge-mpc"],
-    className: "from-brand-50 to-white border-brand-200",
-    accent: "text-brand-700",
+    title: "Red team & AppSec",
+    description: "Scoped penetration testing, web exploitation, identity attacks and custom offensive tooling.",
+    slugs: ["web-application-security", "red-team-penetration-testing", "web-exploitation-offensive-tooling", "identity-access-management"],
+    className: "from-rose-50 to-white border-rose-200",
+    accent: "text-rose-700",
     icon: LockKeyhole,
   },
   {
-    title: "Distributed systems",
-    description: "Centralised versus decentralised trust, federated learning and privacy engineering.",
-    slugs: ["centralised-decentralised", "federated-learning"],
-    className: "from-violet-50 to-white border-violet-200",
-    accent: "text-violet-700",
+    title: "Cloud & supply chain",
+    description: "Cloud attack paths, Kubernetes, dependencies, SBOMs, provenance and signing.",
+    slugs: ["cloud-container-security", "secure-software-supply-chain", "rootkits-bootkits"],
+    className: "from-sky-50 to-white border-sky-200",
+    accent: "text-sky-700",
     icon: Users,
+  },
+  {
+    title: "Cryptography & PQC",
+    description: "Symmetric and public-key primitives, zero-knowledge, quantum risk and post-quantum standards.",
+    slugs: ["asymmetric-primitives", "symmetric-crypto", "zero-knowledge-mpc", "ml-kem"],
+    className: "from-brand-50 to-white border-brand-200",
+    accent: "text-brand-700",
+    icon: LockKeyhole,
   },
 ];
 
@@ -75,8 +83,8 @@ export default function HomePage() {
               Learn cybersecurity from first principles to <span className="text-gradient">live operations</span>.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-body">
-              Cited, interactive courses across cryptography, network defence, distributed systems,
-              SOC operations and post-quantum migration. Choose the depth you need, then verify every claim.
+              Cited, interactive courses across red team, application security, identity, cloud, malware,
+              DFIR, SOC operations, cryptography and post-quantum migration. Choose the depth you need, then verify every claim.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/curriculum/" className="btn-primary px-7 py-3.5 text-base">
@@ -112,7 +120,7 @@ export default function HomePage() {
             <SectionHeading
               eyebrow="Top categories"
               title="Pick a track. Go as deep as you need."
-              description="Seven tracks cover the defensive, cryptographic and architectural sides of security. Every course is available at four levels of abstraction."
+              description="Fourteen tracks cover red team, AppSec, identity, cloud, malware, DFIR, SOC, cryptography and post-quantum security. Every course is available at four levels of abstraction."
             />
             <Link href="/curriculum/" className="btn-ghost shrink-0">All courses <ArrowRight className="h-4 w-4" /></Link>
           </div>
@@ -305,11 +313,11 @@ export default function HomePage() {
             Learn in public. Teach in public.
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-body">
-            CPSsec CyberLab is built to be forked, reviewed and extended. Add a course, correct a citation,
+            CPSsec CyberLab Training is built to be forked, reviewed and extended. Add a course, correct a citation,
             improve a lab, or bring your own protocol visualiser.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <a href="https://github.com/CPSsec-UCY/pqc-cyberlab" target="_blank" rel="noreferrer" className="btn-primary">
+            <a href="https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training" target="_blank" rel="noreferrer" className="btn-primary">
               Star or fork on GitHub
             </a>
             <Link href="/about/" className="btn-ghost">Read the roadmap</Link>

@@ -2,7 +2,7 @@
 name = "pqc-lab"
 version = "0.1.0"
 edition = "2021"
-description = "WebAssembly polynomial-ring arithmetic lab for CPSsec CyberLab"
+description = "WebAssembly polynomial-ring arithmetic lab for CPSsec CyberLab Training"
 license = "EUPL-1.2"
 
 [lib]

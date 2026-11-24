@@ -1,0 +1,456 @@
+---
+slug: rootkits-bootkits
+title: "Rootkits and bootkits: kernel hooks, firmware persistence and detection"
+subtitle: "Follow trust from reset to session, compare independent views and recover the platform rather than merely restarting it."
+track: "Malware & Forensics"
+order: 18
+difficulty: "Advanced"
+readingTime: 95
+summary: "Analyse conceptual user-mode, kernel, bootloader and UEFI persistence through boot-chain trust, visibility, attestation, forensic acquisition and verified recovery."
+outcomes: ["Map reset, firmware, bootloader, kernel and session trust boundaries for a target platform.", "Distinguish user-mode hooks, kernel callbacks, bootloader implants and UEFI driver persistence without operational code.", "Design cross-view detection using firmware measurements, independent kernel evidence and endpoint telemetry.", "Choose evidence-aware containment, vendor-supported recovery and fleet-wide verification steps."]
+citations: ["book-matrosov-rootkits-bootkits", "nist-sp800-83r1", "nist-sp800-190", "kubernetes-security", "mitre-attack"]
+tags: ["rootkits", "bootkits", "uefi", "secure-boot", "attestation", "firmware", "forensics"]
+prerequisites: ["malware-reverse-engineering-data-science", "cloud-container-security"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Trust begins before the operating system is ready to defend itself">
+
+## Name the layer before naming the threat
+
+A rootkit is not simply a hidden process. It is a collection of mechanisms that establishes privileged or early influence and then distorts the evidence available to ordinary consumers. A bootkit participates in the boot path so that its influence can be restored before normal endpoint security starts. A firmware implant operates in platform firmware or an early firmware service. The labels overlap in practice, but the layer determines which evidence can observe the compromise and which recovery action can remove it.
+
+Matrosov, Rodionov and Bratus move from rootkit case studies into bootkit background, operating-system boot essentials, boot process security and infection techniques. <Cite id="book-matrosov-rootkits-bootkits" locator="Chs. 1–7 (rootkit cases, observation, bootkit history, boot process, security and infection concepts)" /> Their central defensive lesson is architectural: an analyst who begins only after the session starts may be looking through the compromised layer. Investigation must include the trust path that produced the running system.
+
+Start a rootkit assessment with four questions. Where does the influence enter? When does it execute relative to security software? How is it restored after reboot or service restart? Which vantage point remains independent enough to challenge it? These questions are more useful than immediately asking which product will remove the infection.
+
+## Draw the boot chain as a chain of claims
+
+A simplified chain begins with platform reset and firmware initialisation. Firmware establishes basic hardware services and chooses a boot path. On UEFI systems, firmware drivers and boot applications participate before the operating-system loader. The bootloader transfers control toward the kernel. The kernel initialises drivers and security components. Session services then start user applications and endpoint agents. Real platforms vary, but the trust transitions are what matter.
+
+Each transition makes a claim: this component is authorised to run, its handoff is intact and the next stage receives the expected state. Secure Boot can authenticate selected boot components under a platform trust policy. Measurements can report what executed to a verifier. Neither mechanism by itself proves that the operating system, every driver or every user process is benign. A clean boot decision is one claim in a larger evidence chain.
+
+<Figure caption="Conceptual boot-chain trust map. Moving the persistence point downward changes the evidence and recovery requirements even when the visible session symptom looks identical.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[760px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Trust claim</th><th className="px-3 py-2">Possible evidence</th><th className="px-3 py-2">Recovery implication</th></tr></thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Reset and firmware</td><td className="px-3 py-2">Platform initialises from trusted state</td><td className="px-3 py-2">Supported firmware inventory and measurements</td><td className="px-3 py-2">Vendor-supported reflash or platform replacement may be required</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">UEFI driver dispatch</td><td className="px-3 py-2">Only authorised early components run</td><td className="px-3 py-2">Driver inventory, policy decision and measured paths</td><td className="px-3 py-2">Restore firmware trust and provisioning keys</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Bootloader handoff</td><td className="px-3 py-2">The next stage receives an intact handoff</td><td className="px-3 py-2">Bootloader measurement and independent media analysis</td><td className="px-3 py-2">Restore trusted boot media and verify policy</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Kernel initialisation</td><td className="px-3 py-2">Drivers and callbacks reflect approved state</td><td className="px-3 py-2">Independent kernel view, memory and object telemetry</td><td className="px-3 py-2">Rebuild from trusted media and rotate credentials</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Session services</td><td className="px-3 py-2">Applications and agents report faithfully</td><td className="px-3 py-2">Process, network and out-of-band service evidence</td><td className="px-3 py-2">Remove launchers and rebuild or restore the session</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+## Model persistence as a lifecycle
+
+Persistence has at least four parts: an entry mechanism, an execution point, a restoration mechanism and a concealment or influence mechanism. A user-mode hook may be restored by an ordinary launcher at session start. A kernel callback may be re-established by a component that loads with the kernel. A bootloader implant participates on each boot before the operating system. A UEFI driver is dispatched during firmware initialisation.
+
+Do not assume that a lower-layer implant always hides perfectly or that a higher-layer hook is easy to remove. Detection depends on implementation, tooling and the independence of the observer. Similarly, do not assume that reboot clears every compromise. Reboot may remove volatile user-mode state while faithfully restoring a persistent boot component. It may also trigger delayed behaviour or destroy the memory evidence needed to understand the incident.
+
+The adversary's incentive is to make one view look normal while another reveals the truth. The defender's incentive is to collect evidence through multiple trust boundaries and to avoid letting the suspect system be the sole authority on its own integrity. This is why a rootkit case often combines endpoint telemetry, independent kernel acquisition, firmware evidence, boot logs and network or identity records.
+
+## Keep the investigation safe
+
+Suspected rootkit activity changes the risk of live response. A process listing, kernel structure or firmware query may be filtered, and an acquisition tool may share the same compromised operating-system path. Do not experiment on production. Use an approved forensic method, preserve evidence before destructive action when the risk allows and document which views may be unreliable. NIST's malware guidance integrates analysis with incident prevention and response. <Cite id="nist-sp800-83r1" locator="§3–5 (prevention, detection and response)" />
+
+Record platform model, firmware version, boot mode, disk-encryption state, Secure Boot policy state, management-controller involvement and available acquisition support. These facts determine which evidence can be collected and which recovery path is realistic. A generic instruction to “reinstall Windows” is not a firmware recovery plan, and a firmware image is not automatically safe to flash back without a trusted reference.
+
+<WorkedExample
+  title="Classify four fictional persistence reports by layer"
+  steps={[
+    "Report A says an endpoint service consistently omits one process category, while an external identity log shows the corresponding account activity. Classify the first observation as a user-mode visibility hypothesis.",
+    "Report B says two independently acquired kernel views disagree about a callback inventory, while user-space process telemetry appears normal. Classify this as a kernel-state hypothesis requiring careful acquisition review.",
+    "Report C says an authorised firmware measurement differs from the expected bootloader measurement before the operating system starts. Classify this as a bootloader or trust-policy hypothesis.",
+    "Report D says a firmware driver inventory contains an unapproved early component and its measurement is absent from the expected reference. Classify this as a UEFI firmware hypothesis.",
+    "For each report, identify the earliest affected stage, the strongest independent vantage point and the minimum recovery trust boundary.",
+    "Reject the shortcut of treating all four as “hidden malware”. The shared symptom does not make their evidence, containment or recovery interchangeable."
+  ]}
+  result="Layer classification turns a vague rootkit alert into a collection and recovery plan. It also prevents a user-mode cleanup from being mistaken for eradication of an earlier firmware component."
+/>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why can rebooting fail to eradicate a bootkit?"
+  options={["Bootkits never persist", "The malicious component may participate in every boot before endpoint controls start", "Reboots always delete firmware", "Endpoint agents control all firmware"]}
+  answer={1}
+  explanation="A bootkit can be restored by the boot path itself. Reboot may remove volatile state while preserving or reactivating early persistence."
+/>
+
+## Threat-model the platform, not only the process
+
+Identify the assets an attacker could reach after early influence: disk-encryption keys, credentials, management interfaces, boot policy, hypervisor state, cluster nodes and recovery media. Consider insiders, compromised suppliers, stolen administrative credentials and remote exploitation of exposed firmware-management services. The objective may be concealment, data theft, disruption, cryptomining or long-term access rather than a visible ransom note.
+
+Document the expected trust baseline. Which firmware version is approved? Which bootloader and kernel are signed? Which measurements are recorded? Which management components can change boot policy? Which teams can reflash firmware? A baseline is not a screenshot from one day; it is a versioned set of platform references, change records and verification procedures.
+
+</Lens>
+
+<Lens level={2} title="A rootkit investigation is a disagreement between views">
+
+## Understand what each vantage can actually see
+
+User-mode tools consume operating-system interfaces and may receive filtered results. Kernel evidence has greater privilege but can still be obtained through a compromised kernel, an incorrect acquisition method or incomplete symbols. Firmware evidence can address pre-boot state, but only if acquisition is supported and interpreted against the correct platform reference. No vantage is automatically trustworthy.
+
+The useful question is not “which tool says clean?” but “what evidence would each layer be expected to produce, and do independent observations agree?” A user-mode service that omits a process, a kernel view that shows unexpected state and an identity log that confirms activity form a contradiction worth investigating. Three tools sharing the same agent, parser or source may simply repeat the same blind spot.
+
+Matrosov and colleagues emphasise observing rootkit infections and analysing boot process security rather than trusting a single hidden view. <Cite id="book-matrosov-rootkits-bootkits" locator="Ch. 3 (observing rootkit infections) and Ch. 6 (boot process security)" /> Treat apparent absence as a result with provenance. Record which interface produced it, what filters may apply and whether an independent source can test it.
+
+## User-mode hooks influence the session view
+
+A user-mode hook can alter what an application or service reports without changing firmware or the bootloader. It may depend on a launcher, scheduled task, service configuration or another persistence mechanism to return after restart. The visible symptom might be an incomplete process list, inconsistent network ownership or a service that disagrees with endpoint telemetry.
+
+Detection should combine cross-view disagreement with durable evidence. Process creation logs, object-access events, network flows and identity records can survive the hooked component or arrive through separate infrastructure. Do not assume that every mismatch is malicious: software compatibility layers, security products and instrumentation failures can also create disagreement. The hypothesis strengthens when the mismatch follows one process, account or asset and when raw records support the hidden activity.
+
+## Kernel callbacks require independent state evidence
+
+A kernel-mode mechanism can influence events before many user-space consumers receive them. A callback or notification path may suppress information, alter state or create inconsistency. The defensive description is intentionally conceptual: understanding the trust boundary is more important than reproducing an implementation. The analyst needs an independent kernel view and a clear account of how that view was acquired.
+
+Compare expected and observed state using approved forensic methods. Preserve memory, loaded-module information, object references and relevant logs before stopping a suspicious component when active harm allows. Check acquisition completeness and symbol or platform compatibility. If the tool relies on the same possibly compromised kernel, document the dependency rather than presenting its output as ground truth.
+
+## Bootloader implants sit between firmware and kernel
+
+A bootloader implant can influence the handoff before normal operating-system controls run. It may affect the next stage, evade session-level observation or persist across ordinary reinstalls that do not restore boot media. The strongest evidence often combines firmware-side trust decisions, bootloader measurements and independent analysis of trusted recovery media.
+
+Matrosov and colleagues trace the evolution of MBR, VBR and initial-program-loader bootkits before moving to UEFI boot processes and contemporary UEFI bootkits. <Cite id="book-matrosov-rootkits-bootkits" locator="Chs. 10–12 (MBR, VBR and IPL bootkit evolution) and Chs. 14–15 (UEFI boot process and contemporary UEFI bootkits)" /> For this course, the takeaway is the shift in evidence. A process-centric investigation cannot independently establish that the pre-kernel handoff was authentic.
+
+## UEFI drivers expand the pre-boot surface
+
+UEFI firmware uses drivers and boot services before the operating system. An untrusted early component can influence later stages or their visibility. Firmware inventory and measured boot paths become central evidence, while ordinary endpoint process telemetry is downstream of the event. Platform-specific acquisition and vendor documentation matter because firmware layouts, update mechanisms and recovery options differ.
+
+The UEFI discussion also changes recovery. Restoring a partition, reinstalling the operating system or resetting an application may leave the firmware path untouched. Recovery may require a vendor-supported firmware update, a trusted platform replacement, restoration of provisioning keys and verification that the expected components are again authorised and measured. Always preserve evidence before applying a trusted update when feasible.
+
+<Figure caption="Visibility matrix for conceptual persistence layers. “Visible” means a vantage can contribute evidence, not that its output is automatically trustworthy.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[760px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Layer</th><th className="px-3 py-2">User-mode evidence</th><th className="px-3 py-2">Kernel evidence</th><th className="px-3 py-2">Firmware evidence</th><th className="px-3 py-2">Key limitation</th></tr></thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">User-mode hook</td><td className="px-3 py-2">Application or service disagreement</td><td className="px-3 py-2">Process, image-load and object activity</td><td className="px-3 py-2">Boot trust only</td><td className="px-3 py-2">The reporting service may be filtered</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Kernel callback</td><td className="px-3 py-2">Missing or contradictory alerts</td><td className="px-3 py-2">Independent state comparison</td><td className="px-3 py-2">Boot measurements</td><td className="px-3 py-2">Acquisition may share the suspect kernel</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Bootloader implant</td><td className="px-3 py-2">Downstream anomalies</td><td className="px-3 py-2">Handoff and early-load state</td><td className="px-3 py-2">Bootloader trust and measurement</td><td className="px-3 py-2">Session tools arrive too late</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">UEFI driver implant</td><td className="px-3 py-2">No direct inventory</td><td className="px-3 py-2">Later handoff anomalies</td><td className="px-3 py-2">Driver inventory and measured paths</td><td className="px-3 py-2">Platform-specific acquisition is required</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+## Secure Boot is a boundary, not an immunity claim
+
+Secure Boot authenticates selected boot components under a platform trust policy and can reject an untrusted component before it controls the handoff. Matrosov and colleagues explain how Secure Boot works and place it within broader boot process security. <Cite id="book-matrosov-rootkits-bootkits" locator="Ch. 17 (how Secure Boot works)" /> The exact guarantee depends on platform implementation, policy keys, update integrity and the components covered by the policy.
+
+Secure Boot does not directly validate every user-mode hook, kernel callback or application. It also does not make a compromised trust store or signing key harmless. Treat enforcement as a preventive control with a defined scope, and treat policy changes, key enrolment and recovery events as high-value audit records. A successful boot is evidence that the configured verification path accepted the components it checked, not a universal integrity proof.
+
+## Attestation reports claims; it does not repair them
+
+Attestation can send measurements or state claims to a verifier that compares them with a reference. A trusted verifier may detect a mismatch and restrict access. It cannot reflash firmware, remove a kernel callback or revoke every credential by itself. A measurement also needs freshness, scope and a trustworthy reporting path. Otherwise a valid old measurement could be replayed or a compromised component could misreport its own state.
+
+Design attestation as a decision system. Specify what is measured, when it is measured, how freshness is established, which reference is authoritative, what happens when evidence is missing and which access decision follows a mismatch. Avoid collecting unnecessary platform identifiers. Test fail-open and fail-closed behaviour, clock issues, offline operation and recovery-mode exceptions.
+
+<WorkedExample
+  title="Investigate a session that looks clean but is not"
+  steps={[
+    "An endpoint console shows no suspicious processes, but a separate network log records repeated outbound activity from the asset during a period when the console reports the host idle.",
+    "Identity logs show the same user account active from the asset, while the endpoint process feed contains a gap. The independent sources contradict the session view.",
+    "The analyst preserves the raw endpoint, network and identity records, checks clock alignment and verifies that the console agent was healthy before and after the gap.",
+    "An approved kernel acquisition shows unexpected image or object activity not represented in the user-space feed. The result is treated as a kernel-visibility hypothesis, not immediate proof of a named rootkit.",
+    "The host is isolated and evidence is preserved before stopping the suspect component. Credentials are rotated because activity occurred during the visibility gap.",
+    "Recovery rebuilds from trusted media and validates agreement among independent views. The team does not declare success because the original console becomes clean again."
+  ]}
+  result="The incident is established by cross-source contradiction and preserved evidence. Layer and mechanism remain hypotheses until supported, but containment does not wait for perfect attribution."
+/>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="What is the strongest interpretation of a successful Secure Boot decision?"
+  options={["Every process on the host is benign", "The configured verification path accepted the boot components it checked", "No kernel rootkit can exist", "Attestation has repaired the platform"]}
+  answer={1}
+  explanation="Secure Boot has a defined scope. Runtime state, user-mode behaviour, keys and acquisition trust remain separate questions."
+/>
+
+## Record the limits of every observation
+
+A negative finding should say what was searched, with which tool and against which reference. “No firmware mismatch detected” is different from “firmware is intact”. The first is a bounded result; the second is an unsupported universal claim. Use confidence statements that identify evidence quality, source independence, contradictions and unknowns. This discipline protects both the investigation and the eventual recovery decision.
+
+</Lens>
+
+<Lens level={3} title="Use the boot chain to choose evidence, controls and access decisions">
+
+## Operate the conceptual boot-chain explorer
+
+<Figure caption="Interactive conceptual boot-chain and persistence explorer. Select a layer, toggle Secure Boot and attestation, then advance through firmware, bootloader, kernel, session and recovery phases. No platform code runs or changes.">
+  <iframe
+    src="/rootkit-bootkit-lab/"
+    title="Interactive conceptual boot-chain and persistence explorer"
+    className="h-[2400px] w-full rounded-xl border border-line bg-white"
+    loading="lazy"
+  />
+  <a href="/rootkit-bootkit-lab/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-bold text-brand-700 hover:underline">
+    Open the boot-chain and persistence lab full screen
+  </a>
+</Figure>
+
+Begin with the kernel callback and Secure Boot enabled. Advance through the phases and notice that the trust control does not directly validate callback state. The detection requirement is an independent kernel view plus out-of-band evidence. Switch to the user-mode hook and compare the visibility table: the main problem is disagreement between the reporting service and other observations, not a firmware measurement.
+
+Select the bootloader implant with Secure Boot disabled. The explorer shows the handoff as the persistence point and firmware evidence as the strongest pre-kernel vantage. Enable Secure Boot and reset the sequence. In this simplified policy, the untrusted component is rejected before dispatch. The point is not that every real bypass is impossible, but that a preventive trust decision changes the path and the evidence expected from it.
+
+Select the UEFI driver and compare the same control. Firmware inventory and measured paths become central. Enable attestation to see a mismatch report in the conceptual model, then recognise that the report does not perform recovery. Finally, advance to the containment and recovery phase and compare it with the user-mode case. The earlier the persistence point, the more likely recovery must restore firmware trust rather than only the operating system.
+
+<ProcessFlow
+  steps={[
+    {title: "Map", detail: "Draw reset, firmware, bootloader, kernel and session transitions for the actual platform.", tone: "brand"},
+    {title: "Locate", detail: "Place the persistence hypothesis at the earliest supported stage.", tone: "coral"},
+    {title: "Corroborate", detail: "Compare independent user, kernel, firmware and external evidence.", tone: "gold"},
+    {title: "Constrain", detail: "Apply Secure Boot, attestation policy, isolation and access controls at their proper scope.", tone: "teal"},
+    {title: "Preserve", detail: "Collect approved volatile and firmware evidence before destructive action when safe.", tone: "brand"},
+    {title: "Recover", detail: "Restore trusted components, rotate credentials and verify the path is closed.", tone: "teal"}
+  ]}
+/>
+
+## Attestation needs a policy and a verifier
+
+A measurement without a reference is only a number. Build a reference from supported platform baselines and approved changes. Bind the report to a specific device and a fresh challenge when replay is a concern. Decide which components are critical, which deviations are expected and which require access denial. Protect the verifier and its reference data independently of the endpoint being assessed.
+
+The verifier should output an interpretable decision: trusted under policy, untrusted, unknown because evidence is missing or unsupported. “Unknown” should not silently become trusted. At the same time, a rigid fail-closed policy can lock out legitimate recovery or offline systems. Define an authorised exception with expiry, audit and compensating controls rather than creating a permanent bypass.
+
+Treat attestation as one signal in a larger access decision. Combine it with device ownership, patch posture, identity, network context and recent behaviour. A correctly measured boot can still run a compromised application. A measurement mismatch can also result from an approved firmware update that has not reached the reference system. Both cases require context and change management.
+
+## Container nodes inherit lower-layer trust
+
+Containers isolate workloads, but they do not remove the host kernel, boot path or firmware beneath the node. NIST's container security guidance treats risks across images, registries, orchestrators, runtimes and hosts. <Cite id="nist-sp800-190" locator="§3–5 (container risks and mitigations across the container ecosystem)" /> A compromised node kernel or early boot component can undermine isolation assumptions for every workload on that node.
+
+Kubernetes security documentation places pod security, RBAC, network policy and secrets within a broader platform-security model. <Cite id="kubernetes-security" locator="Pod security, RBAC, network policy and secrets" /> Those controls remain necessary, but they do not establish firmware integrity. If a node fails trusted-boot verification, containment may include cordoning or draining the node under the platform's operating policy, preserving supported evidence and preventing new workloads from landing there. Recovery may require node replacement rather than restarting containers.
+
+This connection matters for blast radius. A user-mode endpoint hook may affect one session. A kernel callback may affect all telemetry from a node. A bootloader or UEFI implant may survive container replacement and node reboot. Map the persistence layer to the fleet unit that must be contained: session, host, node, rack or platform family.
+
+<WorkedExample
+  title="Turn a firmware mismatch into an access decision"
+  steps={[
+    "A managed laptop reports a firmware measurement that differs from the approved reference. Secure Boot reports acceptance, so the platform did not reject every component in the boot path.",
+    "The verifier marks the device unknown pending review because the changed component may be an approved update, a policy-scope difference or an untrusted modification.",
+    "The identity team restricts access to a low-privilege recovery path and requires strong reauthentication. The endpoint remains connected only to a management network for evidence collection.",
+    "An authorised firmware acquisition and vendor change record show whether the measurement corresponds to an approved update. The analyst preserves both reports and their timestamps.",
+    "If the component is approved, the reference is updated through change control and normal access is restored after verification. If it is unapproved, the device follows firmware recovery and credential-rotation procedures.",
+    "The team records why Secure Boot acceptance and attestation mismatch can coexist, and tests the workflow with a benign firmware update fixture."
+  ]}
+  result="Attestation becomes useful when it drives a bounded, reversible access decision and a defined evidence path. The mismatch is neither ignored nor treated as automatic proof of a specific implant."
+/>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why does a clean container image not establish node integrity?"
+  options={["Containers never use a kernel", "The node kernel, boot path and firmware sit below container isolation", "RBAC verifies firmware", "Secure Boot validates every image layer"]}
+  answer={1}
+  explanation="Container controls address workload and host interactions, but the shared kernel and pre-boot trust path remain separate foundations."
+/>
+
+## Build a fleet view of trust transitions
+
+Track device model, firmware version, boot mode, Secure Boot state, measurement status, attestation freshness, last approved change and recovery status. Group exceptions by platform family rather than treating thousands of endpoints as unrelated alerts. A new firmware release can create a coordinated measurement change, while a targeted implant may affect a small asset group with privileged access.
+
+Protect telemetry integrity. Central measurement logs, boot-policy audit and device inventory should not be writable by the same identity that administers the endpoint. Alert on missing reports, sudden policy changes, enrolment of unknown keys and recovery activity outside approved windows. Preserve raw reports so a later investigation can distinguish a true mismatch from a reference-data problem.
+
+</Lens>
+
+<Lens level={4} title="Recovery restores trust, evidence and control of the fleet">
+
+## Contain before the platform can expand the incident
+
+Containment depends on active harm and asset role. Network isolation may stop command-and-control, credential theft or lateral movement. Disabling a user or service identity may be necessary if the suspicious layer could observe authentication. Restricting management interfaces may prevent boot-policy changes. A critical system may need a controlled maintenance path rather than abrupt disconnection.
+
+NIST's malware incident guidance connects detection and analysis to containment, eradication and recovery. <Cite id="nist-sp800-83r1" locator="§3–5 (prevention, detection and response)" /> Preserve volatile and durable evidence before destructive action when feasible. If active encryption, data theft or safety impact demands immediate containment, contain first and document what could not be saved. Do not let a generic evidence-first rule create a second incident.
+
+Acquisition must be approved and platform-aware. Firmware images, boot logs, measurement reports, memory captures, disk state and management-controller logs may have different tools, formats and legal constraints. Record tool version, source device, time, hash, operator and storage location. Keep originals immutable and analyse verified working copies.
+
+## Eradication follows the earliest affected layer
+
+Removing a file, service or container is not eradication if a lower-layer component can restore it. The recovery plan must identify every affected trust boundary. A user-mode case may require launcher removal and host rebuild. A kernel case may require trusted boot media and kernel-state validation. A bootloader case must restore the pre-kernel handoff. A UEFI case may require vendor-supported firmware recovery, key reset or platform replacement.
+
+Credential exposure is a parallel workstream. Early influence may precede endpoint controls and may observe login, disk-unlock or management activity. Revoke sessions, rotate secrets and review authentication logs based on the exposure window. Restoring firmware without addressing stolen credentials leaves the incident open.
+
+Matrosov and colleagues close the technical arc with Secure Boot, hidden file-system analysis and firmware forensics. <Cite id="book-matrosov-rootkits-bootkits" locator="Chs. 17–19 (Secure Boot, hidden file systems and CHIPsec firmware forensics)" /> The practical recovery lesson is to verify the restored trust path with independent evidence, not to rely on a successful reboot or a single vendor utility reporting success.
+
+<Figure caption="Recovery gates for a suspected rootkit or bootkit. Each gate produces evidence; skipping one can restore availability while leaving the compromise path intact.">
+  <div className="not-prose grid gap-3 md:grid-cols-4">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3"><p className="text-[9px] font-bold uppercase text-brand-700">Gate 1 · Preserve</p><p className="mt-1 text-xs font-bold text-navy">Capture approved evidence</p><p className="mt-2 text-[10px] leading-4 text-body">Hash firmware, memory and logs; record acquisition dependencies and evidence lost to urgent containment.</p></div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-3"><p className="text-[9px] font-bold uppercase text-gold-700">Gate 2 · Restore</p><p className="mt-1 text-xs font-bold text-navy">Rebuild the trust path</p><p className="mt-2 text-[10px] leading-4 text-body">Use trusted media and vendor-supported firmware recovery; restore policy and provisioning keys.</p></div>
+    <div className="rounded-xl border border-coral-200 bg-coral-50 p-3"><p className="text-[9px] font-bold uppercase text-coral-700">Gate 3 · Verify</p><p className="mt-1 text-xs font-bold text-navy">Compare independent views</p><p className="mt-2 text-[10px] leading-4 text-body">Confirm firmware, bootloader, kernel and session evidence agree with the approved baseline.</p></div>
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><p className="text-[9px] font-bold uppercase text-emerald-700">Gate 4 · Return</p><p className="mt-1 text-xs font-bold text-navy">Restore access gradually</p><p className="mt-2 text-[10px] leading-4 text-body">Rotate credentials, monitor recurrence and verify related fleet assets before closing the incident.</p></div>
+  </div>
+</Figure>
+
+## Validate recovery against the original hypothesis
+
+If the hypothesis was a filtered process feed, test that independent process, network and identity sources agree after recovery. If it was a kernel callback mismatch, compare independent kernel state and alert delivery. If it was a bootloader measurement mismatch, verify the boot path and policy. If it was a UEFI driver, verify the supported firmware inventory and measurements. Each test should fail visibly when the original condition returns.
+
+Do not validate only with the tool that may have been compromised. Use a trusted recovery environment, independent acquisition path and external telemetry. Record the baseline version and the evidence generated by each test. Recovery is complete when the original path is closed and the organisation can detect its return, not when the device merely starts.
+
+## Build detections around observable disagreements
+
+MITRE ATT&CK provides a shared vocabulary for adversary behaviour, including persistence and defence-evasion concepts. <Cite id="mitre-attack" locator="Enterprise tactics, techniques and procedures" /> Use technique labels to organise hypotheses, but build detections from evidence. Examples include an unapproved firmware measurement, a boot-policy change outside a maintenance window, disagreement between endpoint and network telemetry, or a fleet-wide gap in attestation reports.
+
+Each detection needs a data source, reference, logic, expected benign cases, severity rule, owner and test. A measurement alert must account for approved updates. A missing-agent alert must account for offline devices and planned maintenance. A kernel-state comparison must use a supported acquisition method. A technique tag without telemetry is not a working detection.
+
+Measure precision and recall in the deployed platform population. Firmware mismatches may be rare, so precision can collapse when a reference baseline is stale. Missing-report alerts may be noisy during travel or maintenance. Track analyst dispositions and update benign references through controlled change management rather than suppressing whole device classes indefinitely.
+
+<WorkedExample
+  title="Contain and recover a fictional fleet firmware incident"
+  steps={[
+    "Attestation reports an unexpected UEFI measurement on twelve managed laptops from one platform family. Two are used by privileged administrators, and one has recent unusual identity activity.",
+    "The incident team preserves measurement reports, boot-policy audit, firmware acquisition where supported and identity logs. It isolates the privileged devices immediately and restricts the remaining group to a recovery segment.",
+    "A vendor advisory confirms that the changed component is not part of an approved release. The team does not assume that all twelve devices have the same mechanism, but it treats the shared platform family as a plausible scope.",
+    "Recovery uses vendor-supported firmware procedures, resets affected provisioning state and rebuilds the operating system. Exposed administrator credentials and sessions are rotated.",
+    "Independent firmware measurements and boot-policy checks are compared with a refreshed trusted baseline. Each device passes a staged access test before returning to production.",
+    "The fleet hunt searches for the same platform version, measurement pattern and policy-change history. Control changes include protected reference updates, alerting on key enrolment and periodic trusted-boot exercises."
+  ]}
+  result="Containment follows privilege and exposure, recovery restores the earliest trust boundary and verification uses independent evidence. The incident is not closed when the first device boots successfully."
+/>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Which action best demonstrates recovery from a suspected UEFI implant?"
+  options={["Delete the suspicious endpoint process", "Restart the containers", "Restore trusted firmware through a supported process, verify measurements and rotate exposed credentials", "Clear the user's browser cache"]}
+  answer={2}
+  explanation="UEFI persistence sits below ordinary process and container cleanup. Recovery must restore firmware trust and verify it independently."
+/>
+
+## Learn from the trust failure
+
+Post-incident review should ask how the early component entered, which trust policy accepted or failed to reject it, why detection occurred at the current layer and which fleet assets share the exposure. Convert findings into owned changes: protected key-management procedures, baseline automation, faster firmware inventory, independent telemetry and tested recovery runbooks.
+
+Exercise the runbook with benign fixtures and approved maintenance scenarios. Test a firmware update, a lost device, an offline node and a compromised management credential. Measure time to preserve evidence, restore trust and verify recurrence controls. A recovery plan that has never been exercised is a hypothesis, not an operational capability.
+
+</Lens>
+
+## Guided workshop: an attestation mismatch across a managed fleet
+
+A company operates 240 managed laptops and 36 container nodes. The device-verification service reports unexpected firmware measurements on eight laptops from one hardware family. Secure Boot is enabled on all eight, and the devices continue to receive policy, so the verification path accepted some component that now differs from the company's reference. One laptop belongs to a senior administrator and shows an unusual authentication from a new location. A node in the same hardware family has begun losing endpoint alerts, but its container scheduler still reports healthy workloads.
+
+The firmware team says a vendor update was scheduled last week, but the change record does not list the affected component. Remote attestation is available for laptops, not for the node. The incident commander must decide which assets to isolate, what evidence to preserve, whether to update the trusted reference and how to recover without destroying the only evidence. No real firmware or rootkit code is available; all observations are fictional.
+
+<GuidedWorkshop
+  id="rootkits-bootkits-workshop"
+  title="Contain a trust mismatch without confusing evidence with repair"
+  scenario="Build a layer-aware incident graph across firmware measurements, Secure Boot policy, identity activity, endpoint visibility and container-node health. Choose evidence preservation, containment, recovery and fleet verification actions."
+  tasks={[
+    "Draw the boot and trust chain for the laptop and node, marking the earliest layer supported by each observation.",
+    "Separate confirmed facts, hypotheses and unknowns, including the difference between Secure Boot acceptance and attestation mismatch.",
+    "Rank plausible benign explanations and adversarial explanations, then identify the evidence that would distinguish them.",
+    "Choose a containment order for the administrator laptop, the other seven laptops, the node and the verification service.",
+    "Design an evidence-preservation plan covering firmware, boot policy, memory, endpoint logs, identity records and scheduler state.",
+    "Specify recovery gates for firmware, operating system, credentials, Kubernetes workloads and staged access restoration.",
+    "Design fleet scope queries and a safe test for the scheduled vendor update versus an unapproved component.",
+    "Write preventive and detective control changes with owners, negative tests, rollback criteria and success measures."
+  ]}
+  hints={[
+    "Secure Boot acceptance means the configured policy accepted what it checked. It does not make the reference mismatch impossible.",
+    "An approved update can cause a measurement change, but the change record must identify the exact component and affected models.",
+    "The administrator laptop has higher credential-exposure risk; the node may affect every workload scheduled on it.",
+    "Do not update the trusted reference merely to silence alerts. Verify provenance and component identity first.",
+    "The node lacks remote attestation, so its lost alerts require independent kernel, network and management evidence rather than an assumption of firmware compromise.",
+    "Recovery must restore the earliest supported trust boundary and verify it with evidence independent of the suspect layer.",
+    "Fleet scoping should include platform family, firmware version, measurement value, policy history and recent maintenance, not only asset names.",
+    "A detector needs benign update fixtures and a mismatch fixture; a preventive control needs a rejection test and an authorised exception path."
+  ]}
+  solution={[
+    "The laptop observations place the earliest supported hypothesis at firmware or an early UEFI component because the mismatch concerns a firmware measurement. Secure Boot acceptance confirms only that the configured verification path accepted its checked components. The node's missing alerts support a kernel or user-mode visibility hypothesis, but the shared hardware family is not enough to claim the same UEFI mechanism. Its scheduler health describes container availability, not node integrity.",
+    "Confirmed facts include the measurement mismatch, platform family, Secure Boot state, continued policy delivery, recent new-location authentication, missing node alerts and scheduler-reported workload health. Hypotheses include an approved but undocumented firmware update, an untrusted UEFI component, a reference-baseline error and a node kernel visibility issue. Unknowns include the changed component's identity, update provenance, acquisition completeness, credential exposure and whether other fleet assets share the measurement.",
+    "Benign explanations include an approved vendor release that was not recorded correctly, a policy-scope difference and a stale trusted reference. Adversarial explanations include an untrusted firmware driver, compromised update or key-management path and a kernel mechanism suppressing alerts. Distinguishing evidence includes vendor-signed update metadata, authorised firmware acquisition, boot-policy audit, key-enrolment history, independent kernel state and identity-session records. No single explanation should be accepted merely because it is less disruptive.",
+    "Isolate the administrator laptop first because unusual identity activity raises exposure risk. Restrict the other seven laptops to a recovery and evidence network, and prevent privileged sign-ins while their measurements are reviewed. Cordon the node under the platform operating policy, preserve supported evidence and prevent new workload placement. Protect the verification service and reference store from workload administrators. Do not disconnect the evidence path before confirming that required logs and reports have been preserved.",
+    "Preserve raw attestation reports with timestamps and freshness information, Secure Boot policy and key-enrolment audit, supported firmware acquisitions, boot logs, endpoint memory where approved, network and identity records, node kernel evidence and scheduler events. Hash each acquired artefact and record tool version, platform model and collection operator. If active harm demands isolation, document which volatile evidence is lost. Avoid applying an unverified firmware update before preserving the state needed to distinguish update from implant.",
+    "Firmware recovery uses vendor-supported procedures and a verified reference. Restore or replace affected provisioning state and re-enable the approved trust policy. Rebuild operating systems from trusted media and rotate exposed credentials. For the node, validate kernel and boot state before returning it to service, then redeploy only verified workloads under corrected identity and network policy. Restore access gradually and require independent firmware measurements, alert-delivery tests and identity review before closing each asset.",
+    "Scope by hardware family, firmware version, measurement value, Secure Boot policy digest, key-enrolment events, recent maintenance window, device owner privilege and attestation freshness. Query both matching and non-reporting assets. Compare the suspicious component with the vendor update package and change ticket using authorised analysis. Test the update on a representative spare device in an isolated environment, and test rejection of a deliberately mismatched benign fixture without deploying malicious code.",
+    "Preventive changes include protected firmware-update approval, restricted key enrolment, automated baseline reconciliation and mandatory recovery exercises. Detective changes include alerts on measurement mismatch, missing attestation, unexpected policy change and disagreement between endpoint and external telemetry. Each change needs an owner, an approved-update benign test, a mismatch test, a documented exception path and a rollback plan. Success measures include time to detect, time to isolate, percentage of fleet assets with fresh evidence and recovery-test pass rate."
+  ]}
+  takeaway="A trust mismatch is an evidence problem before it is a repair problem. Contain the exposure, preserve independent evidence, restore the earliest affected layer and verify that the path cannot return."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Session-only investigation | Endpoint looks clean despite external activity | Lower-layer influence ignored | Collect independent kernel, firmware and external evidence |
+| Reboot-as-recovery | Compromise returns after restart | Boot path restores persistence | Restore the earliest affected trust boundary |
+| Secure Boot overclaim | Accepted boot treated as full integrity | Control scope misunderstood | State exactly what policy verified |
+| Attestation-as-repair | Mismatch reported but access continues | No policy or remediation link | Bind fresh evidence to access decisions |
+| Single-tool trust | Several tools repeat the same clean view | Shared agent or acquisition path | Use independent evidence sources |
+| Reference silencing | Alerts disappear after baseline edit | Unverified component accepted as normal | Require provenance and controlled baseline changes |
+| Destructive first response | Firmware or memory evidence lost | Update or rebuild before acquisition | Preserve approved evidence when risk allows |
+| Partition-only cleanup | Firmware implant survives | Operating-system scope mistaken for platform scope | Include firmware and bootloader recovery |
+| Credential omission | Access continues after device recovery | Early layer may observe authentication | Rotate sessions and secrets by exposure window |
+| Container-only containment | Node remains compromised | Shared kernel and boot trust ignored | Cordon or replace affected nodes |
+| Fleet under-scoping | Related assets recur later | Only the first alert is investigated | Scope by platform, measurement, policy and maintenance |
+| Unsupported acquisition | Corrupt or misleading firmware evidence | Wrong tool or platform assumptions | Use supported methods and preserve raw output |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Safe next step |
+| --- | --- | --- |
+| Secure Boot accepts but attestation mismatches | Policy scope differs from measured reference | Identify the changed component and policy coverage |
+| Many devices mismatch after maintenance | Approved update or stale baseline | Verify vendor provenance and change records before reference update |
+| Endpoint process list is empty but network is active | Filtered view, agent failure or clock issue | Compare external telemetry and verify agent health |
+| Kernel acquisition is inconsistent | Unsupported method, symbols or compromised path | Document dependency and seek an independent approved view |
+| Firmware image cannot be parsed | Wrong platform format or tool version | Stop and consult platform-specific supported acquisition |
+| Attestation reports are missing | Offline device, agent failure or blocked reporting | Check device, network and verifier health separately |
+| Recovery device fails policy | Keys or reference state not restored correctly | Use vendor recovery procedure and verify policy before access |
+| Alerts return after rebuild | Lower-layer persistence or credential reuse | Reassess earliest affected layer and rotate credentials |
+| Node containers look healthy but alerts stop | Workload health mistaken for node integrity | Cordon node and collect independent kernel and network evidence |
+| Baseline update creates new noise | Incorrect component or model mapping | Roll back the reference change and review mapping |
+
+## Design review checklist
+
+- [ ] The boot chain and earliest plausible persistence layer are documented for each platform family.
+- [ ] Secure Boot scope, key management, recovery mode and policy-change auditing are explicit.
+- [ ] Attestation defines freshness, trusted verifier, reference ownership, missing-evidence behaviour and access policy.
+- [ ] User, kernel, firmware and external evidence sources are assessed for shared dependencies.
+- [ ] Acquisition methods are supported, authorised, versioned and safe for the target platform.
+- [ ] Containment covers sessions, credentials, management interfaces and fleet scope, not only files.
+- [ ] Recovery restores the earliest affected trust boundary using trusted or vendor-supported procedures.
+- [ ] Verification uses evidence independent of the suspect layer and tests for recurrence.
+- [ ] Container-node containment and workload redeployment respect shared kernel and boot trust.
+- [ ] Detection logic has benign update fixtures, mismatch tests, owners and measured precision.
+- [ ] Evidence preservation includes hashes, custody, timestamps and documented losses.
+- [ ] Recovery exercises test offline, maintenance, lost-device and compromised-management scenarios.
+
+## Key takeaways
+
+1. A rootkit or bootkit is defined by influence and persistence across a trust layer, not merely by a hidden process.
+2. The boot chain determines which evidence can observe the compromise and which recovery action can remove it.
+3. User-mode, kernel, bootloader and UEFI hypotheses require different vantage points and containment scope.
+4. Secure Boot authenticates a defined boot-policy scope; it is not a guarantee of runtime integrity.
+5. Attestation supplies evidence to a trusted verifier; it does not repair the endpoint automatically.
+6. Cross-view disagreement is valuable when sources are independent and their limitations are recorded.
+7. Container isolation does not remove shared kernel, boot-path or firmware trust.
+8. Recovery restores the earliest affected layer, rotates exposed credentials and verifies that the path cannot return.
+
+## Practice
+
+### Trust-chain mapping
+
+Choose a managed laptop, a container node and a virtual machine from a fictional inventory. Draw reset, firmware, bootloader, hypervisor or kernel, and session transitions. Mark which evidence source could observe each stage and which team owns recovery. Do not inspect or modify real firmware.
+
+**Deliverable:** three diagrams with evidence and ownership annotations. **Success criterion:** every claimed visibility source has a stated independence assumption.
+
+### Control-scope memo
+
+Use the boot-chain explorer to compare all four layers with Secure Boot and attestation on and off. Write a one-page memo explaining what each control can prevent, what it can reveal and what remains outside its scope. Include at least two benign explanations for a mismatch.
+
+**Deliverable:** a scope matrix and mismatch triage rule. **Success criterion:** no control is described as a universal integrity guarantee.
+
+### Recovery tabletop
+
+Run the guided workshop as a tabletop with roles for incident commander, firmware engineer, identity lead, Kubernetes owner and legal contact. Introduce a constraint that the administrator laptop must remain available for a critical business process. Decide how to preserve evidence and restrict access without creating an unsafe permanent exception.
+
+**Deliverable:** a timed action log, decision rationale and recovery acceptance criteria. **Success criterion:** every disruptive action has an owner, rollback and evidence consequence.
+
+### Detection test plan
+
+Design three safe tests: an approved firmware update fixture, a stale-reference fixture and a simulated mismatch fixture. Specify data sources, expected alerts, benign cases, severity, owner and closure criteria. Add one test for a node that stops reporting while containers remain healthy.
+
+**Deliverable:** a test table with positive, negative and missing-evidence cases. **Success criterion:** each test distinguishes trust mismatch, reference error and telemetry failure without deploying malicious code.

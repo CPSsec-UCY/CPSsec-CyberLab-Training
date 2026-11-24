@@ -3,7 +3,7 @@ slug: ntt-polynomials
 title: "NTT and polynomial rings: the arithmetic engine"
 subtitle: "Why lattice schemes spend most of their cycles turning polynomial multiplication into point-wise multiplication."
 track: "Post-Quantum Cryptography"
-order: 11
+order: 22
 difficulty: "Advanced"
 readingTime: 90
 summary: "From negacyclic convolution to the incomplete NTT used by ML-KEM, with a runnable coefficient-level lab and the implementation tricks that make it fast."
@@ -14,6 +14,8 @@ prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { PolynomialConvolutionLab } from "@/components/visualizers/PolynomialConvolutionLab";
 
 <Lens level={1} title="Multiplying polynomials without multiplying everything by everything">
 
@@ -127,6 +129,10 @@ $$
 Naive convolution gives coefficients $1,4,10,20,25,24,16$ before reduction, then the negacyclic wrap subtracts the terms of degree $\ge 4$ from the low coefficients. The result is exact but requires 16 products. The NTT computes the same result with two butterfly layers and point-wise products.
 
 The interactive diagram on this page lets you step through the pre-twist, bit reversal and butterflies for a four-coefficient ring. The same structure scales to 256 coefficients; only the tables and loop bounds change.
+
+<Figure caption="Multiply two editable four-coefficient polynomials modulo 17. Step from naive convolution through degree wrap to a toy four-point transform, then compare the exact cyclic or negacyclic result.">
+  <PolynomialConvolutionLab />
+</Figure>
 
 ## A coefficient-level walkthrough
 

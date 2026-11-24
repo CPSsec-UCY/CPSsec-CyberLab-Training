@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ArrowRight, FileCode2, ShieldCheck, Sigma, Wrench } from "lucide-react";
 import { LabWorkbench } from "@/components/lab/LabWorkbench";
 import { Cite } from "@/components/citations/Cite";
+import { LabCatalog } from "@/components/labs/LabCatalog";
 
 export const metadata: Metadata = {
   title: "Interactive labs",
   description:
-    "Run post-quantum arithmetic in Rust WebAssembly, and explore AEAD, hashing, federated learning, deep packet inspection, SOC triage and zero-knowledge proofs in the browser.",
+    "Explore 32 interactive workbenches across red team, AppSec, identity, cloud, malware, DFIR, SOC, privacy, protocols and post-quantum cryptography.",
 };
 
 export default function LabPage() {
@@ -21,9 +22,9 @@ export default function LabPage() {
           </h1>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
             Real computation, not a video. The PQC bench is compiled from Rust to WebAssembly, runs a
-            deterministic self-test on load, and exposes every intermediate array. The other labs run
-            client-side and are linked from their courses: AEAD tampering, hash avalanche, federated
-            poisoning, DPI pipelines, SOC triage and Schnorr proofs.
+            deterministic self-test on load, and exposes every intermediate array. The catalogue below
+            adds safe simulations for red-team ranges, web exploitation, cloud attack paths, malware
+            reverse engineering, rootkits, DFIR timelines, threat hunting, identity flows and more.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -36,6 +37,8 @@ export default function LabPage() {
       <div className="mt-10">
         <LabWorkbench />
       </div>
+
+      <LabCatalog />
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-line bg-white p-5">

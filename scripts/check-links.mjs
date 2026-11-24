@@ -9,7 +9,7 @@ const urls = [...new Set(citations.map((citation) => citation.url))];
 
 const CONCURRENCY = 6;
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; CPSsec-CyberLab-link-check/1.0; +https://github.com/CPSsec-UCY/pqc-cyberlab)";
+  "Mozilla/5.0 (compatible; CPSsec-CyberLab-link-check/1.0; +https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training)";
 const BLOCKED_STATUSES = new Set([401, 403, 429, 451]);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

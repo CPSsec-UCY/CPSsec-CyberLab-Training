@@ -1,4 +1,4 @@
-# Contributing to CPSsec CyberLab
+# Contributing to CPSsec CyberLab Training
 
 Thank you for helping build an open, citation-backed security curriculum.
 
@@ -55,8 +55,10 @@ lenses: [1, 2, 3, 4]
 
 Rules:
 
-- `track` must be one of `Foundations`, `Post-Quantum Cryptography`, `Network & Protocol Security`,
-  `Distributed Systems & Privacy`, `Security Operations`, `Systems & Hardware`, `Advanced Cryptography`.
+- `track` must be one of `Foundations`, `Red Team`, `Application Security`, `Identity & Access`,
+  `Cloud & Infrastructure`, `Malware & Forensics`, `Digital Forensics & Incident Response`,
+  `Software Supply Chain`, `Network & Protocol Security`, `Distributed Systems & Privacy`,
+  `Security Operations`, `Systems & Hardware`, `Advanced Cryptography`, `Post-Quantum Cryptography`.
 - `order` must be unique across modules.
 - `citations` must list every source cited inline. Keys must exist in `content/citations.json`.
 - `prerequisites` must refer to existing module slugs.

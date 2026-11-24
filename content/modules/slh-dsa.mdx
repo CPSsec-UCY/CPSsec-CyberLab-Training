@@ -3,7 +3,7 @@ slug: slh-dsa
 title: "SLH-DSA: signatures from hash functions alone"
 subtitle: "WOTS+, FORS and a hypertree of one-time keys — conservative cryptography with a size bill attached."
 track: "Post-Quantum Cryptography"
-order: 14
+order: 25
 difficulty: "Advanced"
 readingTime: 90
 summary: "How SPHINCS+ became FIPS 205: stateless hash-based signatures, the WOTS+/FORS/hypertree stack, parameter trade-offs, and why the security assumptions are so small."
@@ -14,6 +14,8 @@ prerequisites: ["asymmetric-primitives"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { WotsChainLab } from "@/components/visualizers/WotsChainLab";
 
 <Lens level={1} title="One-time signatures, stacked into a tree of trees">
 
@@ -115,6 +117,10 @@ The "s" sets favour signature size; the "f" sets reduce signing work by using mo
 ## Why WOTS+ keys cannot be reused
 
 A WOTS+ signature reveals one hash-chain value per digit. A second signature on a different digest may reveal a later chain value, letting an attacker compute the first signature's remaining chain and forge. This is not a theoretical nicety; stateful hash-based deployments have failed precisely here.
+
+<Figure caption="Illustrative WOTS+ hash chain. Sign once, reuse the key and combine the two revealed positions to construct a component that still verifies against the public endpoint.">
+  <WotsChainLab />
+</Figure>
 
 <Callout variant="danger" title="Stateful schemes require operational discipline">
 XMSS and LMS are standardised and efficient, but the signer must guarantee that every one-time key is used at most once. Backups, failover and disaster recovery must all preserve that invariant. <Cite id="rfc8391" locator="§3–4" />

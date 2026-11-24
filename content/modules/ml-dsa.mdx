@@ -3,7 +3,7 @@ slug: ml-dsa
 title: "ML-DSA: lattice signatures and the art of rejection"
 subtitle: "How FIPS 204 signs without leaking the secret, and why a signature sometimes has to be thrown away."
 track: "Post-Quantum Cryptography"
-order: 13
+order: 24
 difficulty: "Advanced"
 readingTime: 95
 summary: "The Fiat–Shamir-with-aborts construction behind ML-DSA: masking vectors, norm bounds, hints, rejection sampling, and the side-channel risks that remain."
@@ -14,6 +14,8 @@ prerequisites: ["ml-kem", "ntt-polynomials"]
 updated: "2026-11-24"
 lenses: [1, 2, 3, 4]
 ---
+
+import { MlDsaHintLab } from "@/components/visualizers/MlDsaHintLab";
 
 <Lens level={1} title="A signature that looks like a random shadow">
 
@@ -110,6 +112,10 @@ w' = A z - c \, t_1 \cdot 2^d,
 $$
 
 then applies the rounding decomposition and checks that $H(\mu \,\|\, \mathsf{HighBits}(w')) = c$ and that the hint is valid. The verification equation is algebraic; no secret is needed.
+
+<Figure caption="Toy high/low decomposition and hint recovery. Change the secret low part, candidate response or challenge and watch the verifier accept or reject the corrected high bits.">
+  <MlDsaHintLab />
+</Figure>
 
 <Figure caption="Signature sizes versus security level and family. ML-DSA sits between compact classical signatures and the much larger hash-based signatures.">
   <ParameterExplorer />

@@ -1,0 +1,514 @@
+---
+slug: cloud-container-security
+title: "Cloud and container security: IAM, workloads, Kubernetes and attack paths"
+subtitle: "Follow identity across control planes, containers and data — then design controls that break the path."
+track: "Cloud & Infrastructure"
+order: 6
+difficulty: "Advanced"
+readingTime: 90
+summary: "Analyse cloud IAM, object storage, container supply chains, Kubernetes trust boundaries and data-reaching attack paths, then build detection and containment plans."
+outcomes: ["Model cloud and Kubernetes trust boundaries and shared responsibilities.", "Evaluate IAM policies, workload identity and storage exposure by attack path.", "Harden containers and Kubernetes using least privilege and layered controls.", "Design telemetry, containment and recovery for cloud control-plane incidents."]
+citations: ["nist-sp800-145", "nist-sp800-190", "nist-sp800-204", "owasp-k8s-top-10", "kubernetes-security", "sp800-207", "rfc8446"]
+tags: ["cloud", "containers", "kubernetes", "iam", "zero-trust"]
+prerequisites: ["identity-access-management", "deep-packet-inspection"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Cloud is a trust-boundary problem, not a bigger data centre">
+
+## What changes when infrastructure becomes an API
+
+Cloud systems replace racks and physical access with programmable control planes. A storage policy, role assumption, container image, Kubernetes RoleBinding or service token can move an attacker from an internet-facing service to regulated data without touching a server room. The security unit is no longer just a host. It is a chain of identities, permissions, network routes and data services distributed across providers, accounts, clusters and organisations.
+
+NIST defines cloud computing through five essential characteristics, three service models and four deployment models. Those categories matter because they allocate different control to the customer. Infrastructure as a service gives the customer more operating-system responsibility; platform and software services move more of the stack to the provider but do not remove the customer's responsibility for identity, configuration and data. <Cite id="nist-sp800-145" locator="§3 (service and deployment models)" />
+
+The practical consequence is that a cloud review must answer three questions for every asset: **who can change it, who can read it, and which identity can reach the next asset?** A hardened virtual machine is not secure if a storage administrator can replace its boot image. A private subnet is not private if a workload token can call the metadata service. A signed container is not trusted if an attacker can create a privileged pod that mounts it.
+
+<Callout variant="warning" title="The control plane is a production workload">
+Kubernetes API servers, cloud IAM services, secret managers and image registries deserve the same or stronger protection as business applications. Compromise there can invalidate controls applied inside the workload.
+</Callout>
+
+## Shared responsibility is a matrix, not a slogan
+
+“The cloud provider secures the cloud” is incomplete. Responsibilities vary by service and by operation. Physical facilities and the provider's managed service internals may be provider responsibilities, while account structure, IAM policies, data classification, application code and logging configuration are customer responsibilities. Even managed databases still need customer decisions about authentication, network exposure, encryption context, backup access and audit review.
+
+<Figure caption="A responsibility matrix for a typical container platform. Each row needs an owner on both sides of the provider-customer boundary.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[640px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted">
+        <tr><th className="px-3 py-2">Layer</th><th className="px-3 py-2">Typical provider duty</th><th className="px-3 py-2">Customer duty</th></tr>
+      </thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Facilities and hardware</td><td className="px-3 py-2">Physical security and managed hardware lifecycle</td><td className="px-3 py-2">Select regions, understand data-residency limits</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Managed control plane</td><td className="px-3 py-2">Patch and operate the advertised service</td><td className="px-3 py-2">Configure authentication, audit export and tenant boundaries</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Workload runtime</td><td className="px-3 py-2">Operate the managed node or serverless platform</td><td className="px-3 py-2">Secure code, dependencies, images and runtime permissions</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Identity</td><td className="px-3 py-2">Provide IAM mechanisms and service guarantees</td><td className="px-3 py-2">Grant least privilege, rotate credentials and review access</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Data</td><td className="px-3 py-2">Provide storage and encryption capabilities</td><td className="px-3 py-2">Classify, authorise, retain, monitor and recover data</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Response</td><td className="px-3 py-2">Notify and support under the service agreement</td><td className="px-3 py-2">Detect, contain, preserve evidence and communicate</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+A responsibility matrix prevents two dangerous assumptions. The first is that a compliance attestation proves the customer's configuration is safe. The second is that a provider-side incident makes customer-side controls irrelevant. A compromised customer credential can abuse a correctly operated service. Conversely, a provider availability failure can strand a customer whose recovery depends on one region or one identity plane.
+
+## Assets, adversaries and incentives
+
+Start with the asset inventory. Cloud assets include human administrators, service principals, federated identities, access keys, sessions, virtual networks, storage buckets, databases, queues, container images, Kubernetes namespaces, secrets, logs and backup vaults. Record the account, region, owner, data classification, internet exposure and dependencies. An inventory that lists only running instances misses the identities that can create, delete or impersonate them.
+
+The adversary may be an external attacker with a leaked token, a compromised software supplier, a malicious insider or a tenant exploiting a misconfiguration. Their goal might be data theft, cryptomining, persistence, credential harvesting or disruption. Their incentive is to use legitimate APIs and avoid controls that require rare signatures. The defender's incentive is to reduce the number of standing privileges and make abuse visible without creating an alert queue that cannot be investigated.
+
+Consider a payments platform with a public checkout service, an internal ledger and a batch-reporting job. The checkout can accept internet traffic but should not read ledger secrets. The reporting job needs batch access but should not be reachable from the internet. A developer role may deploy code but should not silently grant itself production data access. If all three share a broad administrator role, one compromised checkout container can reach the platform's objective. Separating duties is both a security control and an outage-containment mechanism.
+
+### Common misconceptions
+
+A private IP address is not an authorisation boundary. A running container is not automatically isolated from the host or the cluster. Encryption in transit does not prevent an authorised workload from reading plaintext after decryption. Multi-factor authentication protects some human sign-ins but does not constrain a stolen machine credential. A vulnerability scan finds software weaknesses but does not reveal that a bucket policy grants anonymous object reads.
+
+Treat every claim as testable. Instead of “the database is private”, ask which principals and networks can connect, whether the policy has exceptions, and what event is emitted when a new principal connects. Instead of “containers are immutable”, ask who can push an image, whether admission verifies signatures, and whether runtime mounts can overlay trusted files. Security architecture becomes useful when it can be expressed as reachability and evidence.
+
+## Encryption and identity are complementary
+
+Transport Layer Security version 1.3 authenticates the server through its certificate and establishes encrypted application records; network observers cannot rely on reading HTTP payloads to detect cloud abuse. <Cite id="rfc8446" locator="§2 and §4.1–4.4 (handshake, authentication and encrypted records)" /> A passive sensor may still see endpoints, timing and connection metadata, but those observations must be correlated with identity, API audit and workload telemetry.
+
+TLS does not decide whether a workload should read a secret. That is an authorisation question. A stolen token sent over TLS remains a stolen token. A malicious process inside a legitimate pod can make perfectly valid TLS connections to the data service. This is why zero-trust architecture emphasises explicit authorisation per session, least privilege and policy enforcement close to resources rather than trusting network location alone. <Cite id="sp800-207" locator="§2–3 (tenets and architecture)" />
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why is a private subnet not sufficient to protect a cloud database?"
+  options={["Private subnets disable TLS", "A compromised workload or over-privileged identity inside the boundary may still reach it", "Databases cannot use private addresses", "Network location replaces authentication"]}
+  answer={1}
+  explanation="Network location limits one route. Workload identity, database authentication, policy and telemetry are still required because an attacker may already operate inside the boundary."
+/>
+
+## Design the boundary before choosing the service
+
+A useful cloud design begins with trust zones: public ingress, application workloads, control plane, data services, administrative access and evidence storage. For each zone, define allowed identities, protocols, direction, data classification and response owner. Then select services whose controls can enforce that contract. Managed services can reduce operational burden, but they can also concentrate permissions and hide operational detail.
+
+Draw the attack path backwards from the crown-jewel dataset. Identify every identity that can read it, every service that can issue those identities, every principal that can change the relevant policies and every network route that can reach the service. Ask what happens if one workload token is stolen, one image is replaced or one administrator account is phished. If every answer ends at “full production access”, the architecture has not yet separated security domains.
+
+The remaining lenses build this model in three layers. First, follow IAM, storage and container identity across cloud APIs. Second, map Kubernetes identities and admission boundaries. Third, connect those technical paths to telemetry, containment and recovery. The interactive lab is deliberately small, but its method scales: nodes are assets, edges are permitted actions, and a control is valuable when it removes an edge rather than merely making it harder to notice.
+
+</Lens>
+
+<Lens level={2} title="IAM, storage and containers form one attack graph">
+
+## Identity is the primary cloud authorisation surface
+
+Cloud IAM combines principals, permissions, resources and conditions. A principal may be a human user, a federated role, a workload identity or a service account. A policy states which actions are allowed or denied on which resources under which conditions. Effective access is the result of identity policies, resource policies, permission boundaries, organisation controls and session conditions. Reviewing only one policy document produces false confidence.
+
+Separate authentication from authorisation. Authentication establishes who is making a request; authorisation decides what that request may do. A valid access token can be replayed from an unexpected host unless token lifetime, audience, sender constraints and conditional access reduce the opportunity. Workload identity improves on long-lived keys by exchanging a platform-verifiable identity for short-lived credentials, but it does not fix an over-broad role attached to that identity.
+
+A least-privilege review should begin with observed actions, not guessed intentions. Collect API activity over a representative period, identify unused permissions, and build a narrow role. Keep administrative actions separate from runtime actions. A deployment role may create a new workload version; the workload role should read only its own configuration and data. Emergency access must be time-bound, approved, alerted and reviewed after use.
+
+<Callout variant="note" title="Deny is not a substitute for least privilege">
+An explicit deny can block a known-bad action, but a broad allow still creates future risk when services add actions or resources. Prefer narrow allows, then use denies for organisation-wide guardrails and exceptional cases.
+</Callout>
+
+## Storage exposure is often a data path without a vulnerability
+
+Object storage security combines account-level public-access blocks, bucket policies, object ownership, access-point policies, encryption and logging. Public-read access may be intentional for static website assets, but it is dangerous for deployment archives, backups, exports or forensic captures. Review anonymous access separately from authenticated access; a service can be private to the internet yet readable by every identity in an account.
+
+The most important storage question is not “is encryption enabled?” It is “which principal can obtain plaintext, under what conditions, and how will we know?” Encryption protects storage media and may satisfy compliance requirements without preventing a legitimate application role from downloading the entire dataset. Key policies can create a second authorisation boundary, but a role that can decrypt and read remains inside that boundary.
+
+Continuous configuration monitoring should detect policy drift, but prevention is stronger. Apply guardrails at account and organisation level, limit who can change public-access settings and require infrastructure changes through reviewed code. Alert on anonymous requests, unusual download volume and changes to bucket policy, key policy or replication destinations. Preserve the raw change event, actor identity, source network and before-and-after policy.
+
+## Containers add supply-chain and runtime edges
+
+NIST's container security guidance treats risks across the container image, registry, orchestrator, container runtime and host. <Cite id="nist-sp800-190" locator="§3–5 (container risks and mitigations)" /> Vulnerabilities may enter through base images, dependencies, build tooling or registry credentials. A vulnerable image is only one problem: an attacker may exploit excessive runtime privileges, writable host mounts, exposed Docker-compatible sockets or a permissive orchestrator policy.
+
+Secure the lifecycle rather than only scanning the final artefact. Pin base images by digest, generate a software bill of materials, scan dependencies, build in a controlled environment, sign the resulting image and verify the signature at admission. Runtime controls should drop unnecessary capabilities, run as a non-root user, use a read-only root filesystem where possible and restrict host namespaces, mounts and device access.
+
+A signed image proves origin and integrity under the signing policy; it does not prove the code is safe. A clean scan proves only that the configured scanner did not find known issues at that time. Admission policy should combine signature verification, allowed registries, provenance and runtime restrictions. Exceptions need an owner, rationale, compensating controls and expiry.
+
+## Microservices turn identity into an application architecture problem
+
+Service-to-service calls need identity, authorisation and transport protection. NIST's microservices security strategies describe patterns such as service authentication, access control and secure communication within a microservice-based system. <Cite id="nist-sp800-204" locator="§3–5 (microservice security patterns)" /> The architectural choice matters: a single shared database credential bypasses service-level authorisation, while per-service identities and database roles can constrain what a compromised service reads.
+
+Use a service mesh or application-level mutual TLS where appropriate, but do not assume the mesh solves authorisation. Encryption protects the channel; policy decides which service may call which operation. Apply request-level authorisation, bounded retries and rate limits. Keep asynchronous consumers idempotent so replaying a message cannot duplicate a financial action. Separate control messages from bulk data movement to make anomalous traffic easier to detect.
+
+<ProcessFlow
+  steps={[
+    {title: "Inventory", detail: "Map accounts, identities, images, storage, clusters and data services with owners.", tone: "brand"},
+    {title: "Model", detail: "Draw permitted identity-to-resource edges and mark trust-zone crossings.", tone: "teal"},
+    {title: "Constrain", detail: "Remove public access, narrow roles and enforce admission and network policy.", tone: "gold"},
+    {title: "Observe", detail: "Export control-plane, identity, network and workload evidence with common timestamps.", tone: "coral"},
+    {title: "Exercise", detail: "Replay token theft, image replacement and policy-change scenarios.", tone: "brand"},
+    {title: "Recover", detail: "Revoke credentials, restore trusted policy and verify data and service integrity.", tone: "teal"}
+  ]}
+/>
+
+## Explore the attack path
+
+<Figure caption="Toggle control failures, choose an entry point and step from the internet through storage, IAM, workloads, Kubernetes and secrets to sensitive data. Each edge exposes the control that breaks it.">
+  <iframe
+    src="/labs/cloud-attack-path/"
+    title="Interactive cloud attack-path explorer"
+    className="h-[1800px] w-full rounded-xl border border-line bg-white"
+    loading="lazy"
+  />
+  <a href="/labs/cloud-attack-path/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-[10px] font-bold text-brand-700 hover:underline">
+    Open the cloud attack-path lab full screen
+  </a>
+</Figure>
+
+The lab is not a risk score. It is a reachability exercise. Notice how enabling one weakness can unlock several edges: public storage may expose a credential, and that credential may reach a workload whose role reads unrelated secrets. Notice also how a single strong control can split the graph. Blocking public storage removes both direct object access and the storage-to-IAM credential edge. Restricting Kubernetes RBAC may leave a compromised workload but prevent control-plane expansion.
+
+Real attack graphs are larger and contain uncertainty. Logs may be missing, a policy condition may depend on a stale tag and a network route may be overridden by a provider-specific feature. Record the evidence for each edge, including policy documents, observed API calls, network flow records and runtime telemetry. A diagram without provenance is a hypothesis, not an assessment.
+
+<WorkedExample
+  title="Replace a wildcard role with a workload-specific role"
+  steps={[
+    "A reporting service currently has a role allowing every action on every resource in the production account. This is convenient but lets a compromised reporting pod modify IAM, delete backups and read the customer database.",
+    "Collect thirty days of CloudTrail-style API events attributable to the service. Separate deployment-time actions from runtime actions and investigate unexpected calls before assuming they are required.",
+    "Create a runtime role that can read one configuration object, write to one report bucket and publish to one queue. Scope each permission to the exact resource and add conditions for the approved service identity.",
+    "Create a separate deployment role for controlled pipeline use. Remove wildcard resource grants, deny attachment of administrator policies to the runtime role and require approval for temporary escalation.",
+    "Test the new policy with a normal reporting run, a missing configuration object and an attempted cross-bucket read. Confirm the expected success, controlled failure and audit event for each case."
+  ]}
+  result="The attack graph loses the workload-to-IAM and workload-to-unrelated-secrets edges. The service keeps the access it needs while a compromised runtime identity can no longer rewrite the platform around itself."
+/>
+
+## Evaluate policy semantics, not policy names
+
+Policy names such as “read-only” and “developer” are not security boundaries. Review the action list, resource scope, condition keys and implicit deny behavior. A read-only role that can read secrets is powerful. A deployment role that can pass any service role to a new compute resource can escalate through the compute service even if it cannot directly assume that role.
+
+Check cross-account trust, federated role mappings and service-linked roles. External principals may obtain access through resource policies rather than identity policies. Conditions can reduce exposure, but only when the condition keys cannot be freely supplied by the requesting principal. Use organisation guardrails to prevent public storage, restrict allowed regions and protect audit configuration independently of workload administrators.
+
+<WorkedExample
+  title="Trace a public archive to customer data"
+  steps={[
+    "An anonymous user downloads a deployment archive from object storage. The archive contains a configuration template with a non-expired service credential.",
+    "The credential belongs to a build role. That role can create compute instances and attach an existing production data-reader role.",
+    "The attacker creates a short-lived workload, reads the customer export bucket and copies the data to an account they control.",
+    "The incident graph contains four edges: anonymous object read, credential use, compute creation with role passing and data export.",
+    "Break the path at multiple points: block public access, remove secrets from artefacts, narrow the build role, forbid uncontrolled role passing and alert on unusual instance creation or export volume."
+  ]}
+  result="No single vulnerability explains the breach. Public exposure, credential hygiene, role design and data egress controls compose into a complete attack path; defence in depth must remove several edges."
+/>
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why can a signed container still create a serious cloud incident?"
+  options={["Signatures make containers run faster", "A signed image may contain vulnerabilities or run with excessive workload permissions", "Signing removes the need for network policy", "Signatures guarantee the registry is private"]}
+  answer={1}
+  explanation="A signature supports provenance and integrity, not safety or least privilege. Vulnerable code and over-privileged runtime identity remain separate risks."
+/>
+
+## Validate with adversarial tests
+
+Use safe, authorised tests to confirm that policy behaves as intended. Try an anonymous object request, a request from a disallowed network, a role assumption without the required tag, a pod mounting a host path and a service account reading an unrelated secret. Capture the denial and the corresponding audit event. If the request succeeds unexpectedly, stop and correct the control before continuing.
+
+Do not test only from an administrator workstation. Test from the workload's actual identity and network context. Policies can behave differently for federated users, assumed roles and service principals. Test both allow and deny paths, including a resource that does not exist. Error messages should not reveal sensitive policy details, but audit records should contain enough context to explain the decision.
+
+</Lens>
+
+<Lens level={3} title="Kubernetes has four planes and many identities">
+
+## Separate the cluster, node, workload and network planes
+
+Kubernetes security spans several planes. The **cluster control plane** includes the API server, scheduler, controller manager and etcd. The **node plane** includes the kubelet, container runtime, host operating system and host mounts. The **workload plane** includes pods, containers, service accounts and application credentials. The **network plane** includes services, ingress controllers, pod-to-pod traffic and egress to external APIs.
+
+An attacker can enter through any plane. An exposed API server or dashboard may permit unauthenticated or weakly authorised administration. A vulnerable kubelet may allow commands to run on a node. A compromised pod may steal its mounted service-account token. A permissive network policy may let that pod scan and reach unrelated services. Controls must cover all four planes rather than treating the cluster as one object.
+
+The OWASP Kubernetes Top 10 organises common cluster risks, including control-plane exposure, workload privilege, insecure RBAC, vulnerable components, secret exposure, network segmentation and supply-chain concerns. <Cite id="owasp-k8s-top-10" locator="Current Kubernetes risk categories" /> Use the categories to structure review questions, not as a claim that ten checks make a cluster secure.
+
+## Authentication gets you to the API; RBAC decides what you can do
+
+Kubernetes supports human users, groups, service accounts and federated identities. Authentication may come from certificates, bearer tokens, an external identity provider or cloud IAM integration. Authorisation is commonly handled through role-based access control. A Role is namespace-scoped; a ClusterRole can define reusable permissions across namespaces; RoleBindings and ClusterRoleBindings attach those permissions to subjects.
+
+Avoid wildcard verbs and wildcard resources. A role that can list secrets may expose every credential in a namespace even if the application only needs one configuration value. A role that can create pods is indirectly powerful because the creator controls the pod specification, including service account, mounts, host namespaces and security context. Treat workload creation as a privileged capability.
+
+Service accounts are identities, not just names. Every pod runs under one. By default, a token may be projected into the pod, so a process can call the Kubernetes API. Disable token automounting for workloads that do not need API access. Where access is required, use short-lived projected tokens, bind the audience and issue only the permissions needed for that service.
+
+<Callout variant="danger" title="Pod creation can be privilege escalation">
+If a principal may create a pod, it may choose a more privileged service account, mount a secret or request host access unless admission policy prevents it. Review creation rights independently of read-only appearance.
+</Callout>
+
+## Admission and runtime controls are complementary
+
+Pod Security Standards provide baseline, restricted and privileged profiles for common workload settings. The Kubernetes security documentation describes pod security, RBAC, network policy and secrets as connected controls. <Cite id="kubernetes-security" locator="Pod security, RBAC, network policy and secrets" /> Admission policy can reject privileged containers, host networking, unsafe mounts, root execution and unapproved images before a pod starts. Runtime controls observe what happens after admission.
+
+Use the restricted profile as a target for ordinary applications. Require non-root execution, drop all capabilities and add back only documented ones, disallow privilege escalation, use seccomp and prevent unsafe hostPath or host namespace access. A workload that genuinely needs special privileges should run in an isolated namespace or node pool with explicit approval and stronger monitoring.
+
+Admission is not a one-time gate. Policies need tests, version control, staged rollout and an audit trail. Emergency exceptions should expire. Namespace labels must be protected from application teams that could otherwise downgrade their own enforcement level. Cluster administrators also need separation: the ability to change admission policy should not silently include the ability to exfiltrate application secrets.
+
+## Draw the trust boundaries
+
+<Figure caption="Kubernetes trust zones. Identity, admission and network controls must each constrain movement toward secrets and the control plane.">
+  <div className="not-prose grid gap-3 md:grid-cols-4">
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-brand-700">Public ingress</p>
+      <p className="mt-1 text-xs font-bold text-navy">User and partner traffic</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Authenticate at the edge, rate-limit requests and expose only required routes. Do not publish the API server or dashboard.</p>
+    </div>
+    <div className="rounded-xl border border-gold-200 bg-gold-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-700">Application namespace</p>
+      <p className="mt-1 text-xs font-bold text-navy">Pods and service identities</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Restricted pod security, verified images, minimal service-account permissions and default-deny network policy.</p>
+    </div>
+    <div className="rounded-xl border border-coral-200 bg-coral-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-coral-700">Sensitive services</p>
+      <p className="mt-1 text-xs font-bold text-navy">Databases and secret consumers</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Allow only named application identities and ports. Authenticate the workload separately from network reachability.</p>
+    </div>
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-700">Control plane</p>
+      <p className="mt-1 text-xs font-bold text-navy">API server and administrators</p>
+      <p className="mt-2 text-[10px] leading-4 text-body">Private endpoint, strong administrator identity, audited break-glass access and protected policy configuration.</p>
+    </div>
+  </div>
+</Figure>
+
+## Secrets need lifecycle controls
+
+Kubernetes Secrets are objects whose values are encoded, not necessarily encrypted at rest by default. Enable encryption at rest with controlled key access, restrict who can read Secret objects and avoid putting secrets into container images, source control or ordinary logs. External secret managers can centralise rotation and auditing, but the workload identity that reads them becomes a sensitive credential.
+
+A secret has a lifecycle: create, distribute, use, rotate, revoke and delete. Rotation without revoking the old value may leave a usable backdoor. Deleting a Kubernetes Secret does not remove copies from memory, process environments, backups or host mounts. Incident response must identify where a credential was used and revoke the underlying provider credential, not merely delete the cluster object.
+
+Limit secret propagation. Prefer just-in-time delivery to a workload that needs one value over mounting every namespace secret into every pod. Protect the secret-delivery controller and its identity. Monitor reads, especially bulk list operations, and alert when a service account that normally performs no API calls begins retrieving secrets.
+
+## Network policy is a distributed firewall with sharp edges
+
+Network policies select pods and define allowed ingress and egress. Their effect depends on the cluster network plugin; a policy object that the plugin does not enforce provides false assurance. Default-deny policies establish a baseline, then explicit allows permit required traffic. Include DNS resolution, health checks, identity-provider calls, telemetry export and external APIs in the design so security changes do not create mysterious outages.
+
+Separate ingress from service-to-service traffic. An ingress controller terminates public traffic and routes requests, but that does not authorise one internal service to call another. Apply workload identity and application authorisation in addition to network policy. For east-west traffic, deny by namespace or label and allow only required destinations and ports. For egress, restrict external destinations where practical and route traffic through controlled proxies or gateways.
+
+TLS protects pod-to-pod traffic in transit, but certificate issuance, trust roots and rotation are part of the design. RFC 8446 describes the TLS 1.3 handshake and encrypted-record model. <Cite id="rfc8446" locator="§4.1–4.4 (handshake and encrypted records)" /> A service mesh can automate mutual TLS, but the trust domain, authorisation policy and certificate lifecycle still require ownership. A valid mesh certificate proves membership in a trust domain, not permission to invoke every operation.
+
+<WorkedExample
+  title="Fix a namespace that can read every secret"
+  steps={[
+    "A monitoring integration has a ClusterRoleBinding to the built-in view role. Analysts assume view is read-only and harmless.",
+    "Review shows that view can list Secrets and ConfigMaps across the namespace. The integration only needs to read pod status and service endpoints.",
+    "Create a custom Role allowing get, list and watch on pods, services and endpoints. Remove secret and config-map access and bind only that Role to the integration service account.",
+    "Disable token automounting on unrelated pods and test that the integration still functions while secret retrieval is denied.",
+    "Add a detection for bulk secret reads and review audit logs for prior access by the integration identity. Rotate any secrets that may have been exposed."
+  ]}
+  result="The ClusterRoleBinding is replaced by a narrow namespace Role. Read access is no longer treated as a single uniform privilege, and the integration keeps only the observability it actually needs."
+/>
+
+## Node security and escape resistance
+
+A container compromise becomes more serious when the container shares sensitive host resources. Keep nodes patched, reduce the agent and daemon surface, protect the kubelet and restrict host access. Use separate node pools for workloads with different privilege requirements. Treat nodes running privileged system components as high-value assets and limit administrative access to them.
+
+Runtime detection should look for unexpected process execution, host mounts, namespace changes, kernel module loading, container escape attempts and access to node credentials. These signals need context: some are expected for node agents or debug pods. Record the workload, namespace, node and admission decision so analysts can distinguish authorised platform activity from an application container reaching the host.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why is permission to create pods considered security-sensitive?"
+  options={["Pods cannot run containers", "The creator controls the pod specification and may select privileged settings or a powerful service account", "Pod creation automatically grants cluster-admin", "Network policy ignores newly created pods"]}
+  answer={1}
+  explanation="Unless admission policy constrains it, a pod creator chooses identity, mounts, host access and security context. Creation rights must be reviewed as a potential escalation path."
+/>
+
+## Test the cluster as an attacker would traverse it
+
+Build a controlled red-team scenario that begins with a compromised application pod. Attempt to read its service-account token, call the API, list namespace secrets, reach a peer service and access the node filesystem. Compare observed behaviour with the intended trust-zone diagram. A successful read or connection is a design gap even if the target data is a synthetic canary.
+
+Repeat the scenario after policy changes. Verify that admission rejects an unsafe pod, that the API denies an unauthorised secret list and that network policy blocks a disallowed peer. Confirm the corresponding events arrive in central logging. A control that works but produces no usable evidence is difficult to operate; an alert without an enforced control merely records an avoidable compromise.
+
+</Lens>
+
+<Lens level={4} title="Detection, containment and recovery must cross control planes">
+
+## Collect evidence from every plane
+
+Cloud detection requires control-plane, identity, workload and network evidence. Cloud audit logs show API calls and policy changes. Kubernetes audit logs show requests to the API server, including actor, verb, resource, namespace and response status. Container runtime and endpoint telemetry show process execution, mounts and network connections. Network logs show flows even when payloads are encrypted.
+
+Preserve event time and ingestion time. Cloud services, nodes and applications may have different clocks or delays. Use stable identifiers such as request IDs, principal ARNs, service-account UIDs, pod UIDs and trace IDs. Enrich events with asset owner, environment, data classification and expected deployment pipeline, but record enrichment freshness so stale context is not mistaken for current truth.
+
+Protect the evidence plane. Central logging accounts, audit buckets and SIEM ingestion roles should be separate from workload administration. An attacker who can delete audit logs or change log sinks can blind the response. Alert on logging configuration changes, retention reductions and sudden gaps in expected event volume.
+
+<Figure caption="A minimum cloud incident evidence matrix. Each signal answers a different question and should be correlated without discarding the raw source event.">
+  <div className="not-prose overflow-x-auto">
+    <table className="w-full min-w-[720px] text-left text-[10px]">
+      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Question</th><th className="px-3 py-2">Primary evidence</th><th className="px-3 py-2">High-value correlation</th></tr></thead>
+      <tbody>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Who acted?</td><td className="px-3 py-2">Cloud audit, identity provider, Kubernetes audit</td><td className="px-3 py-2">Human versus workload, assumed-role chain, source network</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">What changed?</td><td className="px-3 py-2">Policy, admission and infrastructure-deployment events</td><td className="px-3 py-2">Change ticket, pipeline identity, before-and-after configuration</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">What executed?</td><td className="px-3 py-2">Runtime telemetry, process events, admission decisions</td><td className="px-3 py-2">Image digest, pod UID, node, service account</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Where did it connect?</td><td className="px-3 py-2">VPC flow, pod network and proxy logs</td><td className="px-3 py-2">Process identity, destination ownership, bytes and duration</td></tr>
+        <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">What data was reached?</td><td className="px-3 py-2">Storage, database, secret-manager and key-use audit</td><td className="px-3 py-2">Object count, query scope, principal and authorisation decision</td></tr>
+      </tbody>
+    </table>
+  </div>
+</Figure>
+
+## Detect behaviour, not only known indicators
+
+Useful detections express a hypothesis and name the evidence required. Examples include a service account that normally performs no API calls suddenly listing secrets; a deployment role creating an administrator policy; anonymous access to a bucket that normally has none; a pod mounting the host filesystem; and a workload contacting an unapproved external destination immediately after starting.
+
+ATT&CK-style technique labels help communicate and organise coverage, but a tag alone does not prove a detection works. Test each rule with benign and malicious fixtures, including late events, duplicates and missing fields. Measure precision in the deployed environment. A public-bucket alert may be routine in a development account and critical in a regulated production account; severity should reflect asset context and data classification.
+
+Zero-trust principles support detection and response as well as access control: make authorisation explicit, minimise privilege and continuously evaluate the context of access. <Cite id="sp800-207" locator="§2–3 (tenets and architecture)" /> In practice, that means alerting when a workload identity appears from a new network, when a session's permissions expand unexpectedly or when a resource policy changes outside the approved pipeline.
+
+## Contain the identity, the workload and the route
+
+Containment is not one button. Depending on the incident, responders may need to disable a compromised identity, revoke active sessions and tokens, quarantine a workload, block egress, remove a malicious admission exception, rotate a secret or restore a trusted policy. Each action has a different blast radius and evidence consequence.
+
+Preserve volatile and durable evidence before destructive actions when active harm allows. Capture relevant audit records, pod specifications, container metadata, process and network state, image digests and configuration history. Record the collector, tool version, time zone, hash and storage location. If ransomware or active data theft demands immediate containment, contain first and document the evidence that could not be preserved.
+
+Revoking a token does not necessarily invalidate every derived credential. Follow the credential chain: who assumed which role, which short-lived session was issued, which Kubernetes service account was used and which external secret was obtained. Rotate underlying secrets and remove persistence such as new IAM users, access keys, RoleBindings, admission exceptions, scheduled workloads or compromised image tags.
+
+<Callout variant="lab" title="Containment changes the evidence">
+Scaling a deployment to zero may remove malicious processes and their memory. Deleting a pod removes some runtime artefacts, though audit evidence remains. Define what must be captured first, who can authorise the trade-off and how the decision will be recorded.
+</Callout>
+
+## Recover trust, not just availability
+
+A restarted service is not a recovered service. Recovery requires rebuilding from a known-good image, restoring reviewed policy, validating data integrity, rotating exposed credentials and confirming that the attacker cannot regain the same path. Compare the recovered configuration with the pre-incident baseline and the approved change history.
+
+Use staged recovery for critical systems. Restore in an isolated environment, verify application behaviour and security controls, then gradually restore traffic. Keep heightened monitoring on the affected identities and resources. Confirm that backups are usable and that their restore process does not reintroduce the vulnerable policy or stale credential.
+
+Post-incident review should turn findings into owned changes. If the attacker entered through a public bucket, fix the organisation guardrail and detection for anonymous reads. If a pod escalated through RBAC, review all principals with similar creation rights. If evidence was missing, improve audit export and retention. Closing the ticket without changing a control leaves the path open for the next attacker.
+
+<WorkedExample
+  title="Contain a stolen workload identity across cloud and Kubernetes"
+  steps={[
+    "A runtime alert shows a production pod making Kubernetes API calls and retrieving secrets, behaviour absent from its baseline.",
+    "Preserve the pod specification, audit events, service-account token metadata, process tree, network connections and the list of secrets accessed. Confirm whether the cloud workload identity also made unusual calls.",
+    "Isolate the pod's network egress and prevent it from receiving new traffic. If safe, capture volatile state before termination; otherwise terminate and retain durable evidence first.",
+    "Disable or revoke the workload identity and active sessions, rotate the exposed secrets and remove unexpected RoleBindings or admission exceptions created during the incident.",
+    "Redeploy from a verified image digest under a corrected service account. Test that secret access, API calls and peer connections are denied unless explicitly required.",
+    "Hunt for the same token, image digest and behaviour across namespaces, clusters and accounts. Restore traffic gradually and monitor the corrected control for drift."
+  ]}
+  result="Containment follows the complete identity chain and recovery verifies that the attack edges are closed. Restarting the pod without revoking credentials or correcting RBAC would restore availability while preserving the compromise."
+/>
+
+## Build an incident-ready control-plane runbook
+
+A cloud runbook needs contacts as well as commands. Identify the incident commander, cloud account owner, Kubernetes platform owner, application owner, data owner, legal or privacy contact and communications lead. Define who can disable an identity, change a network policy, revoke a key or restore a backup. Record approval requirements for high-impact actions and a tested rollback for each.
+
+Run tabletop exercises with realistic constraints: the identity provider is slow, audit export is delayed, the attacker is actively copying data and a proposed isolation would interrupt a critical service. The goal is not to memorise commands. It is to expose unclear authority, missing telemetry and recovery dependencies before a real incident.
+
+Measure readiness with evidence: percentage of production workloads using short-lived identity, percentage of clusters enforcing restricted pod security, time to export a complete audit trail, number of standing administrator grants and success rate of recovery exercises. Track policy drift and expired exceptions. Metrics should reward removal of attack paths, not only deployment speed.
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="Why is restarting a compromised cloud workload insufficient recovery?"
+  options={["Restarts never restore service", "The attacker may retain credentials, policy changes or persistence outside the pod", "Cloud applications do not use identities", "Recovery requires deleting all logs"]}
+  answer={1}
+  explanation="A pod is only one component. Recovery must revoke the identity chain, remove policy and admission changes, rebuild from trusted artefacts and verify that the original path is closed."
+/>
+
+## Make the design review evidence-based
+
+A design review should inspect real policies and real audit output. Ask the platform team to demonstrate an anonymous storage denial, an over-privileged role denial, an admission rejection and a network-policy block. Review the events produced by each test. Ask what happens when logging fails and who is alerted. This converts a checklist conversation into a repeatable engineering exercise.
+
+Prioritise by attack path and asset value. A public development bucket may deserve a quick fix; a production deployment role that can attach administrator permissions may deserve emergency action. Avoid ranking every finding by a generic severity alone. Consider exploitability, reachable assets, data sensitivity, existing controls and business impact. Document residual risk with an owner and review date.
+
+</Lens>
+
+## Guided workshop: from public artefact to cluster secrets
+
+A SaaS company discovers that an anonymous user downloaded an object from its production artefact bucket. The object is a deployment bundle created eight days earlier. Within an hour, a new pod appears in the `reporting` namespace and calls the Kubernetes API. Audit logs show the pod's service account listing secrets, but the application owner says the reporting job never needs API access. Cloud audit logs are delayed by twenty minutes, and the cluster uses a managed service with audit export enabled. The company must decide how quickly to contain, what evidence to preserve and whether the same path exists in staging.
+
+<GuidedWorkshop
+  id="cloud-container-security-workshop"
+  title="Break the attack path without losing the evidence"
+  scenario="Build an incident graph from anonymous storage access, a deployment artefact, workload identity and Kubernetes RBAC. Choose containment that stops data access while preserving enough evidence for recovery and scope determination."
+  tasks={[
+    "Inventory the affected accounts, identities, storage objects, images, namespaces and secrets, and mark each fact as confirmed or assumed.",
+    "Construct a timestamped attack graph with one edge per observed action and record the source evidence for every edge.",
+    "Identify the earliest and latest control failures that could have broken the path, ranked by impact and implementation cost.",
+    "Choose an evidence-preservation sequence and a containment order for the bucket, cloud identity, pod, service account and Kubernetes RBAC.",
+    "Design scope queries across staging and production and define criteria for declaring containment and recovery complete.",
+    "Write three preventive changes and three detective changes with owners, tests and measurable success criteria."
+  ]}
+  hints={[
+    "A public object read proves exposure, not necessarily that the downloaded bundle contained a usable credential.",
+    "Join events by principal, pod UID, image digest and request identifiers; preserve source timestamps and ingestion delays.",
+    "Consider public-access blocks, secret removal from bundles, short-lived workload identity, restricted admission and RBAC as independent edge breakers.",
+    "Terminating the pod may destroy memory and process state. Decide whether active data access justifies immediate destruction or permits a short capture window.",
+    "Search for the same image digest, service account and credential fingerprint in other namespaces and accounts, including deleted resources.",
+    "A preventive change needs a negative test; a detective change needs a true-positive fixture, a benign fixture and an alert owner."
+  ]}
+  solution={[
+    "Begin with a confirmed fact table. The anonymous object request, the downloaded object's version and the new pod are confirmed by storage and cluster audit evidence. A credential inside the bundle, the exact image provenance and additional secret reads are hypotheses until corroborated. Inventory the production and staging accounts, bucket policies, object versions, image digests, admission decisions, RoleBindings, service-account token metadata and secret-manager access logs. Record owners and data classifications so containment priorities reflect business impact rather than cluster names alone.",
+    "Build the timeline in source time and note ingestion time separately. The first edge is internet-to-storage, supported by the anonymous request and bucket policy at that time. The next edge depends on what the bundle contained: a cloud credential, registry credential, Kubernetes manifest or workload token. Link the resulting pod to the deployed image digest and service-account UID. The Kubernetes audit event supports a token-to-API edge and a secret-list attempt; a successful response and subsequent secret-manager access are needed to prove data reach. Preserve the raw events and query logic so another analyst can reproduce the graph.",
+    "The cheapest strong edge breaker is an account-level public-access block with a reviewed exception process. Removing credentials from build artefacts closes a separate edge even if storage is later misconfigured. Short-lived workload identity limits replay, restricted admission prevents unexpected privileged pods and narrow RBAC prevents secret listing. Rank immediate fixes by whether they close an observed edge, then address latent paths such as pod creation rights, host mounts and cross-account trust. Do not stop at the first fix; the bundle's exposure and the cluster's excessive permissions are independent failures.",
+    "Preserve the bucket policy and object version, access logs, relevant image and deployment records, pod specification, admission decision, service-account metadata and Kubernetes audit events. If the pod is still active and data access is ongoing, block its egress and secret access immediately, then capture feasible runtime state. Revoke the cloud identity and sessions, disable the service account or remove its bindings, rotate accessed secrets and terminate the pod under the incident policy. Restore a reviewed bucket policy and redeploy only from a verified digest. Record each action, approval, timestamp and observed outcome.",
+    "Search all accounts and clusters for the image digest, object version, service-account UID, token identifier, source addresses and unusual secret-list behaviour. Include recently deleted pods and policy changes because attackers often remove obvious artefacts. Scope queries should use a common time window adjusted for log delay. Declare containment only when credentials are revoked, persistence is removed and no further unauthorised access is observed. Declare recovery after a clean deployment passes negative tests for anonymous reads, secret listing and unapproved egress, and after data integrity and backup restorability are verified.",
+    "Preventive changes include enforcing organisation-level public-access blocks, issuing short-lived workload identities without standing administrator roles and requiring restricted admission plus narrow RBAC for reporting workloads. Detective changes include alerts for anonymous object reads, unexpected secret-list calls by application service accounts and admission-policy exceptions outside the deployment pipeline. Assign owners in platform security, identity and application engineering. Test each preventive control with an expected denial and each detection with malicious and benign fixtures. Measure policy drift, time to detect, time to revoke and the percentage of workloads that pass the negative tests."
+  ]}
+  takeaway="Cloud incident response follows identity and permission edges across services. Preserve the evidence needed to reconstruct those edges, then close the earliest, cheapest and most independent failure points."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Shared responsibility gap | Team assumes provider secures customer policy | No responsibility matrix or owner | Assign every layer and control to a named owner |
+| Wildcard workload role | One pod can reach unrelated services and secrets | Convenience-based IAM grants | Derive narrow roles from observed actions |
+| Public storage drift | Anonymous reads appear after a deployment | Bucket policy changed outside guardrails | Account-level public block and drift alerts |
+| Long-lived credentials | Token reuse continues after pod deletion | Keys embedded in images or bundles | Short-lived workload identity and rotation |
+| Unverified image provenance | New image digest appears without approval | Registry or pipeline access too broad | Signed artefacts, digest pinning and admission checks |
+| Over-broad Kubernetes RBAC | Service account lists every namespace secret | ClusterRoleBinding to view or edit | Custom least-privilege Roles and token minimisation |
+| Unenforced network policy | Blocked connection still succeeds | Plugin unsupported or selectors wrong | Verify enforcement and test positive and negative paths |
+| Control-plane blind spot | Logs stop during an incident | Log sink editable by workload admins | Separate evidence account and protected retention |
+| Token-only containment | Access resumes through another credential | Derived sessions and secrets not revoked | Trace and revoke the full identity chain |
+| Availability-only recovery | Service returns but attack path remains | Restart treated as eradication | Rebuild, rotate, review policy and negative-test |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| IAM policy simulator and runtime disagree | Resource policy, permission boundary or condition omitted | Evaluate the full effective permission chain |
+| Workload cannot reach its database | Default-deny policy omitted DNS or health-check route | Add only required flows and verify selector labels |
+| Kubernetes audit lacks expected fields | Audit policy filters the request or response body | Review policy level, resources and redaction settings |
+| Signed image rejected | Wrong key, audience or trust domain | Inspect admission logs and verify signature policy |
+| Service account receives forbidden on a normal call | RoleBinding namespace or resource scope mismatch | Compare subject UID, namespace, verb and resource |
+| Secret rotation breaks the application | Old credential cached or wrong mount updated | Validate delivery, restart safely and monitor cache expiry |
+| Anonymous request succeeds despite bucket policy | Account or access-point policy still allows it | Check all policy layers and public-access settings |
+| Container can reach the node filesystem | HostPath mount or host namespace enabled | Remove the privilege and enforce restricted admission |
+| Alert arrives after the attack is complete | Audit export or pipeline delay | Monitor ingestion lag and retain local buffers |
+| Break-glass account remains enabled | No expiry or post-use review workflow | Require approval, automatic expiry and evidence review |
+
+## Design review checklist
+
+- [ ] Every cloud account, cluster, namespace and data service has an owner and data classification.
+- [ ] Shared responsibility is documented for each managed service and operational task.
+- [ ] Human, pipeline, workload and administrator identities are separated.
+- [ ] Runtime roles are scoped to exact resources and derived from observed actions.
+- [ ] Public storage is blocked by account or organisation guardrails, with reviewed exceptions.
+- [ ] Workloads use short-lived identity; long-lived keys have owners, rotation and alerts.
+- [ ] Images are pinned, signed, scanned and verified by admission policy.
+- [ ] Ordinary pods meet restricted security requirements and avoid host access.
+- [ ] Kubernetes RBAC uses narrow verbs and resources; pod creation is treated as privileged.
+- [ ] Network policy is default-deny, enforced by the plugin and tested in both directions.
+- [ ] Secrets have protected delivery, rotation, revocation and access auditing.
+- [ ] Cloud, Kubernetes, runtime and network evidence reaches a protected central store.
+- [ ] Containment follows the full identity chain and has an approved rollback path.
+- [ ] Recovery verifies trusted artefacts, clean policy, data integrity and closed attack edges.
+- [ ] Tabletop exercises include delayed logs, unavailable services and critical-business constraints.
+
+## Key takeaways
+
+- Cloud security is an attack-path problem across identities, APIs, workloads, networks and data.
+- Shared responsibility varies by service; customer configuration and data remain customer concerns.
+- IAM least privilege and short-lived workload identity reduce the edges available after compromise.
+- Container security spans image provenance, registry access, admission, runtime privileges and the host.
+- Kubernetes has cluster, node, workload and network planes; RBAC and pod creation require special scrutiny.
+- Network policy and TLS complement, but do not replace, workload identity and application authorisation.
+- Detection must correlate control-plane, identity, workload, network and data-access evidence.
+- Containment revokes the full credential chain; recovery proves the original path is closed.
+
+## Practice
+
+1. Draw an attack graph from a public object bucket to a customer database. Mark every identity transition and propose two controls for each edge.
+2. Write a narrow IAM policy for a reporting workload that can read one configuration object, write one report prefix and publish to one queue.
+3. Review a Kubernetes RoleBinding to `view`. List what it can read and replace it with a custom least-privilege Role.
+4. Design a test that proves a default-deny NetworkPolicy is enforced by the installed cluster plugin.
+5. Write a containment sequence for a stolen workload token that covers sessions, Kubernetes RBAC, secrets and evidence preservation.
+6. Define recovery acceptance criteria for a compromised cluster, including at least one negative security test.
+
+<KnowledgeCheck
+  question="Which change most directly breaks a public-storage-to-IAM credential attack path?"
+  options={["Enable TLS on the bucket", "Block public access and remove reusable credentials from stored artefacts", "Add more CPU to the workload", "Increase log retention only"]}
+  answer={1}
+  explanation="The path requires anonymous access to an artefact containing a reusable credential. Blocking public access and removing credentials from artefacts each independently break an edge."
+/>
