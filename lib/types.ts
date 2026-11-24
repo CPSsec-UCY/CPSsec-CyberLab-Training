@@ -28,9 +28,12 @@ export interface Citation {
 
 export type TrackName =
   | "Foundations"
-  | "Lattice PQC"
-  | "Hash-Based Signatures"
-  | "Systems & Deployment";
+  | "Post-Quantum Cryptography"
+  | "Network & Protocol Security"
+  | "Distributed Systems & Privacy"
+  | "Security Operations"
+  | "Systems & Hardware"
+  | "Advanced Cryptography";
 
 export type Difficulty = "Introductory" | "Intermediate" | "Advanced";
 

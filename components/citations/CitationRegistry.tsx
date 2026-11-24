@@ -20,7 +20,7 @@ const TYPE_LABEL: Record<string, string> = {
   website: "Web",
 };
 
-export function CitationRegistry({ usage }: { usage: Record<string, string[]> }) {
+export function CitationRegistry({ usage, moduleTitles }: { usage: Record<string, string[]>; moduleTitles: Record<string, string> }) {
   const { openCitation } = useCitation();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
@@ -59,7 +59,7 @@ export function CitationRegistry({ usage }: { usage: Record<string, string[]> })
 
   return (
     <div>
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-ink-850/60 p-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 sm:flex-row sm:items-center">
         <label className="relative flex-1">
           <span className="sr-only">Search citations</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -67,7 +67,7 @@ export function CitationRegistry({ usage }: { usage: Record<string, string[]> })
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search title, author, DOI, keyword…"
-            className="w-full rounded-lg border border-white/10 bg-ink-950/70 py-2.5 pl-9 pr-3 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyber-cyan/50"
+            className="w-full rounded-lg border border-line bg-mist-50 py-2.5 pl-9 pr-3 font-mono text-xs text-navy placeholder:text-muted focus:border-cyber-cyan/50"
           />
         </label>
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export function CitationRegistry({ usage }: { usage: Record<string, string[]> })
             id="citation-type"
             value={type}
             onChange={(event) => setType(event.target.value)}
-            className="rounded-lg border border-white/10 bg-ink-950/70 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-slate-300 focus:border-cyber-cyan/50"
+            className="rounded-lg border border-line bg-mist-50 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-slate-300 focus:border-cyber-cyan/50"
           >
             {TYPES.map((option) => (
               <option key={option} value={option}>
@@ -103,13 +103,14 @@ export function CitationRegistry({ usage }: { usage: Record<string, string[]> })
             key={citation.id}
             citation={citation}
             usage={usage[citation.id] ?? []}
+            moduleTitles={moduleTitles}
             onOpen={() => openCitation(citation.id)}
           />
         ))}
       </ul>
 
       {filtered.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
+        <div className="mt-8 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-400">
           No references match that query.
         </div>
       ) : null}
@@ -120,14 +121,16 @@ export function CitationRegistry({ usage }: { usage: Record<string, string[]> })
 function CitationRow({
   citation,
   usage,
+  moduleTitles,
   onOpen,
 }: {
   citation: Citation;
   usage: string[];
+  moduleTitles: Record<string, string>;
   onOpen: () => void;
 }) {
   return (
-    <li className="group grid gap-4 rounded-xl border border-white/10 bg-ink-850/50 p-4 transition hover:border-cyber-cyan/30 sm:grid-cols-[56px_1fr_auto] sm:items-start">
+    <li className="group grid gap-4 rounded-xl border border-line bg-white p-4 transition hover:border-cyber-cyan/30 sm:grid-cols-[56px_1fr_auto] sm:items-start">
       <div className="font-mono text-xs text-slate-500">
         [{String(citation.ordinal ?? "").padStart(2, "0")}]
       </div>
@@ -155,8 +158,8 @@ function CitationRow({
           <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
             Used in
             {usage.map((slug) => (
-              <Link key={slug} href={`/learn/${slug}/`} className="text-cyber-cyan/80 hover:text-cyber-cyan hover:underline">
-                {slug}
+              <Link key={slug} href={`/learn/${slug}/`} className="font-medium text-brand-700/80 hover:text-brand-700 hover:underline">
+                {moduleTitles[slug] ?? slug}
               </Link>
             ))}
           </p>

@@ -13,7 +13,7 @@ export function LensDots({ lenses, showLabels = false }: { lenses: LensLevel[]; 
               title={`L${lens.level} · ${lens.name}`}
             />
             {showLabels ? (
-              <span className={`font-mono text-[9px] uppercase tracking-[0.1em] ${active ? "text-slate-400" : "text-slate-700"}`}>
+              <span className={`text-[9px] font-semibold uppercase tracking-[0.08em] ${active ? "text-slate-400" : "text-slate-600"}`}>
                 L{lens.level}
               </span>
             ) : null}

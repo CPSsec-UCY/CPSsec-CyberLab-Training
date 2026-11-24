@@ -126,7 +126,7 @@ export function NttLab({ engine }: { engine: LabEngine }) {
           <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">{view.label}</p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="rounded-xl border border-white/10 bg-ink-950/50 p-3">
+            <div className="rounded-xl border border-line bg-ink-950/50 p-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">coefficient inspector</span>
                 <span className="font-mono text-[10px] text-cyber-cyan">i = {inspector}</span>
@@ -147,7 +147,7 @@ export function NttLab({ engine }: { engine: LabEngine }) {
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-ink-950/50 p-3 sm:w-56">
+            <div className="rounded-xl border border-line bg-ink-950/50 p-3 sm:w-56">
               <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
                 <Timer className="h-3 w-3" /> average (browser)
               </div>

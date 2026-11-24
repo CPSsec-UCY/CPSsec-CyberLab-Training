@@ -1,0 +1,171 @@
+---
+slug: symmetric-crypto
+title: "Symmetric cryptography: AES, AEAD and key management"
+subtitle: "The workhorse of secure systems: fast encryption, authenticated integrity, and the key lifecycle that makes it safe."
+track: "Foundations"
+order: 3
+difficulty: "Intermediate"
+readingTime: 18
+summary: "Understand AES, ChaCha20, GCM, AEAD interfaces, nonces, key rotation and the failure modes that turn strong primitives into broken systems."
+citations: ["fips197", "sp800-38d", "rfc8439", "rfc5116", "sp800-57pt1r5", "kocher1999"]
+tags: ["symmetric", "aes", "aead", "key-management"]
+prerequisites: ["asymmetric-primitives"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="One key, two directions, and a nonce you must never reuse">
+
+## The idea
+
+Symmetric cryptography uses the same secret key to protect and unprotect data. It is the fast path in every secure system: TLS encrypts records with AES-GCM or ChaCha20-Poly1305, disk encryption protects data at rest, and messaging apps encrypt messages under derived keys.
+
+Two jobs matter:
+
+- **Confidentiality:** an eavesdropper cannot read the plaintext.
+- **Integrity and authenticity:** an attacker cannot modify the ciphertext, reorder messages or forge a tag without the key.
+
+Modern designs combine both in an **AEAD** interface (authenticated encryption with associated data). <Cite id="rfc5116" locator="§2" />
+
+<Callout variant="warning" title="The three classic mistakes">
+Reusing a nonce, using a non-authenticated mode for protocol data, and confusing encryption with authentication. Each has caused real breaches.
+</Callout>
+
+## Nonces are not optional
+
+A nonce (number used once) makes encryption unique. With AES-GCM, reusing a nonce under the same key is catastrophic: it can expose the authentication key and allow forgery. The requirement is not "probably unique"; it must be unique under that key.
+
+## Key management is half the system
+
+A cipher is only as strong as the key lifecycle around it: generation, distribution, storage, rotation, revocation and destruction. NIST SP 800-57 frames this as a lifecycle, not a one-time configuration step. <Cite id="sp800-57pt1r5" locator="§5–6" />
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What does an AEAD construction provide beyond confidentiality?"
+  options={["Compression", "Integrity and authenticity of ciphertext and associated data", "Key exchange", "Forward secrecy by itself"]}
+  answer={1}
+  explanation="AEAD binds the ciphertext and optional associated data to an authentication tag. Tampering with either causes decryption to fail."
+/>
+
+</Lens>
+
+<Lens level={2} title="AES, ChaCha20 and the AEAD contract">
+
+## Block ciphers and modes
+
+AES is a 128-bit block cipher with 128-, 192- and 256-bit keys. <Cite id="fips197" locator="§4–6" /> A block cipher alone only encrypts one block; a mode of operation turns it into a general encryption scheme. Some modes provide only confidentiality; others add authentication.
+
+| Construction | Nonce/IV | Tag | Typical use |
+| --- | --- | --- | --- |
+| AES-GCM | 96-bit recommended | 128-bit | TLS, disk encryption, protocols |
+| ChaCha20-Poly1305 | 96-bit | 128-bit | Mobile, software-only, TLS |
+| AES-CBC + HMAC | IV + MAC | Separate | Legacy; easy to get wrong |
+| AES-CTR | IV/counter | None | Needs a separate MAC |
+
+AES-GCM combines counter-mode encryption with GHASH authentication. <Cite id="sp800-38d" locator="§5–7" /> ChaCha20-Poly1305 is a stream cipher plus a polynomial MAC, designed for efficient constant-time software. <Cite id="rfc8439" locator="§2.8" />
+
+## The AEAD contract
+
+```text
+C ← Encrypt(K, nonce, plaintext, associated_data)
+P ← Decrypt(K, nonce, ciphertext, associated_data)
+```
+
+Decryption returns either the plaintext or a single authentication failure. It must not return partial plaintext before the tag is verified. Associated data is authenticated but not encrypted: headers, sequence numbers and routing metadata belong there. <Cite id="rfc5116" locator="§2" />
+
+<Figure caption="AES-256-GCM in the browser. Encrypt a message, flip one ciphertext bit, and see the tag check reject the change. Nonce reuse is a separate, catastrophic failure.">
+  <AeadDemo />
+</Figure>
+
+## Nonce management patterns
+
+- **Random 96-bit nonces:** safe only while the number of messages under one key stays far below the birthday bound.
+- **Counter nonces:** deterministic and collision-free if state is never reused; require durable, atomic counters.
+- **Derived keys:** derive a fresh key per message or session, then a fixed nonce is safe.
+
+TLS 1.3 derives per-record keys and manages sequence numbers so nonces do not repeat.
+
+<Callout variant="warning" title="GCM nonce reuse">
+Two messages encrypted under the same key and nonce leak the XOR of their plaintexts and break the authentication key. There is no recovery; rotate the key and treat both messages as compromised.
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="IND-CPA, INT-CTXT and what the tag actually proves">
+
+## Security goals
+
+An AEAD scheme should provide:
+
+- **IND-CPA confidentiality:** ciphertexts for distinct equal-length messages are indistinguishable without the key.
+- **INT-CTXT integrity:** an adversary with an encryption oracle cannot produce a new ciphertext that decrypts successfully.
+- **Authenticity:** successful decryption implies the ciphertext was produced by someone holding the key, under the nonce discipline.
+
+The combined notion is often called **IND-CCA3** or authenticated encryption security. It is stronger than "encryption plus a MAC" implemented naively.
+
+## GCM in one paragraph
+
+GCM encrypts with CTR mode and authenticates with GHASH, a polynomial hash over the ciphertext and associated data in $GF(2^{128})$. The authentication tag is masked with $E_K(J_0)$. Security relies on the block cipher being a PRP and on nonce uniqueness. The birthday bound limits the number of messages per key, especially with random nonces. <Cite id="sp800-38d" locator="§8" />
+
+## ChaCha20-Poly1305
+
+ChaCha20 is an ARX stream cipher; Poly1305 is a one-time MAC evaluated with a key derived from the ChaCha20 block. The construction is fast in software and naturally constant-time on CPUs without AES acceleration. <Cite id="rfc8439" locator="§2.8" />
+
+<Callout variant="lab" title="Why key commitment matters">
+Standard AEAD does not necessarily commit to a unique key. An attacker who can produce a ciphertext that decrypts under two different keys can create ambiguity in some protocols. Applications that need key commitment should use a construction designed for it, not assume every AEAD has it.
+</Callout>
+
+## Key derivation and separation
+
+Do not use one key for everything. Derive independent keys for encryption, MACs, IVs and protocol directions using a KDF such as HKDF. Domain separation prevents cross-protocol collisions. Key rotation limits the damage of a compromise and resets nonce budgets.
+
+</Lens>
+
+<Lens level={4} title="AES-NI, constant-time code and the operational key lifecycle">
+
+## Hardware and software paths
+
+- **AES-NI / Arm Crypto Extensions** accelerate AES rounds and avoid cache-timing leaks from table-based software AES.
+- **PCLMULQDQ / PMULL** accelerate GHASH.
+- **ChaCha20-Poly1305** is often faster than table-based AES in pure software and easier to keep constant-time.
+- **Dedicated crypto engines** reduce CPU cost but introduce command-queue, DMA and key-isolation risks.
+
+## Constant-time rules
+
+- Do not index S-boxes with secret data in software AES.
+- Verify tags with a constant-time comparison, never `memcmp` with early exit.
+- Do not branch on decryption success before the tag check completes.
+- Wipe plaintext and keys from memory when no longer needed.
+- Avoid logging keys, nonces or plaintext; crash dumps and telemetry are exfiltration paths.
+
+## Key lifecycle
+
+NIST SP 800-57 describes key states and transitions: generation, distribution, activation, deactivation and destruction. <Cite id="sp800-57pt1r5" locator="§5–6" /> In practice:
+
+1. Generate keys with an approved random bit generator.
+2. Bind keys to an identity and purpose.
+3. Store them in an HSM, TPM or OS keystore where possible.
+4. Rotate on a schedule and after incidents.
+5. Revoke and destroy with an auditable procedure.
+
+## Protocol pitfalls
+
+- **Nonce reuse** after a VM snapshot, crash restart or cloned container.
+- **CBC padding oracles** when errors are distinguishable.
+- **Truncated tags** accepted where the protocol expects full tags.
+- **Downgrade** to a non-AEAD suite under attacker pressure.
+- **Key confusion** between directions or protocol versions.
+
+<Callout variant="danger" title="Encrypt-then-MAC is not a licence to improvise">
+If you must compose primitives, use Encrypt-then-MAC with independent keys and a constant-time tag comparison. Better: use a standard AEAD and a vetted protocol library. Power analysis has broken real implementations even when the algorithm was sound. <Cite id="kocher1999" locator="pp. 388–397" />
+</Callout>
+
+<KnowledgeCheck
+  question="Why can AES-GCM fail catastrophically after a VM snapshot is restored?"
+  options={["AES keys expire", "The counter/nonce state may be reused with the same key", "GCM requires a new block cipher", "The tag becomes longer"]}
+  answer={1}
+  explanation="Restoring a snapshot can rewind the nonce or counter state, causing the same nonce to be used twice under one key. GCM nonce reuse leaks plaintext relationships and breaks authentication."
+/>
+
+</Lens>

@@ -65,15 +65,15 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">max |error|</p>
           <p className={`mt-1 font-mono text-xl ${result.max > Q / 4 ? "text-cyber-rose" : "text-emerald-300"}`}>{result.max}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">mean |error|</p>
           <p className="mt-1 font-mono text-xl text-slate-200">{result.mean.toFixed(1)}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">beyond q/4</p>
           <p className={`mt-1 font-mono text-xl ${result.atRisk > 0 ? "text-cyber-rose" : "text-slate-200"}`}>
             {result.atRisk} <span className="text-xs text-slate-500">/ {engine.n}</span>
@@ -81,7 +81,7 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-white/10 bg-ink-950/50 p-3">
+      <div className="mt-4 rounded-xl border border-line bg-ink-950/50 p-3">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">
             rounding-error distribution
@@ -89,7 +89,7 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
           <span className="font-mono text-[9px] text-slate-600">range ±{histogram.limit}</span>
         </div>
         <svg viewBox="0 0 512 110" className="mt-2 h-28 w-full" role="img" aria-label="Histogram of compression rounding error">
-          <line x1="0" y1="96" x2="512" y2="96" stroke="rgba(148,163,184,0.25)" />
+          <line x1="0" y1="96" x2="512" y2="96" stroke="rgba(139,136,163,0.3)" />
           {histogram.counts.map((count, index) => {
             const width = 512 / histogram.counts.length;
             const height = (count / histogram.maxCount) * 76;
@@ -113,9 +113,9 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-line">
         <table className="w-full min-w-[560px] text-left font-mono text-[10px]">
-          <thead className="bg-white/[0.04] uppercase tracking-[0.1em] text-slate-500">
+          <thead className="bg-mist-100 uppercase tracking-[0.1em] text-slate-500">
             <tr>
               <th className="px-3 py-2">i</th>
               <th className="px-3 py-2">original</th>
@@ -126,7 +126,7 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
           </thead>
           <tbody>
             {Array.from({ length: 8 }).map((_, index) => (
-              <tr key={index} className="border-t border-white/5 text-slate-300">
+              <tr key={index} className="border-t border-line/75 text-slate-300">
                 <td className="px-3 py-1.5 text-slate-600">{index}</td>
                 <td className="px-3 py-1.5">{result.original[index]}</td>
                 <td className="px-3 py-1.5 text-cyber-violet">{result.compressed[index]}</td>

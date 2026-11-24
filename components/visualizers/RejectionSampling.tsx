@@ -48,7 +48,7 @@ export function RejectionSampling() {
               onChange={(event) => setEnforceBound(event.target.checked)}
               className="peer sr-only"
             />
-            <span className="h-6 w-11 rounded-full border border-white/10 bg-ink-700 transition peer-checked:border-cyber-cyan/40 peer-checked:bg-cyber-cyan/30" />
+            <span className="h-6 w-11 rounded-full border border-line bg-ink-700 transition peer-checked:border-cyber-cyan/40 peer-checked:bg-cyber-cyan/30" />
             <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-slate-400 transition peer-checked:translate-x-5 peer-checked:bg-cyber-cyan" />
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">
@@ -84,7 +84,7 @@ export function RejectionSampling() {
           return (
             <div key={index} className="grid grid-cols-[52px_1fr_86px] items-center gap-3">
               <span className="font-mono text-[10px] text-slate-500">#{String(index + 1).padStart(2, "0")}</span>
-              <div className="relative h-7 overflow-hidden rounded-md border border-white/10 bg-ink-950/60">
+              <div className="relative h-7 overflow-hidden rounded-md border border-line bg-ink-950/60">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (attempt.norm / (1.7 * BOUND)) * 100)}%` }}
@@ -92,7 +92,7 @@ export function RejectionSampling() {
                   className={`h-full ${dangerous ? "bg-cyber-rose/40" : attempt.passesBound ? "bg-emerald-400/30" : "bg-cyber-amber/25"}`}
                 />
                 <div
-                  className="absolute inset-y-0 border-l border-dashed border-white/40"
+                  className="absolute inset-y-0 border-l border-dashed border-line-strong"
                   style={{ left: `${(100 / (1.7 * BOUND)) * BOUND}%` }}
                 />
                 <span className="absolute inset-y-0 left-2 flex items-center font-mono text-[10px] text-slate-300">
@@ -110,15 +110,15 @@ export function RejectionSampling() {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">attempts shown</p>
           <p className="mt-1 font-mono text-lg text-slate-200">{shown.length}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">signatures produced</p>
           <p className="mt-1 font-mono text-lg text-emerald-300">{accepted.length}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+        <div className="rounded-lg border border-line bg-ink-950/50 p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">rejection rate</p>
           <p className="mt-1 font-mono text-lg text-cyber-amber">
             {shown.length === 0 ? "0" : Math.round(((shown.length - accepted.length) / shown.length) * 100)}%

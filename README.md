@@ -1,6 +1,6 @@
 # CPSsec CyberLab
 
-**An open, citation-backed cybersecurity learning platform with a deep post-quantum cryptography lab.**
+**An open, citation-backed cybersecurity curriculum with interactive labs and a deep post-quantum track.**
 
 [![CI](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/ci.yml/badge.svg)](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/ci.yml)
 [![Deploy](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/deploy.yml/badge.svg)](https://github.com/CPSsec-UCY/pqc-cyberlab/actions/workflows/deploy.yml)
@@ -9,15 +9,16 @@
 Live site: <https://cpssec-ucy.github.io/pqc-cyberlab/>
 
 CPSsec CyberLab is maintained by the [CPSsec research group](https://github.com/CPSsec-UCY) at the
-University of Cyprus. It turns cybersecurity and post-quantum cryptography into version-controlled,
-reviewable modules with interactive visualisations, verifiable citations and a real WebAssembly
-arithmetic lab.
+University of Cyprus. It turns cybersecurity into version-controlled, reviewable courses with
+interactive visualisations, verifiable citations and browser-native labs. The curriculum spans
+cryptography, networks, distributed systems, security operations, advanced cryptography and
+post-quantum migration.
 
 ## Why this exists
 
-Post-quantum migration is not just a library swap. It changes protocol sizes, certificate chains,
-firmware trust anchors, hardware buffers and side-channel requirements. Learners need a path from
-intuition to implementation without losing the provenance of each claim.
+Security is not one subject. A defender needs cryptography, packet-level visibility, distributed-system
+trade-offs, SOC judgement and implementation reality. Post-quantum migration cuts across all of them.
+Learners need a path from intuition to implementation without losing the provenance of each claim.
 
 Every module is authored at four **depth lenses**:
 
@@ -35,17 +36,23 @@ lenses; CI fails if one is missing.
 
 | # | Module | Track |
 | --- | --- | --- |
-| 01 | [The quantum threat](content/modules/quantum-threat.mdx) | Foundations |
+| 01 | [The quantum threat](content/modules/quantum-threat.mdx) | Post-Quantum Cryptography |
 | 02 | [Public-key primitives](content/modules/asymmetric-primitives.mdx) | Foundations |
-| 03 | [NTT and polynomial rings](content/modules/ntt-polynomials.mdx) | Lattice PQC |
-| 04 | [ML-KEM (FIPS 203)](content/modules/ml-kem.mdx) | Lattice PQC |
-| 05 | [ML-DSA (FIPS 204)](content/modules/ml-dsa.mdx) | Lattice PQC |
-| 06 | [SLH-DSA (FIPS 205)](content/modules/slh-dsa.mdx) | Hash-Based Signatures |
-| 07 | [TLS, PKI and hybrid migration](content/modules/tls-pki.mdx) | Systems & Deployment |
-| 08 | [Side channels and constant-time code](content/modules/side-channel.mdx) | Systems & Deployment |
+| 03 | [Symmetric cryptography and AEAD](content/modules/symmetric-crypto.mdx) | Foundations |
+| 04 | [Hashes, MACs and KDFs](content/modules/hashing-mac-kdf.mdx) | Foundations |
+| 05 | [Centralised vs decentralised systems](content/modules/centralised-decentralised.mdx) | Distributed Systems & Privacy |
+| 06 | [Federated learning](content/modules/federated-learning.mdx) | Distributed Systems & Privacy |
+| 07 | [Deep packet inspection](content/modules/deep-packet-inspection.mdx) | Network & Protocol Security |
+| 08 | [SOC operations](content/modules/soc-operations.mdx) | Security Operations |
+| 09 | [TLS, PKI and hybrid migration](content/modules/tls-pki.mdx) | Network & Protocol Security |
+| 10 | [Zero-knowledge proofs and MPC](content/modules/zero-knowledge-mpc.mdx) | Advanced Cryptography |
+| 11 | [NTT and polynomial rings](content/modules/ntt-polynomials.mdx) | Post-Quantum Cryptography |
+| 12 | [ML-KEM (FIPS 203)](content/modules/ml-kem.mdx) | Post-Quantum Cryptography |
+| 13 | [ML-DSA (FIPS 204)](content/modules/ml-dsa.mdx) | Post-Quantum Cryptography |
+| 14 | [SLH-DSA (FIPS 205)](content/modules/slh-dsa.mdx) | Post-Quantum Cryptography |
+| 15 | [Side channels and constant-time code](content/modules/side-channel.mdx) | Systems & Hardware |
 
-The platform also includes a searchable glossary, a citation registry with BibTeX export, and an
-interactive lab for NTTs, polynomial multiplication, compression rounding and parameter trade-offs.
+The platform also includes a searchable glossary, a citation registry with BibTeX export, and browser labs for NTT arithmetic, AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs.
 
 ## Architecture
 
@@ -67,8 +74,9 @@ flowchart LR
 - **Citations:** `content/citations.json`; a Node validator enforces keys, types, URLs, locators,
   module coverage and inline/frontmatter consistency.
 - **Interactivity:** React + Framer Motion for protocol and maths visualisers; SVG is inspectable.
-- **Wasm lab:** Rust compiled to `wasm32-unknown-unknown` with a hand-written C ABI and a
-  deterministic self-test. A TypeScript fallback runs when Wasm is unavailable.
+- **Labs:** Rust compiled to `wasm32-unknown-unknown` with a hand-written C ABI plus browser-native labs
+  for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs. A TypeScript
+  fallback runs when Wasm is unavailable.
 - **Progress:** localStorage only. Nothing is transmitted.
 
 ## Quick start
@@ -160,8 +168,8 @@ template.
 ## Build plan status
 
 - **Phase 1 — Foundation & citation engine:** complete.
-- **Phase 2 — Core concept modules:** eight flagship modules across L1–L4, complete.
-- **Phase 3 — Animations & Wasm lab:** protocol/maths visualisers and a Rust→Wasm NTT/compression lab, complete.
+- **Phase 2 — Core concept modules:** fifteen courses across seven tracks and all four lenses, complete.
+- **Phase 3 — Animations & labs:** protocol/maths visualisers, a Rust→Wasm NTT/compression bench, and browser labs for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs, complete.
 - **Phase 4 — Learning features & community:** roadmap, progress, glossary cross-links, knowledge checks,
   contributor templates; ongoing expansion and review.
 

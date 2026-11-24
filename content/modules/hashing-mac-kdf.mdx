@@ -1,0 +1,166 @@
+---
+slug: hashing-mac-kdf
+title: "Hashes, MACs and KDFs: integrity, authentication and key stretching"
+subtitle: "From file fingerprints to password storage and TLS key schedules — the primitives that turn secrets into keys and detect tampering."
+track: "Foundations"
+order: 4
+difficulty: "Intermediate"
+readingTime: 17
+summary: "Hash properties, HMAC, HKDF, password hashing, salts, domain separation and the subtle ways hash constructions fail in real systems."
+citations: ["fips180-4", "fips202", "rfc2104", "rfc5869", "rfc9106", "owasp-password-storage"]
+tags: ["hashing", "hmac", "kdf", "passwords"]
+prerequisites: ["symmetric-crypto"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="A fingerprint, a seal and a key factory">
+
+## Three jobs, three tools
+
+Hash functions, message authentication codes and key derivation functions look similar at the API level, but they answer different questions:
+
+- **Hash:** "Is this data the same as that data?" A fingerprint.
+- **MAC:** "Did someone with the secret key produce or approve this data?" A seal.
+- **KDF:** "How do I turn one secret or password into several strong keys?" A key factory.
+
+Confusing them is a classic source of vulnerabilities. A plain hash is not a MAC, and a fast hash is not a password-storage function.
+
+## Why hashes look random
+
+A cryptographic hash compresses arbitrary input into a fixed-size output. Good hashes are preimage-resistant, second-preimage-resistant and collision-resistant. A one-character change should flip about half the output bits.
+
+<Figure caption="SHA-256 avalanche. Change one character and compare the output bit patterns. A secure hash behaves like a random function for this test.">
+  <HashAvalanche />
+</Figure>
+
+## Passwords are not hashes
+
+Passwords are low-entropy, reused and often breached. Storing a fast hash such as SHA-256 lets an attacker test billions of guesses per second. Password storage needs a salted, memory-hard function with a tunable work factor — Argon2id is the modern default. <Cite id="owasp-password-storage" />
+
+<Callout variant="danger" title="Never invent password storage">
+`SHA256(password + salt)` is not password hashing. Use Argon2id, scrypt or bcrypt through a vetted library, with a unique salt per password and appropriate memory/time parameters. <Cite id="rfc9106" locator="§3–4" />
+</Callout>
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What is the main reason to use Argon2id instead of SHA-256 for passwords?"
+  options={["It produces shorter outputs", "It is memory-hard and tunable, making offline guessing expensive", "It encrypts the password", "It removes the need for salts"]}
+  answer={1}
+  explanation="Fast hashes are cheap to brute-force. Argon2id deliberately consumes memory and CPU, and its parameters can be tuned as hardware improves."
+/>
+
+</Lens>
+
+<Lens level={2} title="SHA-2, SHA-3, HMAC, HKDF and password hashing">
+
+## Hash families
+
+- **SHA-2** (SHA-256, SHA-512) is ubiquitous and hardware-accelerated on many CPUs. <Cite id="fips180-4" locator="§4–6" />
+- **SHA-3 / Keccak** uses a sponge construction and provides SHAKE extendable-output functions. <Cite id="fips202" locator="§3, §6" />
+- **BLAKE2/3** are fast modern alternatives common in file integrity and password hashing contexts.
+
+## MACs
+
+A MAC authenticates a message under a secret key. HMAC is the standard construction built from a hash:
+
+$$
+\mathrm{HMAC}_K(M) = H\big((K \oplus \mathrm{opad}) \,\|\, H((K \oplus \mathrm{ipad}) \,\|\, M)\big).
+$$
+
+HMAC remains secure even when the underlying hash has some weaknesses, as long as it is a reasonable hash. <Cite id="rfc2104" locator="§2–3" /> Never replace HMAC with `H(K || M)`; length-extension attacks apply to many Merkle–Damgård hashes.
+
+## KDFs
+
+HKDF extracts a uniform key from input keying material and expands it into purpose-specific keys:
+
+$$
+\mathrm{PRK} = \mathrm{HMAC}_{\mathrm{salt}}(\mathrm{IKM}), \qquad
+\mathrm{OKM} = \mathrm{HKDF\text{-}Expand}(\mathrm{PRK}, \mathrm{info}, L).
+$$
+
+The `info` field is your domain separation: protocol, direction, algorithm, version. <Cite id="rfc5869" locator="§2" />
+
+<Callout variant="note" title="Extract then expand">
+HKDF is not a password hash. It assumes the input has enough entropy. Use a password-hashing function such as Argon2id for human passwords, then HKDF for deriving subkeys from the high-entropy result.
+</Callout>
+
+## Password hashing
+
+Argon2id combines data-independent and data-dependent memory access, making it resistant to some side-channel and GPU attacks. Parameters should be chosen so one verification is expensive for the defender but acceptable for the service. <Cite id="rfc9106" locator="§3–4" />
+
+| Use | Recommended primitive |
+| --- | --- |
+| File integrity | SHA-256 / SHA-512 / BLAKE3 |
+| Message authentication | HMAC-SHA-256 |
+| Key derivation | HKDF |
+| Password storage | Argon2id / scrypt / bcrypt |
+| Random tokens | CSPRNG, not a hash |
+
+</Lens>
+
+<Lens level={3} title="Collision bounds, PRF security and KDF assumptions">
+
+## Hash properties
+
+For an $n$-bit hash, generic attacks give:
+
+- preimage: $2^n$ classical, $2^{n/2}$ with Grover;
+- second preimage: $2^n$;
+- collision: $2^{n/2}$ classical, about $2^{n/3}$ with quantum collision search.
+
+These bounds explain why SHA-256 is often used with a 128-bit collision target and why post-quantum parameter sets increase symmetric sizes. <Cite id="fips180-4" locator="§1–3" />
+
+## HMAC as a PRF
+
+HMAC is a PRF if the compression function is a PRF under the relevant key. The nested construction prevents length extension and provides a clean keyed interface. A MAC must be verified in constant time over the full tag; early-exit comparison leaks the number of matching bytes.
+
+## HKDF
+
+HKDF-Extract compresses possibly non-uniform input into a pseudorandom key; HKDF-Expand stretches it into multiple outputs. Security requires a salt (which may be public) and context binding through `info`. Outputs for different `info` values should be independent.
+
+<Callout variant="lab" title="Domain separation is a security boundary">
+If two protocols derive keys with the same KDF input and no context separation, a key from one protocol may be valid in another. Bind algorithm, version, direction, identity and purpose into the derivation.
+</Callout>
+
+## Password hashing cost
+
+Password hashing is an arms race between defenders and attackers. Memory-hard functions raise the cost of parallel GPU/ASIC guessing. The right parameters depend on hardware budgets and latency requirements; they are not a universal constant. Argon2id's hybrid memory access pattern is designed to balance side-channel and GPU resistance. <Cite id="rfc9106" locator="§3–4" />
+
+</Lens>
+
+<Lens level={4} title="Acceleration, constant-time verification and operational storage">
+
+## Hardware acceleration
+
+- **SHA-NI** accelerates SHA-1/SHA-256 on x86; Arm has crypto extensions for SHA-2 and SHA-3.
+- **Keccak** is efficient in software and increasingly accelerated; SHA-3 is common in PQC code.
+- **GPU/ASIC attackers** make fast hashes unsuitable for passwords; memory-hard functions change the economics.
+
+## Implementation rules
+
+1. Use a vetted library; do not implement HMAC, HKDF or Argon2 from scratch.
+2. Compare MACs and tags in constant time.
+3. Use a CSPRNG for salts and tokens, not timestamps or counters.
+4. Store algorithm and parameters with the hash so they can be upgraded.
+5. Rehash on successful login when parameters change.
+6. Rate-limit and monitor authentication endpoints; hashing does not stop online guessing.
+7. Never put secrets in logs, URLs or error messages.
+
+<Callout variant="warning" title="Length extension">
+Merkle–Damgård hashes such as SHA-256 are vulnerable to length extension when used naively as `H(secret || message)`. HMAC avoids this by construction. If you need a hash-based MAC, use HMAC or a keyed mode designed for it.
+</Callout>
+
+## Key derivation in protocols
+
+TLS 1.3 uses HKDF to derive handshake and application traffic keys from the key schedule. Each direction and epoch gets independent keys. Getting the context or transcript binding wrong can enable cross-protocol or downgrade attacks even when the primitives are strong.
+
+<KnowledgeCheck
+  question="Why is HKDF not a suitable password hash?"
+  options={["It is too slow", "It assumes high-entropy input and is intentionally cheap to compute", "It cannot produce multiple keys", "It requires a block cipher"]}
+  answer={1}
+  explanation="HKDF expands existing high-entropy key material. Human passwords have low entropy, so a deliberately expensive password-hashing function such as Argon2id is required."
+/>
+
+</Lens>

@@ -1,0 +1,155 @@
+---
+slug: federated-learning
+title: "Federated learning: privacy, poisoning and secure aggregation"
+subtitle: "Train a shared model without collecting raw data — and learn why privacy does not automatically give you integrity."
+track: "Distributed Systems & Privacy"
+order: 6
+difficulty: "Intermediate"
+readingTime: 18
+summary: "How federated averaging works, what secure aggregation and differential privacy actually protect, and why poisoning, Sybil and inference attacks remain."
+citations: ["mcmahan2017", "kairouz2021", "bonawitz2017", "abadi2016", "dwork-roth2014", "shokri2017", "bagdasaryan2020"]
+tags: ["federated-learning", "privacy", "differential-privacy", "poisoning"]
+prerequisites: ["centralised-decentralised", "hashing-mac-kdf"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Learning without collecting the data">
+
+## The promise
+
+Federated learning lets many clients train a shared model while keeping their raw data local. A phone keyboard, a hospital or a bank sends a model update instead of records. The server aggregates updates and returns a new global model.
+
+That reduces data concentration, which is a real security and privacy benefit. It does **not** make the data invisible. Updates can leak information, and a malicious participant can still poison the shared model.
+
+<Callout variant="warning" title="Privacy is not integrity">
+Secure aggregation can hide an individual update from the server while a poisoned update still corrupts the model. Treat privacy and integrity as separate threat models with separate controls.
+</Callout>
+
+## The cast
+
+- **Clients** hold local data and compute updates.
+- **Server / aggregator** coordinates rounds and combines updates.
+- **Attacker** may be a curious server, a malicious client, a network observer or a model consumer.
+
+## Why it matters
+
+Hospitals cannot ship patient records to a central vendor. A federated design can still learn a useful model while keeping records inside the hospital boundary. The trade-off is communication, heterogeneity and a larger attack surface for poisoning and inference. <Cite id="mcmahan2017" locator="pp. 1273–1282" />
+
+<Figure caption="Switch between centralised training, federated averaging and secure aggregation. Enable a malicious client to see why privacy controls do not stop poisoning.">
+  <FederatedLearningDemo />
+</Figure>
+
+### Knowledge check
+
+<KnowledgeCheck
+  question="What does secure aggregation protect?"
+  options={["The model from all poisoning", "Individual client updates from the server", "The clients from malware", "The server from denial of service"]}
+  answer={1}
+  explanation="Secure aggregation hides individual updates and reveals only the aggregate. It does not validate the content of those updates, so poisoning remains possible."
+/>
+
+</Lens>
+
+<Lens level={2} title="Rounds, aggregation and the privacy stack">
+
+## FedAvg in one loop
+
+1. The server selects a subset of clients.
+2. Each client trains locally for some steps.
+3. Clients send model updates (or parameters).
+4. The server averages them, weighted by sample count.
+5. The new global model is distributed and the round repeats.
+
+<Cite id="mcmahan2017" locator="pp. 1273–1282" />
+
+## The privacy controls
+
+- **Secure aggregation:** clients mask updates so the server sees only the sum. It handles dropout with secret sharing. <Cite id="bonawitz2017" locator="pp. 1175–1191" />
+- **Differential privacy:** add calibrated noise or clip contributions so the output does not reveal much about any single record. <Cite id="dwork-roth2014" locator="Vol. 9, pp. 211–407" /> <Cite id="abadi2016" locator="pp. 308–318" />
+- **Local privacy:** clients perturb before sending, protecting against the server but usually reducing utility more.
+- **Access control and attestation:** authenticate clients and verify the code that computes updates.
+
+## What can still go wrong
+
+- **Poisoning:** a client sends an update that degrades accuracy or installs a backdoor. <Cite id="bagdasaryan2020" locator="pp. 2938–2948" />
+- **Membership inference:** an attacker tests whether a record was in the training set. <Cite id="shokri2017" locator="pp. 3–18" />
+- **Sybil attacks:** one adversary controls many fake clients.
+- **Free riding:** clients submit useless updates to receive the model.
+- **Gradient leakage:** updates can reveal training examples in some settings.
+
+<Callout variant="danger" title="A privacy budget is a security parameter">
+Differential privacy composes: every release consumes budget. Repeated rounds, small client counts and weak clipping make the guarantee fragile. Document epsilon, delta, clipping and the threat model. <Cite id="dwork-roth2014" locator="Vol. 9, pp. 211–407" />
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="The objective, the guarantee and the adversary">
+
+## The optimisation view
+
+Federated learning minimises a weighted objective over local losses:
+
+$$
+\min_w \; F(w) = \sum_{k=1}^{K} \frac{n_k}{n} F_k(w),
+$$
+
+where $F_k$ is client $k$'s local objective. FedAvg approximates this by local SGD and periodic averaging; heterogeneity and partial participation introduce bias. <Cite id="kairouz2021" locator="Vol. 14, pp. 1–210" />
+
+## Differential privacy
+
+A randomised mechanism $M$ is $(\varepsilon,\delta)$-DP if for neighbouring datasets $D, D'$ and every event $S$:
+
+$$
+\Pr[M(D) \in S] \le e^{\varepsilon}\Pr[M(D') \in S] + \delta.
+$$
+
+In federated learning, DP can be applied at the record, client or update level. Each has different meaning and composition. Clipping bounds sensitivity; noise scales with sensitivity and the privacy budget. <Cite id="abadi2016" locator="pp. 308–318" />
+
+## Secure aggregation
+
+Clients secret-share masked updates; the server reconstructs only the sum if enough shares are available. Dropout tolerance requires threshold secret sharing and careful round management. Security holds against a curious server and colluding clients below the threshold. <Cite id="bonawitz2017" locator="pp. 1175–1191" />
+
+<Callout variant="lab" title="Privacy and integrity compose badly">
+A secure aggregation protocol can protect a poisoned update from inspection. Robust aggregation, contribution bounds, anomaly detection and client reputation are separate defences. Do not assume one control covers both properties.
+</Callout>
+
+## Membership inference
+
+A model can memorise. Membership inference exploits differences in confidence between training and non-training examples. DP and regularisation reduce the signal, but they do not prove that no inference is possible. <Cite id="shokri2017" locator="pp. 3–18" />
+
+</Lens>
+
+<Lens level={4} title="Systems engineering for federated rounds">
+
+## Operational realities
+
+- **Heterogeneity:** clients have different data distributions, compute and availability.
+- **Dropout:** secure aggregation must not fail when a client disappears mid-round.
+- **Communication cost:** model updates are large; compression and quantisation change privacy and poisoning behaviour.
+- **Versioning:** clients may run stale code or malicious forks.
+- **Attestation:** verify the client environment when the threat model includes compromised devices.
+- **Monitoring:** measure participation, update norms and accuracy; alert on drift and outliers.
+
+## Controls to combine
+
+1. Client authentication and Sybil resistance.
+2. Secure channels and signed updates.
+3. Clipping and DP noise with a documented budget.
+4. Robust aggregation (median, trimmed mean) where appropriate.
+5. Reputation and contribution bounds.
+6. Independent evaluation on a held-out, non-federated dataset.
+7. Incident response for poisoned rounds and model rollback.
+
+<Callout variant="warning" title="Do not promise more than the model proves">
+“Federated” is not a compliance certificate. Data minimisation, retention, legal basis and user transparency still apply. A privacy-preserving training pipeline can still produce a privacy-invasive deployed model.
+</Callout>
+
+<KnowledgeCheck
+  question="Which attack remains possible when secure aggregation is deployed?"
+  options={["The server reading an individual update", "A client poisoning the aggregate", "Network observers breaking TLS", "Clients recovering each other's raw data by design"]}
+  answer={1}
+  explanation="Secure aggregation hides individual updates but does not validate their content. A malicious client can still submit a poisoned update that enters the aggregate."
+/>
+
+</Lens>

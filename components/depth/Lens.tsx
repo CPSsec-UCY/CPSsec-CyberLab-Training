@@ -13,23 +13,23 @@ export function Lens({ level, title, children }: LensProps) {
 
   return (
     <section data-lens={level} aria-labelledby={headingId} className="pt-6">
-      <div className={`mb-6 flex flex-col gap-2 rounded-xl border ${lens.accentBorder} ${lens.accentBg} p-4 sm:flex-row sm:items-center sm:justify-between`}>
+      <div className={`mb-6 flex flex-col gap-3 rounded-2xl border ${lens.accentBorder} ${lens.accentBg} p-4 sm:flex-row sm:items-center sm:justify-between`}>
         <div className="flex items-center gap-3">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-lg border ${lens.accentBorder} bg-ink-950/40 font-mono text-sm ${lens.accentText}`}>
+          <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${lens.accentBorder} bg-white/80 font-mono text-sm font-bold ${lens.accentText}`}>
             L{level}
           </span>
           <div>
-            <p className={`font-mono text-[10px] uppercase tracking-[0.18em] ${lens.accentText}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${lens.accentText}`}>
               {lens.name}
             </p>
-            <h2 id={headingId} className="text-base font-semibold text-white">
+            <h2 id={headingId} className="text-base font-bold text-navy">
               {title ?? lens.description}
             </h2>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className={`h-1.5 w-1.5 rounded-full ${lens.dot}`} />
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
             For {lens.audience}
           </span>
         </div>

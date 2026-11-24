@@ -5,9 +5,9 @@ import { LabWorkbench } from "@/components/lab/LabWorkbench";
 import { Cite } from "@/components/citations/Cite";
 
 export const metadata: Metadata = {
-  title: "PQC math lab",
+  title: "Interactive labs",
   description:
-    "Run negacyclic NTTs, polynomial multiplication, compression rounding and PQC parameter comparisons in the browser via Rust WebAssembly.",
+    "Run post-quantum arithmetic in Rust WebAssembly, and explore AEAD, hashing, federated learning, deep packet inspection, SOC triage and zero-knowledge proofs in the browser.",
 };
 
 export default function LabPage() {
@@ -16,22 +16,20 @@ export default function LabPage() {
       <div className="grid gap-8 lg:grid-cols-[1.4fr_0.6fr] lg:items-end">
         <div>
           <p className="eyebrow">Interactive lab</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            The PQC math lab.
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-navy sm:text-5xl">
+            Interactive security labs.
           </h1>
-          <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-400">
-            Real ring arithmetic, not a video. The engine is compiled from Rust to WebAssembly, runs a
-            deterministic self-test on load, and exposes every intermediate array for inspection. A
-            TypeScript fallback keeps the page usable when Wasm is blocked.
+          <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
+            Real computation, not a video. The PQC bench is compiled from Rust to WebAssembly, runs a
+            deterministic self-test on load, and exposes every intermediate array. The other labs run
+            client-side and are linked from their courses: AEAD tampering, hash avalanche, federated
+            poisoning, DPI pipelines, SOC triage and Schnorr proofs.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/learn/ntt-polynomials/" className="btn-ghost">
-            Read the NTT module
-          </Link>
-          <Link href="/learn/ml-kem/" className="btn-ghost">
-            ML-KEM deep dive
-          </Link>
+          <Link href="/learn/symmetric-crypto/" className="btn-ghost">AEAD lab</Link>
+          <Link href="/learn/federated-learning/" className="btn-ghost">Federated lab</Link>
+          <Link href="/learn/soc-operations/" className="btn-ghost">SOC triage</Link>
         </div>
       </div>
 
@@ -40,27 +38,27 @@ export default function LabPage() {
       </div>
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-ink-850/50 p-5">
-          <FileCode2 className="h-5 w-5 text-cyber-cyan" />
-          <h2 className="mt-3 text-sm font-semibold text-white">What runs in Wasm</h2>
-          <p className="mt-2 text-xs leading-6 text-slate-400">
+        <div className="rounded-xl border border-line bg-white p-5">
+          <FileCode2 className="h-5 w-5 text-brand-700" />
+          <h2 className="mt-3 text-sm font-semibold text-navy">What runs in Wasm</h2>
+          <p className="mt-2 text-xs leading-6 text-body">
             Pre-twisted negacyclic NTT, inverse NTT, point-wise multiplication, schoolbook convolution,
             compression/decompression and a self-test. The Rust crate is in{" "}
-            <code className="font-mono text-slate-300">wasm/pqc-lab</code> and is rebuilt in CI.
+            <code className="font-mono text-body">wasm/pqc-lab</code> and is rebuilt in CI.
           </p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-ink-850/50 p-5">
+        <div className="rounded-xl border border-line bg-white p-5">
           <ShieldCheck className="h-5 w-5 text-emerald-400" />
-          <h2 className="mt-3 text-sm font-semibold text-white">Safe to experiment</h2>
-          <p className="mt-2 text-xs leading-6 text-slate-400">
+          <h2 className="mt-3 text-sm font-semibold text-navy">Safe to experiment</h2>
+          <p className="mt-2 text-xs leading-6 text-body">
             No secrets, no network calls after the Wasm file loads, no backend. Everything runs locally in
             your browser tab and progress never leaves localStorage.
           </p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-ink-850/50 p-5">
-          <Wrench className="h-5 w-5 text-cyber-violet" />
-          <h2 className="mt-3 text-sm font-semibold text-white">Parameters that match the standards</h2>
-          <p className="mt-2 text-xs leading-6 text-slate-400">
+        <div className="rounded-xl border border-line bg-white p-5">
+          <Wrench className="h-5 w-5 text-coral-600" />
+          <h2 className="mt-3 text-sm font-semibold text-navy">Parameters that match the standards</h2>
+          <p className="mt-2 text-xs leading-6 text-body">
             Sizes are taken from <Cite id="fips203" />, <Cite id="fips204" />, <Cite id="fips205" /> and the
             Classic McEliece specification. The lab ring is an instructional n = 128 instance over q = 3329; see
             the note under the NTT bench for the ML-KEM n = 256 difference.
@@ -68,11 +66,11 @@ export default function LabPage() {
         </div>
       </div>
 
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-cyber-cyan/20 bg-cyber-cyan/[0.05] p-5">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-5">
         <div className="flex items-center gap-3">
-          <Sigma className="h-5 w-5 text-cyber-cyan" />
-          <p className="text-sm text-slate-300">
-            Want the derivation behind the butterflies? Read L3 of the NTT module, then run the same values here.
+          <Sigma className="h-5 w-5 text-brand-700" />
+          <p className="text-sm text-body">
+            Want the derivation behind the butterflies? Read L3 of the NTT module, then run the same values here. The other labs are embedded in their courses.
           </p>
         </div>
         <Link href="/learn/ntt-polynomials/" className="btn-primary">

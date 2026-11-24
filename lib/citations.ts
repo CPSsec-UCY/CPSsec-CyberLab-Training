@@ -3,13 +3,13 @@ import type { Citation } from "@/lib/types";
 
 const citations = rawCitations as Citation[];
 
-export const CITATIONS: Citation[] = citations;
+export const CITATIONS: Citation[] = citations.map((citation, index) => ({
+  ...citation,
+  ordinal: index + 1,
+}));
 
 export const CITATION_BY_ID: Record<string, Citation> = Object.fromEntries(
-  citations.map((citation, index) => [
-    citation.id,
-    { ...citation, ordinal: index + 1 } as Citation,
-  ]),
+  CITATIONS.map((citation) => [citation.id, citation]),
 );
 
 export function getCitation(id: string): Citation | undefined {

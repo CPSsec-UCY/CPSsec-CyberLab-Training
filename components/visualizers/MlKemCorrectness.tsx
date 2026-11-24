@@ -63,7 +63,7 @@ export function MlKemCorrectness() {
               className={`h-9 w-9 rounded-lg border font-mono text-sm transition ${
                 bit === value
                   ? "border-cyber-cyan/50 bg-cyber-cyan/15 text-cyber-cyan"
-                  : "border-white/10 bg-ink-950/50 text-slate-400 hover:text-white"
+                  : "border-line bg-ink-950/50 text-slate-400 hover:text-navy"
               }`}
             >
               {value}
@@ -77,55 +77,55 @@ export function MlKemCorrectness() {
         </div>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-xl border border-white/10 bg-ink-950/60 p-3">
+      <div className="mt-5 overflow-x-auto rounded-xl border border-line bg-ink-950/60 p-3">
         <svg viewBox="0 0 720 170" className="min-w-[620px]" role="img" aria-label="Number-line visualisation of ML-KEM message reconciliation">
-          <rect x="48" y="52" width="156" height="34" rx="4" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.25)" />
-          <rect x="204" y="52" width="312" height="34" rx="4" fill="rgba(34,211,238,0.1)" stroke="rgba(34,211,238,0.3)" />
-          <rect x="516" y="52" width="156" height="34" rx="4" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.25)" />
-          <text x="126" y="43" textAnchor="middle" fill="#6ee7b7" fontSize="10" fontFamily="monospace">decodes 0</text>
-          <text x="360" y="43" textAnchor="middle" fill="#67e8f9" fontSize="10" fontFamily="monospace">decodes 1</text>
-          <text x="594" y="43" textAnchor="middle" fill="#6ee7b7" fontSize="10" fontFamily="monospace">decodes 0</text>
+          <rect x="48" y="52" width="156" height="34" rx="4" fill="rgba(15,157,138,0.08)" stroke="rgba(15,157,138,0.35)" />
+          <rect x="204" y="52" width="312" height="34" rx="4" fill="rgba(108,77,246,0.1)" stroke="rgba(108,77,246,0.3)" />
+          <rect x="516" y="52" width="156" height="34" rx="4" fill="rgba(15,157,138,0.08)" stroke="rgba(15,157,138,0.35)" />
+          <text x="126" y="43" textAnchor="middle" fill="#0F9D8A" fontSize="10" fontFamily="monospace">decodes 0</text>
+          <text x="360" y="43" textAnchor="middle" fill="#5B3DD8" fontSize="10" fontFamily="monospace">decodes 1</text>
+          <text x="594" y="43" textAnchor="middle" fill="#0F9D8A" fontSize="10" fontFamily="monospace">decodes 0</text>
 
           {Array.from({ length: 2 ** Math.min(d, 8) + 1 }).map((_, index) => {
             const x = 48 + (index / 2 ** Math.min(d, 8)) * 624;
-            return <line key={index} x1={x} y1="52" x2={x} y2="86" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />;
+            return <line key={index} x1={x} y1="52" x2={x} y2="86" stroke="rgba(139,136,163,0.12)" strokeWidth="1" />;
           })}
 
-          <line x1="48" y1="86" x2="672" y2="86" stroke="rgba(148,163,184,0.35)" strokeWidth="1" />
+          <line x1="48" y1="86" x2="672" y2="86" stroke="rgba(139,136,163,0.35)" strokeWidth="1" />
           {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
             <g key={tick}>
-              <line x1={48 + tick * 624} y1="86" x2={48 + tick * 624} y2="94" stroke="rgba(148,163,184,0.5)" />
-              <text x={48 + tick * 624} y="110" textAnchor="middle" fill="#64748b" fontSize="9" fontFamily="monospace">
+              <line x1={48 + tick * 624} y1="86" x2={48 + tick * 624} y2="94" stroke="rgba(139,136,163,0.5)" />
+              <text x={48 + tick * 624} y="110" textAnchor="middle" fill="#6F6B85" fontSize="9" fontFamily="monospace">
                 {Math.round(tick * Q)}
               </text>
             </g>
           ))}
 
-          <line x1={muX} y1="58" x2={muX} y2="82" stroke="#a78bfa" strokeWidth="2" strokeDasharray="3 3" />
-          <text x={muX} y="132" textAnchor="middle" fill="#a78bfa" fontSize="9" fontFamily="monospace">mu</text>
+          <line x1={muX} y1="58" x2={muX} y2="82" stroke="#A855F7" strokeWidth="2" strokeDasharray="3 3" />
+          <text x={muX} y="132" textAnchor="middle" fill="#A855F7" fontSize="9" fontFamily="monospace">mu</text>
 
-          <line x1={recoveredX} y1="58" x2={recoveredX} y2="82" stroke="#fbbf24" strokeWidth="1.5" />
-          <text x={recoveredX} y="145" textAnchor="middle" fill="#fbbf24" fontSize="9" fontFamily="monospace">v&apos;</text>
+          <line x1={recoveredX} y1="58" x2={recoveredX} y2="82" stroke="#C97F0E" strokeWidth="1.5" />
+          <text x={recoveredX} y="145" textAnchor="middle" fill="#C97F0E" fontSize="9" fontFamily="monospace">v&apos;</text>
 
           <motion.circle
             cx={markerX}
             cy="69"
             r="6"
-            fill={pass ? "#22d3ee" : "#fb7185"}
-            stroke="#03060d"
+            fill={pass ? "#6C4DF6" : "#E11D48"}
+            stroke="#FFFFFF"
             strokeWidth="2"
             initial={false}
             animate={{ cx: markerX }}
             transition={{ type: "spring", stiffness: 240, damping: 26 }}
           />
-          <text x={markerX} y="20" textAnchor="middle" fill={pass ? "#22d3ee" : "#fb7185"} fontSize="10" fontFamily="monospace">
+          <text x={markerX} y="20" textAnchor="middle" fill={pass ? "#6C4DF6" : "#E11D48"} fontSize="10" fontFamily="monospace">
             v = mu + e
           </text>
         </svg>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <label className="rounded-xl border border-white/10 bg-ink-950/40 p-4">
+        <label className="rounded-xl border border-line bg-ink-950/40 p-4">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">noise e</span>
             <span className={`font-mono text-xs ${Math.abs(noise) > 400 ? "text-cyber-rose" : "text-cyber-cyan"}`}>
@@ -148,7 +148,7 @@ export function MlKemCorrectness() {
           </p>
         </label>
 
-        <label className="rounded-xl border border-white/10 bg-ink-950/40 p-4">
+        <label className="rounded-xl border border-line bg-ink-950/40 p-4">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-400">compression d</span>
             <span className="font-mono text-xs text-cyber-violet">{d} bits</span>
@@ -177,7 +177,7 @@ export function MlKemCorrectness() {
           { label: "v' = decompress", value: result.recovered },
           { label: "total error", value: result.totalError },
         ].map((item) => (
-          <div key={item.label} className="rounded-lg border border-white/10 bg-ink-950/50 p-3">
+          <div key={item.label} className="rounded-lg border border-line bg-ink-950/50 p-3">
             <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">{item.label}</p>
             <p className="mt-1 font-mono text-sm text-slate-200">{item.value}</p>
           </div>

@@ -102,7 +102,7 @@ export function ParameterExplorer() {
             className={`rounded-lg border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] transition ${
               selected === item.id
                 ? "border-cyber-cyan/40 bg-cyber-cyan/10 text-cyber-cyan"
-                : "border-white/10 bg-ink-950/40 text-slate-400 hover:border-white/25 hover:text-white"
+                : "border-line bg-ink-950/40 text-slate-400 hover:border-line-strong hover:text-navy"
             }`}
           >
             {item.label}
@@ -110,9 +110,9 @@ export function ParameterExplorer() {
         ))}
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line">
         <table className="w-full min-w-[640px] border-collapse text-left text-xs">
-          <thead className="bg-white/[0.04] font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
+          <thead className="bg-mist-100 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
             <tr>
               <th className="px-3 py-2.5">Parameter set</th>
               <th className="px-3 py-2.5">NIST cat.</th>
@@ -123,7 +123,7 @@ export function ParameterExplorer() {
           </thead>
           <tbody>
             {family.rows.map((row) => (
-              <tr key={row.name} className="border-t border-white/5">
+              <tr key={row.name} className="border-t border-line/75">
                 <td className="px-3 py-3 font-mono text-[11px] text-slate-200">{row.name}</td>
                 <td className="px-3 py-3">
                   <span className="rounded border border-cyber-violet/30 bg-cyber-violet/10 px-1.5 py-0.5 font-mono text-[9px] text-cyber-violet">

@@ -2,7 +2,7 @@
   "name": "pqc-cyberlab",
   "version": "0.1.0",
   "private": true,
-  "description": "Open, citation-backed cybersecurity learning platform with interactive animations and a deep post-quantum cryptography lab.",
+  "description": "Open, citation-backed cybersecurity curriculum with interactive labs, four depth lenses and a post-quantum track.",
   "license": "EUPL-1.2",
   "scripts": {
     "dev": "next dev",

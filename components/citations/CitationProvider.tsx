@@ -50,13 +50,13 @@ function CopyBibtex({ citation }: { citation: Citation }) {
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-ink-950/80">
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+    <div className="rounded-xl border border-line bg-mist-50">
+      <div className="flex items-center justify-between border-b border-line px-3 py-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">BibTeX</span>
         <button
           type="button"
           onClick={copy}
-          className="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-300 hover:border-cyber-cyan/40 hover:text-cyber-cyan"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-300 hover:border-cyber-cyan/40 hover:text-cyber-cyan"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
@@ -139,7 +139,7 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               aria-label="Close citation"
-              className="absolute inset-0 bg-ink-950/75 backdrop-blur-sm"
+              className="absolute inset-0 bg-navy/50 backdrop-blur-sm"
               onClick={close}
             />
             <motion.aside
@@ -147,13 +147,13 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
               role="dialog"
               aria-modal="true"
               aria-labelledby="citation-title"
-              className="relative z-10 flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-white/10 bg-ink-900 shadow-panel"
+              className="relative z-10 flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-line bg-ink-900 shadow-panel"
               initial={{ x: 40, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 40, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 32 }}
             >
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-ink-900/95 px-5 py-4 backdrop-blur">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white/95 px-5 py-4 backdrop-blur">
                 <div className="flex items-center gap-2">
                   <span className="chip">{TYPE_LABEL[citation.type] ?? citation.type}</span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">
@@ -164,7 +164,7 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
                   ref={closeRef}
                   type="button"
                   onClick={close}
-                  className="rounded-lg border border-white/10 p-2 text-slate-400 hover:text-white"
+                  className="rounded-lg border border-line p-2 text-slate-400 hover:text-navy"
                   aria-label="Close citation drawer"
                 >
                   <X className="h-4 w-4" />
@@ -173,7 +173,7 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
 
               <div className="space-y-6 px-5 py-6">
                 <div>
-                  <h2 id="citation-title" className="text-xl font-semibold leading-snug text-white">
+                  <h2 id="citation-title" className="text-xl font-semibold leading-snug text-navy">
                     {citation.title}
                   </h2>
                   <p className="mt-2 text-sm text-slate-400">
@@ -231,7 +231,7 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
                   ))}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs leading-6 text-slate-400">
+                <div className="rounded-xl border border-line bg-mist-50 p-4 text-xs leading-6 text-slate-400">
                   This drawer is part of the citation engine. Inline claims carry a source and a locator;
                   CI fails when a citation key is missing or malformed.{" "}
                   <Link href="/citations/" className="text-cyber-cyan hover:underline" onClick={close}>

@@ -1,0 +1,181 @@
+---
+slug: soc-operations
+title: "SOC operations: detection, triage and incident response"
+subtitle: "From telemetry to a defensible decision — how a security operations centre actually works."
+track: "Security Operations"
+order: 8
+difficulty: "Intermediate"
+readingTime: 18
+summary: "Log pipelines, SIEM, detection-as-code, MITRE ATT&CK, alert triage, incident response, metrics and the human factors that determine whether a SOC works."
+citations: ["sp800-61r3", "sp800-92", "mitre-attack", "sigma", "pyramid-of-pain", "rfc5424", "sp800-94"]
+tags: ["soc", "detection", "incident-response", "siem"]
+prerequisites: ["deep-packet-inspection"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="The emergency room for security events">
+
+## What a SOC does
+
+A security operations centre watches telemetry, detects suspicious activity, investigates alerts and coordinates response. It is part emergency room, part intelligence desk and part engineering team.
+
+The job is not “look at every alert”. It is to **turn noisy signals into defensible decisions**:
+
+- Is this real?
+- What is affected?
+- What should we do now?
+- What evidence must we preserve?
+- How do we prevent it next time?
+
+## Why alerts alone fail
+
+A SIEM can generate thousands of alerts per day. Without context, prioritisation and playbooks, analysts drown. Burnout and alert fatigue are security failures, not HR problems.
+
+<Callout variant="warning" title="Detection is a product">
+A detection is not finished when the rule fires. It needs an owner, a severity model, a runbook, a test, a false-positive process and a metric. Otherwise it is technical debt with a pager.
+</Callout>
+
+## The incident lifecycle
+
+NIST SP 800-61r3 frames incident response around preparation, detection and analysis, containment, eradication, recovery and post-incident learning, integrated with risk management. <Cite id="sp800-61r3" locator="§2–5" />
+
+### KnowledgeCheck
+
+<KnowledgeCheck
+  question="What is the primary purpose of SOC triage?"
+  options={["To close every alert quickly", "To decide what the evidence means and what action is justified", "To replace the SIEM", "To avoid documenting decisions"]}
+  answer={1}
+  explanation="Triage is a defensible assessment under uncertainty. Closing alerts quickly without evidence is how real incidents get missed."
+/>
+
+</Lens>
+
+<Lens level={2} title="Telemetry, SIEM and detection engineering">
+
+## The data pipeline
+
+1. **Collect** logs and telemetry from identity, endpoints, network, cloud and applications.
+2. **Normalise** fields and timestamps into a common schema.
+3. **Enrich** with asset ownership, identity context and threat intelligence.
+4. **Detect** using correlation rules, behavioural analytics and signatures.
+5. **Triage** with queries, timelines and evidence.
+6. **Respond** with containment, eradication, recovery and communication.
+
+Syslog (RFC 5424) is a common transport; SIEMs add parsing, indexing, correlation and retention. <Cite id="rfc5424" locator="§6" /> Log management guidance emphasises retention, protection and review. <Cite id="sp800-92" locator="§3–5" />
+
+## Detection as code
+
+- Rules live in version control.
+- Tests cover true positives, false positives and edge cases.
+- Reviews check data source assumptions and performance.
+- Deployments are automated and rollback is possible.
+- Ownership is explicit.
+
+Sigma provides a vendor-neutral rule format that can be converted to multiple SIEM query languages. <Cite id="sigma" locator="Rule format and conversion tooling" />
+
+## ATT&CK as a map, not a checklist
+
+MITRE ATT&CK catalogues adversary tactics and techniques. Use it to find coverage gaps, structure hunts and communicate with threat intelligence. It does not replace local knowledge of your environment. <Cite id="mitre-attack" locator="Enterprise tactics, techniques and procedures" />
+
+<Figure caption="Work a small alert queue. Decide true versus false positive, see the reasoning, and notice how context changes the correct action.">
+  <SocTriage />
+</Figure>
+
+<Callout variant="note" title="The Pyramid of Pain">
+Indicators at the bottom (hashes, IPs) are cheap for an adversary to change. Behaviours and tools are harder to change. Detection strategy should climb the pyramid where the environment supports it. <Cite id="pyramid-of-pain" locator="Indicator value versus adversary cost" />
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="Detection quality, base rates and response cost">
+
+## Precision matters more than accuracy
+
+For a detection with true-positive rate $p$, false-positive rate $q$ and attack prevalence $\pi$, the probability an alert is real is
+
+$$
+\Pr(\text{attack} \mid \text{alert}) = \frac{\pi p}{\pi p + (1-\pi)q}.
+$$
+
+When attacks are rare, even a small $q$ can make most alerts false. This is why context and base rates are central to detection engineering. NIST's IDPS guidance stresses tuning and operational integration. <Cite id="sp800-94" locator="§2–4" />
+
+## Coverage versus noise
+
+A detection portfolio should balance:
+
+- **coverage** of relevant techniques,
+- **precision** in the deployed environment,
+- **response cost**,
+- **time to detect and respond**,
+- **false-negative risk**.
+
+Adding rules increases coverage and noise. Retiring rules is part of engineering, not failure.
+
+## Incident response under uncertainty
+
+Incident response is decision-making with incomplete evidence. Good practice:
+
+- preserve volatile evidence before containment when possible,
+- separate confirmed facts from hypotheses,
+- define containment criteria in advance,
+- communicate with asset owners and legal/privacy teams,
+- document every action and timestamp.
+
+NIST SP 800-61r3 integrates response with cybersecurity risk management rather than treating it as a standalone checklist. <Cite id="sp800-61r3" locator="§2–5" />
+
+<Callout variant="lab" title="Metrics can be gamed">
+Mean time to respond can be reduced by closing tickets faster. Pair speed metrics with quality metrics: reopened incidents, missed detections, evidence completeness and containment effectiveness.
+</Callout>
+
+</Lens>
+
+<Lens level={4} title="Building a SOC that survives volume">
+
+## Data engineering
+
+- **Schema:** adopt a common schema for users, hosts, IPs, processes and cloud resources.
+- **Time:** synchronise clocks; record both event and ingestion time.
+- **Retention:** hot searchable data versus cold archive; legal and privacy constraints.
+- **Cost:** high-cardinality fields and full packet capture are expensive; measure value.
+- **Reliability:** queueing, backpressure and parser failure handling.
+
+## Automation and response
+
+SOAR and automation help with enrichment, ticketing and repetitive containment. Automation needs:
+
+1. explicit authorisation and guardrails,
+2. idempotent actions,
+3. audit logs,
+4. rollback and human override,
+5. tests for false positives.
+
+<Callout variant="danger" title="Automated containment can automate an outage">
+Isolating a host or disabling an account on a bad signal is an availability attack. Gate high-impact actions behind confidence thresholds and approval, and rehearse recovery.
+</Callout>
+
+## People and process
+
+- Tiered triage works only with clear escalation criteria.
+- Detection engineers and analysts should share ownership of rule quality.
+- Run tabletop exercises for ransomware, identity compromise and cloud misconfiguration.
+- Rotate on-call and measure workload; fatigue degrades judgement.
+- Conduct blameless post-incident reviews and track action items.
+
+## A practical maturity path
+
+1. Centralise identity and endpoint logs.
+2. Build a small set of high-confidence detections with runbooks.
+3. Measure precision and response time; retire noise.
+4. Add threat hunting and ATT&CK coverage mapping.
+5. Automate low-risk enrichment and containment.
+6. Exercise recovery and evidence handling.
+
+<KnowledgeCheck
+  question="Why is a detection that fires on every failed login a poor SOC control?"
+  options={["Failed logins are never malicious", "Its false-positive volume overwhelms analysts and hides real signals", "It requires no log data", "It cannot be mapped to ATT&CK"]}
+  answer={1}
+  explanation="Failed logins are extremely common. Without correlation, asset context and thresholds, the rule creates noise and alert fatigue rather than actionable intelligence."
+/>
+
+</Lens>

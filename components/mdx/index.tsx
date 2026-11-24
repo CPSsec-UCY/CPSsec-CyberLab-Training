@@ -13,6 +13,13 @@ import { QuantumThreat } from "@/components/visualizers/QuantumThreat";
 import { SideChannelLeak } from "@/components/visualizers/SideChannelLeak";
 import { ParameterExplorer } from "@/components/visualizers/ParameterExplorer";
 import { TlsHandshake } from "@/components/visualizers/TlsHandshake";
+import { AeadDemo } from "@/components/visualizers/AeadDemo";
+import { HashAvalanche } from "@/components/visualizers/HashAvalanche";
+import { CentralisationSpectrum } from "@/components/visualizers/CentralisationSpectrum";
+import { FederatedLearningDemo } from "@/components/visualizers/FederatedLearningDemo";
+import { DpiPipeline } from "@/components/visualizers/DpiPipeline";
+import { SocTriage } from "@/components/visualizers/SocTriage";
+import { ZkSchnorrDemo } from "@/components/visualizers/ZkSchnorrDemo";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
   if (href.startsWith("/")) {
@@ -40,5 +47,12 @@ export const mdxComponents = {
   SideChannelLeak,
   ParameterExplorer,
   TlsHandshake,
+  AeadDemo,
+  HashAvalanche,
+  CentralisationSpectrum,
+  FederatedLearningDemo,
+  DpiPipeline,
+  SocTriage,
+  ZkSchnorrDemo,
   a: MdxLink,
 };

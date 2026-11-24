@@ -60,7 +60,7 @@ export function TlsHandshake() {
               className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                 isActive
                   ? "border-cyber-cyan/40 bg-cyber-cyan/[0.07]"
-                  : "border-white/10 bg-ink-950/40 hover:border-white/25"
+                  : "border-line bg-ink-950/40 hover:border-line-strong"
               }`}
             >
               <span className={`flex h-7 w-7 items-center justify-center rounded-full border ${
@@ -84,7 +84,7 @@ export function TlsHandshake() {
         key={active}
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mt-4 rounded-xl border border-white/10 bg-ink-950/50 p-4"
+        className="mt-4 rounded-xl border border-line bg-ink-950/50 p-4"
       >
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-cyber-cyan">
           <ArrowLeftRight className="h-3.5 w-3.5" />

@@ -19,7 +19,7 @@ export function QuantumThreat() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex overflow-hidden rounded-lg border border-white/10">
+        <div className="flex overflow-hidden rounded-lg border border-line">
           <button
             type="button"
             onClick={() => setQuantum(false)}
@@ -47,7 +47,7 @@ export function QuantumThreat() {
           return (
             <div key={item.name} className="grid grid-cols-[130px_1fr_46px] items-center gap-3 sm:grid-cols-[160px_1fr_52px]">
               <span className="font-mono text-[10px] text-slate-400">{item.name}</span>
-              <div className="relative h-7 overflow-hidden rounded-md border border-white/10 bg-ink-950/60">
+              <div className="relative h-7 overflow-hidden rounded-md border border-line bg-ink-950/60">
                 <motion.div
                   initial={false}
                   animate={{ width: `${Math.max(bits / max, broken ? 0.02 : 0) * 100}%` }}

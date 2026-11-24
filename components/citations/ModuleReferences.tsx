@@ -6,7 +6,7 @@ export function ModuleReferences({ ids }: { ids: string[] }) {
   if (citations.length === 0) return null;
 
   return (
-    <section className="mt-12 rounded-2xl border border-white/10 bg-ink-850/50 p-5" aria-labelledby="module-sources">
+    <section className="mt-12 rounded-2xl border border-line bg-ink-850/50 p-5" aria-labelledby="module-sources">
       <div className="flex items-center justify-between gap-4">
         <h2 id="module-sources" className="font-mono text-xs uppercase tracking-[0.18em] text-cyber-cyan">
           Primary sources for this module

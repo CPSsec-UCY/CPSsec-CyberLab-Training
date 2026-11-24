@@ -1,0 +1,139 @@
+---
+slug: deep-packet-inspection
+title: "Deep packet inspection and network visibility"
+subtitle: "What a sensor can see, what TLS hides, and why packet-level detection still matters in an encrypted world."
+track: "Network & Protocol Security"
+order: 7
+difficulty: "Intermediate"
+readingTime: 16
+summary: "Follow packets through capture, decode, flow reconstruction, detection and action, then examine the limits and risks of DPI under modern encryption."
+citations: ["sp800-94", "zeek", "suricata", "rfc7011", "rfc5424", "rfc8446"]
+tags: ["network", "dpi", "ids", "monitoring"]
+prerequisites: ["tls-pki"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="The guard who reads letters versus the guard who watches envelopes">
+
+## What DPI is
+
+Deep packet inspection looks beyond IP and port headers into protocol fields, payloads and application behaviour. A firewall can allow port 443; a DPI sensor can ask whether the traffic is really TLS, whether the certificate looks suspicious, or whether a file download contains a known malicious pattern.
+
+DPI powers intrusion detection, application control, data-loss prevention, traffic shaping and network forensics. It also creates privacy and performance obligations.
+
+## What encryption changes
+
+TLS 1.3 encrypts application data. A passive sensor still sees endpoints, ports, packet sizes, timing and often the server name, but not the HTTP request or file contents. <Cite id="rfc8446" locator="§5" /> The old payload-signature model is no longer sufficient by itself.
+
+<Callout variant="warning" title="Visibility is not control">
+A passive IDS alerts; an inline IPS can block. Inline placement turns false positives into outages, so it needs stronger testing and an explicit failure policy.
+</Callout>
+
+## The defender's shift
+
+When payloads disappear, defenders move to flow behaviour, DNS and TLS metadata, endpoint telemetry, identity logs and network segmentation. DPI remains useful, but it is one sensor in a portfolio.
+
+<KnowledgeCheck
+  question="What does TLS 1.3 primarily hide from a passive network sensor?"
+  options={["IP addresses", "Application payload contents", "TCP ports", "Packet timing"]}
+  answer={1}
+  explanation="TLS encrypts application data. Addresses, ports and often packet timing remain visible, while payload content does not."
+/>
+
+</Lens>
+
+<Lens level={2} title="Capture, decode, flow, detect, action">
+
+## The pipeline
+
+1. **Capture:** a tap, SPAN port, eBPF hook or capture library.
+2. **Decode:** parse link, IP and transport headers; validate lengths and fragmentation.
+3. **Flow:** group packets into conversations, track TCP state, reassemble streams.
+4. **Detect:** signatures, protocol parsers, anomaly models and threat intelligence.
+5. **Action:** alert, log, enrich, throttle, reset or block.
+
+<Figure caption="Step through the pipeline. Toggle TLS and inline blocking to see what is visible and what action is possible.">
+  <DpiPipeline />
+</Figure>
+
+## Sensors and formats
+
+- **Zeek** exposes protocol parsers and a scripting framework for network security monitoring. <Cite id="zeek" locator="Scripting and protocol parsers" />
+- **Suricata** provides signature-based detection with rich flow and alert output. <Cite id="suricata" locator="Rules, eve JSON output and flow handling" />
+- **IPFIX** exports flow records when retaining every packet is impractical. <Cite id="rfc7011" locator="§3–5" />
+- **Syslog** (RFC 5424) remains a common event transport across network devices. <Cite id="rfc5424" locator="§6" />
+
+## Tuning
+
+A signature that is never tuned becomes noise. Start from an asset inventory, know which services are expected where, and measure alert precision and response cost. NIST SP 800-94 frames the deployment and tuning problem for IDPS. <Cite id="sp800-94" locator="§2–4" />
+
+</Lens>
+
+<Lens level={3} title="Detection is classification under base rates">
+
+A signature is a classifier. Its operational value depends on attack prevalence, false-positive rate and investigation cost. With a base rate $\pi$, true-positive rate $p$ and false-positive rate $q$:
+
+$$
+\Pr(\text{attack} \mid \text{alert}) = \frac{\pi p}{\pi p + (1-\pi)q}.
+$$
+
+When attacks are rare, even a small $q$ can dominate the queue. Early signature systems often failed not because they missed attacks, but because analysts could not handle the alerts.
+
+<Callout variant="lab" title="Signatures versus anomalies">
+Signatures explain why they fired; anomaly models need a baseline and a cost model. Both are evadable. Coverage should be mapped to attacker techniques, not only to file hashes.
+</Callout>
+
+Flow analysis provides metadata features — bytes, packets, duration, periodicity — that survive encryption. It can reveal beaconing, scans and exfiltration patterns, but often not intent.
+
+## Encrypted traffic
+
+Without decryption, DPI can use:
+
+- TLS metadata and certificate properties,
+- DNS and SNI where visible,
+- timing and flow shape,
+- endpoint telemetry.
+
+These are probabilistic. They support hunting and triage; they rarely prove content-level malice on their own.
+
+</Lens>
+
+<Lens level={4} title="Line rate, inline risk and encrypted traffic">
+
+## Performance
+
+- **eBPF/XDP** and kernel bypass move processing close to the NIC.
+- **Flow tables** and hardware offload reduce per-packet cost.
+- **Full packet capture** is expensive; many teams retain flows and capture packets around alerts.
+
+## Inline hazards
+
+1. False positives drop legitimate traffic.
+2. Asymmetric routing breaks stateful inspection.
+3. Fragmentation and tunnelling can evade parsers.
+4. Sensor failure must fail open or closed by explicit policy.
+5. TLS interception creates a high-value key and trust target.
+
+<Callout variant="danger" title="TLS decryption proxies are crown jewels">
+A proxy that terminates TLS holds keys, sees plaintext and must be trusted by clients. It needs isolation, strong access control, logging and a legal/privacy basis. It can break certificate pinning and create new attack surface.
+</Callout>
+
+## Deployment checklist
+
+- Define the questions the sensor must answer and the data it must not retain.
+- Place capture points where traffic is representative.
+- Normalise time, identity and schema before correlation.
+- Benchmark worst-case traffic, not averages.
+- Test fail-open versus fail-closed behaviour.
+- Validate coverage against emulated attacker behaviour.
+- Document retention and privacy controls.
+
+<KnowledgeCheck
+  question="Why can a high-accuracy DPI rule still create an unusable alert queue?"
+  options={["Because encryption makes all rules useless", "Because rare attacks plus false positives lower precision", "Because SIEMs cannot store logs", "Because signatures only work on UDP"]}
+  answer={1}
+  explanation="When attacks are rare, a small false-positive rate can make most alerts false. Precision and response cost matter as much as raw accuracy."
+/>
+
+</Lens>

@@ -40,7 +40,7 @@ Modules live in `content/modules/<slug>.mdx`. The filename must match the `slug`
 slug: example-module
 title: "A precise, specific title"
 subtitle: "One sentence that explains the angle."
-track: "Lattice PQC"
+track: "Post-Quantum Cryptography"
 order: 9
 difficulty: "Advanced"
 readingTime: 18
@@ -55,7 +55,8 @@ lenses: [1, 2, 3, 4]
 
 Rules:
 
-- `track` must be one of `Foundations`, `Lattice PQC`, `Hash-Based Signatures`, `Systems & Deployment`.
+- `track` must be one of `Foundations`, `Post-Quantum Cryptography`, `Network & Protocol Security`,
+  `Distributed Systems & Privacy`, `Security Operations`, `Systems & Hardware`, `Advanced Cryptography`.
 - `order` must be unique across modules.
 - `citations` must list every source cited inline. Keys must exist in `content/citations.json`.
 - `prerequisites` must refer to existing module slugs.

@@ -21,8 +21,8 @@ export function LabWorkbench() {
   const { engine, error } = useLabEngine();
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-ink-850/50 shadow-panel">
-      <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="rounded-2xl border border-line bg-ink-850/50 shadow-panel">
+      <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           {TABS.map((item) => {
             const Icon = item.icon;
@@ -35,7 +35,7 @@ export function LabWorkbench() {
                 className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] transition ${
                   tab === item.id
                     ? "border-cyber-cyan/40 bg-cyber-cyan/10 text-cyber-cyan"
-                    : "border-white/10 bg-ink-950/40 text-slate-400 hover:border-white/25 hover:text-white"
+                    : "border-line bg-ink-950/40 text-slate-400 hover:border-line-strong hover:text-navy"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -68,14 +68,14 @@ export function LabWorkbench() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
               {[0, 1, 2].map((index) => (
-                <div key={index} className="h-36 animate-pulse rounded-xl border border-white/5 bg-white/[0.02]" />
+                <div key={index} className="h-36 animate-pulse rounded-xl border border-line/75 bg-mist-50" />
               ))}
             </div>
           )
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-3 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-600 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-600 sm:px-6">
         <span>deterministic self-test on load · no secrets · runs locally</span>
         <span>Rust → wasm32 · TypeScript fallback</span>
       </div>

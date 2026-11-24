@@ -1,0 +1,108 @@
+---
+slug: centralised-decentralised
+title: "Centralised vs decentralised systems: trust, consensus and failure"
+subtitle: "No architecture is automatically secure. What changes when one operator holds the truth — and when nobody does?"
+track: "Distributed Systems & Privacy"
+order: 5
+difficulty: "Intermediate"
+readingTime: 17
+summary: "Compare centralised, federated, consortium and peer-to-peer architectures through trust boundaries, Byzantine failure, CAP, governance and operational reality."
+citations: ["lamport1982", "gilbert-lynch2002", "castro-liskov1999", "nakamoto2008", "gencer2018", "sp800-207", "kairouz2021"]
+tags: ["distributed", "consensus", "architecture", "trust"]
+prerequisites: ["asymmetric-primitives"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Who holds the truth?">
+
+Every system answers one question: **who decides what is true, and who can change it?**
+
+A centralised platform has an operator. That operator can recover an account, freeze a transaction and deploy a fix quickly — and can also censor, lose data or become a single point of compromise. A decentralised system distributes control, but coordination gets slower, governance becomes political, and new failure modes appear.
+
+Neither is “more secure” without a threat model. A hospital records system and a public cryptocurrency have different adversaries, availability needs and trust assumptions.
+
+## Decentralisation is a spectrum
+
+1. **Centralised:** one database and one administrator.
+2. **Federated / hybrid:** several operators coordinate; data or control is partitioned.
+3. **Consortium:** a known validator set shares authority.
+4. **Permissionless peer-to-peer:** open participation and protocol-enforced consensus.
+
+<Figure caption="Move from a central authority to a peer mesh. The trade-off bars are qualitative, not measurements.">
+  <CentralisationSpectrum />
+</Figure>
+
+## What trust still means
+
+Decentralisation distributes trust; it does not delete it. Clients still trust protocol code, cryptographic assumptions, wallet software, governance processes and honest coalitions. <Cite id="sp800-207" locator="§2" />
+
+<KnowledgeCheck
+  question="Which statement is most accurate?"
+  options={["Decentralised systems have no trust assumptions", "Centralised systems cannot be secure", "Decentralisation changes who must be trusted and how failures propagate", "Consensus removes the need for identities"]}
+  answer={2}
+  explanation="Every system has trust assumptions. Decentralisation redistributes them; governance, code and cryptographic assumptions remain."
+/>
+
+</Lens>
+
+<Lens level={2} title="Architectures, consensus and recovery">
+
+| Pattern | Authority | Strengths | Weaknesses |
+| --- | --- | --- | --- |
+| Central server | One operator | Low latency, simple recovery, strong consistency | Censorship, single point of failure, concentrated breach |
+| Federated | Multiple operators | Data localisation, negotiated trust | Coordination, policy inconsistency |
+| Consortium | Known validators | Shared control, permissioned audit | Membership capture, governance deadlock |
+| Permissionless P2P | Open participation | Censorship resistance | Throughput, finality, energy, governance |
+
+Consensus orders events. Crash-fault-tolerant protocols tolerate crashes; Byzantine fault-tolerant protocols also tolerate arbitrary behaviour. <Cite id="castro-liskov1999" locator="pp. 173–186" /> With oral messages, Byzantine agreement requires more than two-thirds of participants to be honest. <Cite id="lamport1982" locator="pp. 382–401" /> Proof-of-work replaces identity with computational cost and probabilistic finality. <Cite id="nakamoto2008" locator="§3–5" />
+
+Recovery differs sharply. Centralised systems use operator workflows. Consortiums use policy. Permissionless systems bind identity to keys, so losing a key often means losing the asset; multi-signature and social recovery move the trust rather than remove it.
+
+<Callout variant="note" title="Zero trust is orthogonal">
+Do not grant implicit trust based on network location. Authenticate and authorise every request. <Cite id="sp800-207" locator="§3" /> This applies to centralised and decentralised designs alike.
+</Callout>
+
+</Lens>
+
+<Lens level={3} title="CAP, Byzantine bounds and the trust set">
+
+Under a network partition, a distributed store cannot guarantee both linearizable consistency and availability for every request. Partitions are not optional; the design must choose behaviour. <Cite id="gilbert-lynch2002" locator="Vol. 33, No. 2, pp. 51–59" />
+
+For deterministic oral-message Byzantine agreement with $n$ parties and at most $f$ faults, $n \ge 3f + 1$ is necessary and sufficient. PBFT makes this practical for small known validator sets. <Cite id="lamport1982" locator="pp. 382–401" /> <Cite id="castro-liskov1999" locator="pp. 173–186" /> Proof-of-work changes the assumption to an honest majority of hash power and introduces mining concentration, which has been measured in practice. <Cite id="gencer2018" locator="pp. 439–457" />
+
+<Callout variant="lab" title="List the trusted components">
+A “decentralised” protocol may still trust a foundation, core developers, a bridge, an oracle, a wallet vendor and a cloud provider. Decentralisation claims should name those components and the quorum needed to change the protocol.
+</Callout>
+
+Federated systems are a deliberate middle ground: they distribute data or authority while retaining coordination points. They can reduce concentration without pretending coordination is free. <Cite id="kairouz2021" locator="Vol. 14, pp. 1–210" />
+
+</Lens>
+
+<Lens level={4} title="Operating a distributed trust boundary">
+
+Failure modes: split brain, validator churn, key compromise, upgrade deadlock, bridge/oracle risk and client monoculture.
+
+Controls:
+
+1. Explicit fault model: crash, Byzantine, coercion, insider.
+2. Key management: HSMs, threshold signatures, multi-party approval and rotation.
+3. Independent observability of consensus, peers and finality.
+4. Documented governance, emergency and dispute processes.
+5. Tested disaster recovery and state reconstruction.
+6. Reproducible builds, signed releases and client diversity.
+
+<Callout variant="danger" title="Decentralisation is not a compliance strategy">
+Distributing control complicates accountability and data protection. You still need lawful processing, incident response and deletion where required. “The blockchain did it” is not an incident-response plan.
+</Callout>
+
+Choose centralisation when you need low latency, strong consistency and clear accountability. Choose decentralisation when no single party should be able to censor or rewrite history, and the application tolerates weaker finality. Most systems are hybrids; test each component's failure.
+
+<KnowledgeCheck
+  question="What does the CAP theorem force under a partition?"
+  options={["A choice between consistency and availability", "Automatic Byzantine fault tolerance", "Elimination of all trust", "A guarantee of low latency"]}
+  answer={0}
+  explanation="Under a partition, a store cannot guarantee both linearizable consistency and availability for every request. The design must make the trade-off explicit."
+/>
+
+</Lens>

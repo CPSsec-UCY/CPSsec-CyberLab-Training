@@ -12,7 +12,7 @@ export function EngineBadge({ engine, error }: { engine: LabEngine | null; error
 
   if (!engine) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-mist-50 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
         <FlaskConical className="h-3 w-3 animate-pulse" /> loading engine
       </span>
     );

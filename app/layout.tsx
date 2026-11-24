@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Nav } from "@/components/site/Nav";
+import { TopBar } from "@/components/site/TopBar";
 import { Footer } from "@/components/site/Footer";
 
-const sans = Space_Grotesk({
+const sans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
@@ -24,21 +25,22 @@ const siteUrl = `https://cpssec-ucy.github.io${base}/`;
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "CPSsec CyberLab — Cybersecurity & Post-Quantum Cryptography",
+    default: "CPSsec CyberLab — Open Cybersecurity & Cryptography Courses",
     template: "%s · CPSsec CyberLab",
   },
   description:
-    "An open, citation-backed learning platform for cybersecurity and post-quantum cryptography. Four depth lenses, interactive animations, and a real WebAssembly NTT lab.",
+    "An open, citation-backed cybersecurity curriculum covering cryptography, networks, distributed systems, SOC operations and post-quantum migration, with interactive labs and four depth lenses.",
   keywords: [
+    "cybersecurity courses",
+    "cryptography",
+    "network security",
+    "SOC analyst",
+    "deep packet inspection",
+    "federated learning",
     "post-quantum cryptography",
-    "PQC",
     "ML-KEM",
-    "ML-DSA",
-    "SLH-DSA",
-    "NTT",
     "constant-time",
-    "cybersecurity education",
-    "NIST FIPS 203",
+    "security education",
   ],
   authors: [{ name: "CPSsec-UCY" }],
   creator: "CPSsec-UCY",
@@ -46,14 +48,14 @@ export const metadata: Metadata = {
     type: "website",
     title: "CPSsec CyberLab",
     description:
-      "Cybersecurity and post-quantum cryptography, explained at four depths with verifiable citations and interactive labs.",
+      "Cybersecurity, cryptography, networks, distributed systems and SOC operations, explained at four depths with verifiable citations and interactive labs.",
     url: siteUrl,
     siteName: "CPSsec CyberLab",
   },
   twitter: {
     card: "summary_large_image",
     title: "CPSsec CyberLab",
-    description: "An open, citation-backed cybersecurity and PQC learning platform.",
+    description: "An open, citation-backed cybersecurity and cryptography learning platform.",
   },
   robots: { index: true, follow: true },
 };
@@ -64,11 +66,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyber-cyan focus:px-4 focus:py-2 focus:font-mono focus:text-xs focus:text-ink-950"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-brand-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
         >
           Skip to content
         </a>
         <Providers>
+          <TopBar />
           <Nav />
           <main id="main-content">{children}</main>
           <Footer />

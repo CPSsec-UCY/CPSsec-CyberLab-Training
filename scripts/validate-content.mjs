@@ -13,7 +13,15 @@ const glossaryFile = path.join(root, "content", "glossary.json");
 const errors = [];
 const warnings = [];
 
-const TRACKS = ["Foundations", "Lattice PQC", "Hash-Based Signatures", "Systems & Deployment"];
+const TRACKS = [
+  "Foundations",
+  "Post-Quantum Cryptography",
+  "Network & Protocol Security",
+  "Distributed Systems & Privacy",
+  "Security Operations",
+  "Systems & Hardware",
+  "Advanced Cryptography",
+];
 const DIFFICULTIES = ["Introductory", "Intermediate", "Advanced"];
 const CITATION_TYPES = [
   "standard",

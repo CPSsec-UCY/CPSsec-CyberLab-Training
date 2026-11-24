@@ -3,343 +3,1296 @@
     "id": "pqc",
     "term": "Post-Quantum Cryptography (PQC)",
     "definition": "Cryptographic schemes designed to remain secure against adversaries with large-scale quantum computers, usually built on lattices, hash functions, codes, or other structures for which no efficient quantum attack is known.",
-    "aliases": ["quantum-safe cryptography", "quantum-resistant cryptography"],
-    "citations": ["nist-ir8105", "nist-pqc"],
-    "modules": ["quantum-threat", "asymmetric-primitives"],
-    "related": ["shor", "grover", "nist-pqc"]
+    "aliases": [
+      "quantum-safe cryptography",
+      "quantum-resistant cryptography"
+    ],
+    "citations": [
+      "nist-ir8105",
+      "nist-pqc"
+    ],
+    "modules": [
+      "quantum-threat",
+      "asymmetric-primitives"
+    ],
+    "related": [
+      "shor",
+      "grover",
+      "nist-pqc"
+    ]
   },
   {
     "id": "shor",
     "term": "Shor's algorithm",
     "definition": "A quantum algorithm that factors integers and computes discrete logarithms in polynomial time, breaking RSA, finite-field Diffie–Hellman, and elliptic-curve cryptography once a sufficiently large fault-tolerant quantum computer exists.",
-    "citations": ["shor1994"],
-    "modules": ["quantum-threat", "asymmetric-primitives"],
-    "related": ["grover", "pqc"]
+    "citations": [
+      "shor1994"
+    ],
+    "modules": [
+      "quantum-threat",
+      "asymmetric-primitives"
+    ],
+    "related": [
+      "grover",
+      "pqc"
+    ]
   },
   {
     "id": "grover",
     "term": "Grover's algorithm",
     "definition": "A quantum search algorithm giving a quadratic speed-up for unstructured search and collision finding. It halves the effective security level of symmetric primitives, motivating larger keys and hashes.",
-    "citations": ["grover1996"],
-    "modules": ["quantum-threat"],
-    "related": ["shor", "security-category"]
+    "citations": [
+      "grover1996"
+    ],
+    "modules": [
+      "quantum-threat"
+    ],
+    "related": [
+      "shor",
+      "security-category"
+    ]
   },
   {
     "id": "security-category",
     "term": "NIST security category",
     "definition": "A coarse comparison point used by NIST PQC standards: category 1 is roughly as hard as key search on AES-128, while category 5 is roughly as hard as key search on AES-256.",
-    "aliases": ["PQC security level"],
-    "citations": ["nist-ir8547", "nist-pqc"],
-    "modules": ["quantum-threat", "ml-kem"],
-    "related": ["grover", "parameter-set"]
+    "aliases": [
+      "PQC security level"
+    ],
+    "citations": [
+      "nist-ir8547",
+      "nist-pqc"
+    ],
+    "modules": [
+      "quantum-threat",
+      "ml-kem"
+    ],
+    "related": [
+      "grover",
+      "parameter-set"
+    ]
   },
   {
     "id": "parameter-set",
     "term": "Parameter set",
     "definition": "A named collection of sizes and constants for a cryptographic scheme (for example ML-KEM-768). Parameter sets trade security, ciphertext or signature size, and computational cost.",
-    "citations": ["fips203", "fips204", "fips205"],
-    "modules": ["ml-kem", "ml-dsa", "slh-dsa"],
-    "related": ["security-category"]
+    "citations": [
+      "fips203",
+      "fips204",
+      "fips205"
+    ],
+    "modules": [
+      "ml-kem",
+      "ml-dsa",
+      "slh-dsa"
+    ],
+    "related": [
+      "security-category"
+    ]
   },
   {
     "id": "public-key-encryption",
     "term": "Public-key encryption (PKE)",
     "definition": "Encryption in which anyone can encrypt with a public key while only the holder of the matching secret key can decrypt.",
-    "aliases": ["asymmetric encryption"],
-    "citations": ["nist-ir8105"],
-    "modules": ["asymmetric-primitives"],
-    "related": ["kem", "digital-signature"]
+    "aliases": [
+      "asymmetric encryption"
+    ],
+    "citations": [
+      "nist-ir8105"
+    ],
+    "modules": [
+      "asymmetric-primitives"
+    ],
+    "related": [
+      "kem",
+      "digital-signature"
+    ]
   },
   {
     "id": "digital-signature",
     "term": "Digital signature",
     "definition": "A primitive that binds a message to a secret key so that anyone with the corresponding public key can verify authenticity and integrity, and the signer cannot credibly deny signing.",
-    "citations": ["fips186-5", "fips204", "fips205"],
-    "modules": ["asymmetric-primitives", "ml-dsa", "slh-dsa"],
-    "related": ["rejection-sampling", "hash-based-signature"]
+    "citations": [
+      "fips186-5",
+      "fips204",
+      "fips205"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "ml-dsa",
+      "slh-dsa"
+    ],
+    "related": [
+      "rejection-sampling",
+      "hash-based-signature"
+    ]
   },
   {
     "id": "kem",
     "term": "Key encapsulation mechanism (KEM)",
     "definition": "A three-algorithm interface — KeyGen, Encaps, Decaps — that establishes a shared secret. Encapsulation takes a public key and returns a ciphertext plus a session key; decapsulation recovers that key from the secret key and ciphertext.",
-    "citations": ["fips203", "rfc9180"],
-    "modules": ["asymmetric-primitives", "ml-kem", "tls-pki"],
-    "related": ["dem", "ind-cca2", "fo-transform"]
+    "citations": [
+      "fips203",
+      "rfc9180"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "ml-kem",
+      "tls-pki"
+    ],
+    "related": [
+      "dem",
+      "ind-cca2",
+      "fo-transform"
+    ]
   },
   {
     "id": "dem",
     "term": "Data encapsulation mechanism (DEM)",
     "definition": "The symmetric part of a hybrid encryption construction, typically an AEAD scheme that encrypts application data under a freshly encapsulated key.",
-    "citations": ["rfc9180"],
-    "modules": ["asymmetric-primitives", "tls-pki"],
-    "related": ["kem", "hybrid-key-exchange"]
+    "citations": [
+      "rfc9180"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "tls-pki"
+    ],
+    "related": [
+      "kem",
+      "hybrid-key-exchange"
+    ]
   },
   {
     "id": "ind-cca2",
     "term": "IND-CCA2",
     "definition": "Indistinguishability under adaptive chosen-ciphertext attack. The adversary may query a decryption oracle even after seeing the challenge ciphertext, but may not decrypt that exact ciphertext.",
-    "aliases": ["adaptive chosen-ciphertext security"],
-    "citations": ["fips203", "fujisaki-okamoto2013"],
-    "modules": ["asymmetric-primitives", "ml-kem"],
-    "related": ["fo-transform", "kem"]
+    "aliases": [
+      "adaptive chosen-ciphertext security"
+    ],
+    "citations": [
+      "fips203",
+      "fujisaki-okamoto2013"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "ml-kem"
+    ],
+    "related": [
+      "fo-transform",
+      "kem"
+    ]
   },
   {
     "id": "fo-transform",
     "term": "Fujisaki–Okamoto transform",
     "definition": "A generic construction that converts a weakly secure public-key encryption or KEM scheme into an IND-CCA2-secure KEM, typically by deriving randomness from the message and re-encrypting during decapsulation to check consistency.",
-    "aliases": ["FO transform"],
-    "citations": ["fujisaki-okamoto2013", "hofheinz2017", "fips203"],
-    "modules": ["ml-kem"],
-    "related": ["ind-cca2", "decapsulation-failure"]
+    "aliases": [
+      "FO transform"
+    ],
+    "citations": [
+      "fujisaki-okamoto2013",
+      "hofheinz2017",
+      "fips203"
+    ],
+    "modules": [
+      "ml-kem"
+    ],
+    "related": [
+      "ind-cca2",
+      "decapsulation-failure"
+    ]
   },
   {
     "id": "decapsulation-failure",
     "term": "Decapsulation failure",
     "definition": "The event in which noise and rounding cause a KEM to recover a different message than the one encapsulated. In ML-KEM this is made vanishingly rare by parameter choice and is implicitly rejected by the FO re-encryption check.",
-    "aliases": ["decryption failure"],
-    "citations": ["fips203", "kyber-spec"],
-    "modules": ["ml-kem"],
-    "related": ["fo-transform", "compression"]
+    "aliases": [
+      "decryption failure"
+    ],
+    "citations": [
+      "fips203",
+      "kyber-spec"
+    ],
+    "modules": [
+      "ml-kem"
+    ],
+    "related": [
+      "fo-transform",
+      "compression"
+    ]
   },
   {
     "id": "compression",
     "term": "Ciphertext compression",
     "definition": "Lossy rounding that drops low-order bits from lattice coefficients before transmission, shrinking ciphertexts. Decompression reconstructs an approximation; correctness must tolerate the induced error.",
-    "citations": ["fips203", "kyber-spec"],
-    "modules": ["ml-kem", "ntt-polynomials"],
-    "related": ["decapsulation-failure", "modular-reduction"]
+    "citations": [
+      "fips203",
+      "kyber-spec"
+    ],
+    "modules": [
+      "ml-kem",
+      "ntt-polynomials"
+    ],
+    "related": [
+      "decapsulation-failure",
+      "modular-reduction"
+    ]
   },
   {
     "id": "lwe",
     "term": "Learning With Errors (LWE)",
     "definition": "The problem of recovering a secret vector from noisy linear equations over a finite field. Its conjectured worst-case hardness underlies many lattice-based post-quantum schemes.",
-    "citations": ["regev2009", "peikert2016"],
-    "modules": ["asymmetric-primitives", "ml-kem", "ml-dsa"],
-    "related": ["module-lwe", "ring-lwe"]
+    "citations": [
+      "regev2009",
+      "peikert2016"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "ml-kem",
+      "ml-dsa"
+    ],
+    "related": [
+      "module-lwe",
+      "ring-lwe"
+    ]
   },
   {
     "id": "module-lwe",
     "term": "Module-LWE",
     "definition": "An LWE variant over modules of polynomial rings. It sits between unstructured LWE and ring-LWE, giving a tunable balance between security confidence, key size, and speed.",
-    "citations": ["langlois-stehle2015", "fips203"],
-    "modules": ["ml-kem", "ml-dsa", "ntt-polynomials"],
-    "related": ["lwe", "ring-lwe"]
+    "citations": [
+      "langlois-stehle2015",
+      "fips203"
+    ],
+    "modules": [
+      "ml-kem",
+      "ml-dsa",
+      "ntt-polynomials"
+    ],
+    "related": [
+      "lwe",
+      "ring-lwe"
+    ]
   },
   {
     "id": "ring-lwe",
     "term": "Ring-LWE",
     "definition": "An LWE variant over a polynomial quotient ring such as Z_q[X]/(X^n + 1), enabling compact keys and fast multiplication via the NTT.",
-    "citations": ["lpr2010", "lpr2013-toolkit"],
-    "modules": ["ntt-polynomials", "ml-kem"],
-    "related": ["module-lwe", "ntt", "negacyclic-ring"]
+    "citations": [
+      "lpr2010",
+      "lpr2013-toolkit"
+    ],
+    "modules": [
+      "ntt-polynomials",
+      "ml-kem"
+    ],
+    "related": [
+      "module-lwe",
+      "ntt",
+      "negacyclic-ring"
+    ]
   },
   {
     "id": "negacyclic-ring",
     "term": "Negacyclic ring",
     "definition": "The quotient ring R_q = Z_q[X]/(X^n + 1). Multiplying two degree-(n-1) polynomials wraps high-degree terms around with a sign flip, which makes the ring compatible with negacyclic NTTs.",
-    "citations": ["kyber-spec", "lpr2010"],
-    "modules": ["ntt-polynomials"],
-    "related": ["ring-lwe", "ntt"]
+    "citations": [
+      "kyber-spec",
+      "lpr2010"
+    ],
+    "modules": [
+      "ntt-polynomials"
+    ],
+    "related": [
+      "ring-lwe",
+      "ntt"
+    ]
   },
   {
     "id": "ntt",
     "term": "Number Theoretic Transform (NTT)",
     "definition": "A finite-field analogue of the Fourier transform that multiplies polynomials in O(n log n) instead of O(n^2). ML-KEM uses a negacyclic NTT over Z_3329 with 128 butterflies.",
-    "aliases": ["negacyclic NTT"],
-    "citations": ["longa2016", "kyber-spec", "fips203"],
-    "modules": ["ntt-polynomials", "ml-kem", "ml-dsa"],
-    "related": ["negacyclic-ring", "butterfly", "modular-reduction"]
+    "aliases": [
+      "negacyclic NTT"
+    ],
+    "citations": [
+      "longa2016",
+      "kyber-spec",
+      "fips203"
+    ],
+    "modules": [
+      "ntt-polynomials",
+      "ml-kem",
+      "ml-dsa"
+    ],
+    "related": [
+      "negacyclic-ring",
+      "butterfly",
+      "modular-reduction"
+    ]
   },
   {
     "id": "butterfly",
     "term": "Butterfly operation",
     "definition": "The basic NTT/FFT computation combining two coefficients with a twiddle factor. A layer of independent butterflies transforms an array in place.",
-    "citations": ["longa2016", "harvey2014"],
-    "modules": ["ntt-polynomials"],
-    "related": ["ntt"]
+    "citations": [
+      "longa2016",
+      "harvey2014"
+    ],
+    "modules": [
+      "ntt-polynomials"
+    ],
+    "related": [
+      "ntt"
+    ]
   },
   {
     "id": "modular-reduction",
     "term": "Modular reduction",
     "definition": "Mapping an integer back into a bounded representative modulo q. Cryptography uses branch-free variants such as Barrett and Montgomery reduction to avoid secret-dependent timing.",
-    "citations": ["montgomery1985", "fips203"],
-    "modules": ["ntt-polynomials", "side-channel"],
-    "related": ["montgomery-reduction", "constant-time"]
+    "citations": [
+      "montgomery1985",
+      "fips203"
+    ],
+    "modules": [
+      "ntt-polynomials",
+      "side-channel"
+    ],
+    "related": [
+      "montgomery-reduction",
+      "constant-time"
+    ]
   },
   {
     "id": "montgomery-reduction",
     "term": "Montgomery reduction",
     "definition": "A technique for computing modular multiplication without division by q, using a precomputed constant and shifts. Widely used in lattice and elliptic-curve implementations because it is fast and easy to make constant-time.",
-    "citations": ["montgomery1985"],
-    "modules": ["ntt-polynomials", "side-channel"],
-    "related": ["modular-reduction", "constant-time"]
+    "citations": [
+      "montgomery1985"
+    ],
+    "modules": [
+      "ntt-polynomials",
+      "side-channel"
+    ],
+    "related": [
+      "modular-reduction",
+      "constant-time"
+    ]
   },
   {
     "id": "rejection-sampling",
     "term": "Rejection sampling",
     "definition": "A distribution-shaping technique that outputs a candidate only if it passes a bound or acceptance test. Lattice signatures use it so that signatures reveal nothing useful about the secret key.",
-    "citations": ["lyubashevsky2012", "fips204"],
-    "modules": ["ml-dsa"],
-    "related": ["digital-signature"]
+    "citations": [
+      "lyubashevsky2012",
+      "fips204"
+    ],
+    "modules": [
+      "ml-dsa"
+    ],
+    "related": [
+      "digital-signature"
+    ]
   },
   {
     "id": "hash-based-signature",
     "term": "Hash-based signature",
     "definition": "A signature built only from hash functions, giving conservative security assumptions at the cost of larger signatures and, for some schemes, state management.",
-    "citations": ["fips205", "rfc8391", "sphincs2019"],
-    "modules": ["slh-dsa"],
-    "related": ["wots-plus", "fors", "hypertree"]
+    "citations": [
+      "fips205",
+      "rfc8391",
+      "sphincs2019"
+    ],
+    "modules": [
+      "slh-dsa"
+    ],
+    "related": [
+      "wots-plus",
+      "fors",
+      "hypertree"
+    ]
   },
   {
     "id": "wots-plus",
     "term": "WOTS+",
     "definition": "Winternitz One-Time Signature Plus: a hash-based one-time signature that signs base-w digits by revealing hash chains. A single key pair must never sign two different messages.",
-    "citations": ["wots2013", "fips205"],
-    "modules": ["slh-dsa"],
-    "related": ["hash-based-signature", "fors"]
+    "citations": [
+      "wots2013",
+      "fips205"
+    ],
+    "modules": [
+      "slh-dsa"
+    ],
+    "related": [
+      "hash-based-signature",
+      "fors"
+    ]
   },
   {
     "id": "fors",
     "term": "FORS",
     "definition": "Forest of Random Subsets: a few-time hash-based signature used in SPHINCS+ to sign a digest by revealing one secret leaf per tree in a small forest.",
-    "citations": ["fips205", "sphincs-spec"],
-    "modules": ["slh-dsa"],
-    "related": ["wots-plus", "hypertree"]
+    "citations": [
+      "fips205",
+      "sphincs-spec"
+    ],
+    "modules": [
+      "slh-dsa"
+    ],
+    "related": [
+      "wots-plus",
+      "hypertree"
+    ]
   },
   {
     "id": "hypertree",
     "term": "Hypertree",
     "definition": "A tree of Merkle trees used by SLH-DSA to extend a small number of one-time keys into many stateless signatures. Each layer signs the roots of trees below it.",
-    "citations": ["fips205", "sphincs2019"],
-    "modules": ["slh-dsa"],
-    "related": ["fors", "wots-plus", "xmss"]
+    "citations": [
+      "fips205",
+      "sphincs2019"
+    ],
+    "modules": [
+      "slh-dsa"
+    ],
+    "related": [
+      "fors",
+      "wots-plus",
+      "xmss"
+    ]
   },
   {
     "id": "xmss",
     "term": "XMSS",
     "definition": "eXtended Merkle Signature Scheme, a stateful hash-based signature standardized in RFC 8391. It is efficient but requires the signer to track which one-time keys have been used.",
-    "citations": ["rfc8391"],
-    "modules": ["slh-dsa"],
-    "related": ["hypertree", "hash-based-signature"]
+    "citations": [
+      "rfc8391"
+    ],
+    "modules": [
+      "slh-dsa"
+    ],
+    "related": [
+      "hypertree",
+      "hash-based-signature"
+    ]
   },
   {
     "id": "constant-time",
     "term": "Constant-time programming",
     "definition": "Writing code whose control flow and memory-access pattern do not depend on secret data, so timing and cache observations do not leak secrets. It is a necessary but not sufficient defence against all physical side channels.",
-    "citations": ["fips203", "kocher1996"],
-    "modules": ["side-channel", "ml-kem", "ml-dsa"],
-    "related": ["side-channel", "dpa"]
+    "citations": [
+      "fips203",
+      "kocher1996"
+    ],
+    "modules": [
+      "side-channel",
+      "ml-kem",
+      "ml-dsa"
+    ],
+    "related": [
+      "side-channel",
+      "dpa"
+    ]
   },
   {
     "id": "side-channel",
     "term": "Side-channel attack",
     "definition": "An attack that exploits physical or implementation leakage — time, power, cache state, electromagnetic emanations — rather than breaking the mathematical primitive.",
-    "citations": ["kocher1996", "kocher1999"],
-    "modules": ["side-channel"],
-    "related": ["constant-time", "dpa", "fault-attack"]
+    "citations": [
+      "kocher1996",
+      "kocher1999"
+    ],
+    "modules": [
+      "side-channel"
+    ],
+    "related": [
+      "constant-time",
+      "dpa",
+      "fault-attack"
+    ]
   },
   {
     "id": "dpa",
     "term": "Differential Power Analysis (DPA)",
     "definition": "A statistical side-channel attack that correlates many power traces with hypothetical intermediate values to recover secret-dependent information.",
-    "citations": ["kocher1999"],
-    "modules": ["side-channel"],
-    "related": ["side-channel", "masking"]
+    "citations": [
+      "kocher1999"
+    ],
+    "modules": [
+      "side-channel"
+    ],
+    "related": [
+      "side-channel",
+      "masking"
+    ]
   },
   {
     "id": "masking",
     "term": "Masking",
     "definition": "A countermeasure that splits secret-dependent values into random shares so that any single share is independent of the secret. Boolean and arithmetic masking are common building blocks for DPA resistance.",
-    "citations": ["kocher1999"],
-    "modules": ["side-channel"],
-    "related": ["dpa", "constant-time"]
+    "citations": [
+      "kocher1999"
+    ],
+    "modules": [
+      "side-channel"
+    ],
+    "related": [
+      "dpa",
+      "constant-time"
+    ]
   },
   {
     "id": "fault-attack",
     "term": "Fault attack",
     "definition": "An attack that induces hardware faults during computation and observes incorrect outputs to recover secrets. Redundant computation and verification are standard countermeasures.",
-    "citations": ["boneh1997"],
-    "modules": ["side-channel"],
-    "related": ["side-channel", "dpa"]
+    "citations": [
+      "boneh1997"
+    ],
+    "modules": [
+      "side-channel"
+    ],
+    "related": [
+      "side-channel",
+      "dpa"
+    ]
   },
   {
     "id": "hybrid-key-exchange",
     "term": "Hybrid key exchange",
     "definition": "Combining a classical key agreement (such as X25519) with a post-quantum KEM so that the resulting shared secret is secure if either component remains secure. This supports incremental PQC migration.",
-    "citations": ["hybrid-design", "rfc7748", "rfc8446"],
-    "modules": ["tls-pki", "asymmetric-primitives"],
-    "related": ["kem", "crypto-agility"]
+    "citations": [
+      "hybrid-design",
+      "rfc7748",
+      "rfc8446"
+    ],
+    "modules": [
+      "tls-pki",
+      "asymmetric-primitives"
+    ],
+    "related": [
+      "kem",
+      "crypto-agility"
+    ]
   },
   {
     "id": "crypto-agility",
     "term": "Cryptographic agility",
     "definition": "The engineering ability to replace algorithms, parameter sets, and certificate types without redesigning an entire protocol or product. It is a prerequisite for a multi-decade PQC migration.",
-    "citations": ["nist-ir8547", "hybrid-design"],
-    "modules": ["tls-pki", "side-channel"],
-    "related": ["hybrid-key-exchange", "pki"]
+    "citations": [
+      "nist-ir8547",
+      "hybrid-design"
+    ],
+    "modules": [
+      "tls-pki",
+      "side-channel"
+    ],
+    "related": [
+      "hybrid-key-exchange",
+      "pki"
+    ]
   },
   {
     "id": "pki",
     "term": "Public key infrastructure (PKI)",
     "definition": "The certificates, authorities, policies, and revocation mechanisms that bind public keys to identities. PQC migration changes key and signature sizes as well as algorithm identifiers.",
-    "citations": ["rfc5280", "nist-ir8547"],
-    "modules": ["tls-pki"],
-    "related": ["x509", "crypto-agility"]
+    "citations": [
+      "rfc5280",
+      "nist-ir8547"
+    ],
+    "modules": [
+      "tls-pki"
+    ],
+    "related": [
+      "x509",
+      "crypto-agility"
+    ]
   },
   {
     "id": "x509",
     "term": "X.509 certificate",
     "definition": "A signed data structure binding a subject identity to a public key and extensions. Post-quantum signatures increase certificate sizes and can strain handshake and buffer limits.",
-    "citations": ["rfc5280", "nist-ir8547"],
-    "modules": ["tls-pki"],
-    "related": ["pki", "tls-handshake"]
+    "citations": [
+      "rfc5280",
+      "nist-ir8547"
+    ],
+    "modules": [
+      "tls-pki"
+    ],
+    "related": [
+      "pki",
+      "tls-handshake"
+    ]
   },
   {
     "id": "tls-handshake",
     "term": "TLS 1.3 handshake",
     "definition": "The authenticated key exchange that establishes traffic keys for a TLS connection. It negotiates a key-exchange group and authenticates the server (and optionally client) with signatures.",
-    "citations": ["rfc8446", "hybrid-design"],
-    "modules": ["tls-pki"],
-    "related": ["hybrid-key-exchange", "x509"]
+    "citations": [
+      "rfc8446",
+      "hybrid-design"
+    ],
+    "modules": [
+      "tls-pki"
+    ],
+    "related": [
+      "hybrid-key-exchange",
+      "x509"
+    ]
   },
   {
     "id": "code-based-cryptography",
     "term": "Code-based cryptography",
     "definition": "Schemes whose security rests on the difficulty of decoding random or structured linear codes. Classic McEliece is the canonical example, with very large public keys but compact ciphertexts.",
-    "citations": ["mceliece1978", "mceliece-spec"],
-    "modules": ["asymmetric-primitives", "quantum-threat"],
-    "related": ["goppa-code", "mceliece"]
+    "citations": [
+      "mceliece1978",
+      "mceliece-spec"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "quantum-threat"
+    ],
+    "related": [
+      "goppa-code",
+      "mceliece"
+    ]
   },
   {
     "id": "goppa-code",
     "term": "Goppa code",
     "definition": "A family of algebraic error-correcting codes used by the McEliece cryptosystem. Its efficient decoding structure is hidden by scrambling the generator matrix.",
-    "citations": ["mceliece1978", "mceliece-spec"],
-    "modules": ["asymmetric-primitives"],
-    "related": ["code-based-cryptography", "mceliece"]
+    "citations": [
+      "mceliece1978",
+      "mceliece-spec"
+    ],
+    "modules": [
+      "asymmetric-primitives"
+    ],
+    "related": [
+      "code-based-cryptography",
+      "mceliece"
+    ]
   },
   {
     "id": "mceliece",
     "term": "Classic McEliece",
     "definition": "A code-based KEM with a long track record and conservative security, but public keys on the order of a megabyte. It illustrates the PQC design space beyond lattices and hashes.",
-    "citations": ["mceliece-spec", "mceliece1978"],
-    "modules": ["asymmetric-primitives", "quantum-threat"],
-    "related": ["code-based-cryptography", "goppa-code"]
+    "citations": [
+      "mceliece-spec",
+      "mceliece1978"
+    ],
+    "modules": [
+      "asymmetric-primitives",
+      "quantum-threat"
+    ],
+    "related": [
+      "code-based-cryptography",
+      "goppa-code"
+    ]
   },
   {
     "id": "isogeny",
     "term": "Isogeny-based cryptography",
     "definition": "Schemes based on the difficulty of finding isogenies between elliptic curves. SIKE was a prominent candidate until a 2022 key-recovery attack, a cautionary case study in algorithm diversity and review.",
-    "citations": ["castryck-decru2023"],
-    "modules": ["quantum-threat"],
-    "related": ["pqc"]
+    "citations": [
+      "castryck-decru2023"
+    ],
+    "modules": [
+      "quantum-threat"
+    ],
+    "related": [
+      "pqc"
+    ]
   },
   {
     "id": "nist-pqc",
     "term": "NIST PQC standardization",
     "definition": "The multi-round public process that selected ML-KEM, ML-DSA, SLH-DSA, and additional candidates such as HQC. It produced FIPS 203, 204, and 205 in August 2024.",
-    "citations": ["nist-pqc", "nist-ir8545"],
-    "modules": ["quantum-threat", "ml-kem", "ml-dsa", "slh-dsa"],
-    "related": ["pqc", "security-category"]
+    "citations": [
+      "nist-pqc",
+      "nist-ir8545"
+    ],
+    "modules": [
+      "quantum-threat",
+      "ml-kem",
+      "ml-dsa",
+      "slh-dsa"
+    ],
+    "related": [
+      "pqc",
+      "security-category"
+    ]
+  },
+  {
+    "id": "aead",
+    "term": "Authenticated Encryption with Associated Data (AEAD)",
+    "definition": "An encryption interface that provides confidentiality plus integrity and authenticity for ciphertext and associated data, returning a single failure on tampering.",
+    "citations": [
+      "rfc5116",
+      "sp800-38d"
+    ],
+    "modules": [
+      "symmetric-crypto"
+    ],
+    "related": [
+      "nonce",
+      "gcm"
+    ]
+  },
+  {
+    "id": "nonce",
+    "term": "Nonce",
+    "definition": "A value that must be unique for each encryption under a given key. Nonce reuse can break confidentiality and authentication, especially in GCM and stream ciphers.",
+    "citations": [
+      "sp800-38d",
+      "rfc8439"
+    ],
+    "modules": [
+      "symmetric-crypto"
+    ],
+    "related": [
+      "aead",
+      "gcm"
+    ]
+  },
+  {
+    "id": "gcm",
+    "term": "Galois/Counter Mode (GCM)",
+    "definition": "An AEAD mode combining counter-mode encryption with GHASH authentication. It requires unique nonces and a careful key lifecycle.",
+    "citations": [
+      "sp800-38d"
+    ],
+    "modules": [
+      "symmetric-crypto"
+    ],
+    "related": [
+      "aead",
+      "nonce"
+    ]
+  },
+  {
+    "id": "chacha20",
+    "term": "ChaCha20-Poly1305",
+    "definition": "A stream-cipher AEAD combining ChaCha20 encryption with Poly1305 authentication, popular in software and on devices without AES acceleration.",
+    "citations": [
+      "rfc8439"
+    ],
+    "modules": [
+      "symmetric-crypto"
+    ],
+    "related": [
+      "aead"
+    ]
+  },
+  {
+    "id": "key-management",
+    "term": "Key management",
+    "definition": "The lifecycle of cryptographic keys: generation, distribution, storage, rotation, revocation, recovery and destruction.",
+    "citations": [
+      "sp800-57pt1r5"
+    ],
+    "modules": [
+      "symmetric-crypto",
+      "tls-pki"
+    ],
+    "related": [
+      "aead"
+    ]
+  },
+  {
+    "id": "hmac",
+    "term": "HMAC",
+    "definition": "A keyed message authentication code built from a hash function with inner and outer pads, avoiding the length-extension weakness of secret-prefix hashing.",
+    "citations": [
+      "rfc2104"
+    ],
+    "modules": [
+      "hashing-mac-kdf"
+    ],
+    "related": []
+  },
+  {
+    "id": "hkdf",
+    "term": "HKDF",
+    "definition": "An extract-and-expand key derivation function that turns input keying material into one or more purpose-specific keys with explicit context binding.",
+    "citations": [
+      "rfc5869"
+    ],
+    "modules": [
+      "hashing-mac-kdf",
+      "tls-pki"
+    ],
+    "related": []
+  },
+  {
+    "id": "argon2",
+    "term": "Argon2id",
+    "definition": "A memory-hard password-hashing function designed to make offline guessing expensive and resist some side-channel and GPU attacks.",
+    "citations": [
+      "rfc9106",
+      "owasp-password-storage"
+    ],
+    "modules": [
+      "hashing-mac-kdf"
+    ],
+    "related": [
+      "password-hashing"
+    ]
+  },
+  {
+    "id": "password-hashing",
+    "term": "Password hashing",
+    "definition": "Storing a salted, deliberately expensive derivation of a password so that verification is possible but fast offline guessing is not.",
+    "citations": [
+      "rfc9106",
+      "owasp-password-storage"
+    ],
+    "modules": [
+      "hashing-mac-kdf"
+    ],
+    "related": [
+      "argon2"
+    ]
+  },
+  {
+    "id": "length-extension",
+    "term": "Length extension attack",
+    "definition": "A weakness of some Merkle–Damgård hash constructions that lets an attacker extend a message and recompute a valid digest when the secret is used as a prefix. HMAC avoids this.",
+    "citations": [
+      "rfc2104"
+    ],
+    "modules": [
+      "hashing-mac-kdf"
+    ],
+    "related": [
+      "hmac"
+    ]
+  },
+  {
+    "id": "centralisation",
+    "term": "Centralisation",
+    "definition": "Concentrating authority, state or control in one operator. It enables fast coordination and recovery, but creates censorship, availability and breach concentration risks.",
+    "citations": [
+      "sp800-207",
+      "kairouz2021"
+    ],
+    "modules": [
+      "centralised-decentralised"
+    ],
+    "related": [
+      "decentralisation"
+    ]
+  },
+  {
+    "id": "decentralisation",
+    "term": "Decentralisation",
+    "definition": "Distributing authority among multiple participants. It can improve censorship resistance and resilience but adds coordination, governance and consensus costs.",
+    "citations": [
+      "nakamoto2008",
+      "gencer2018"
+    ],
+    "modules": [
+      "centralised-decentralised",
+      "federated-learning"
+    ],
+    "related": [
+      "consensus"
+    ]
+  },
+  {
+    "id": "byzantine-fault",
+    "term": "Byzantine fault",
+    "definition": "A fault where a participant behaves arbitrarily or maliciously, including sending conflicting messages, rather than simply stopping.",
+    "citations": [
+      "lamport1982",
+      "castro-liskov1999"
+    ],
+    "modules": [
+      "centralised-decentralised"
+    ],
+    "related": [
+      "consensus"
+    ]
+  },
+  {
+    "id": "cap-theorem",
+    "term": "CAP theorem",
+    "definition": "The result that a distributed data store cannot simultaneously guarantee strong consistency, availability and partition tolerance; under a partition it must trade one off.",
+    "citations": [
+      "gilbert-lynch2002"
+    ],
+    "modules": [
+      "centralised-decentralised"
+    ],
+    "related": [
+      "consensus"
+    ]
+  },
+  {
+    "id": "consensus",
+    "term": "Consensus",
+    "definition": "A protocol that lets distributed participants agree on an ordered sequence of values despite crashes, delays or malicious behaviour.",
+    "citations": [
+      "lamport1982",
+      "castro-liskov1999"
+    ],
+    "modules": [
+      "centralised-decentralised"
+    ],
+    "related": [
+      "byzantine-fault"
+    ]
+  },
+  {
+    "id": "zero-trust",
+    "term": "Zero Trust Architecture",
+    "definition": "A security architecture that removes implicit trust based on network location and authenticates and authorises every request.",
+    "citations": [
+      "sp800-207"
+    ],
+    "modules": [
+      "centralised-decentralised",
+      "tls-pki"
+    ],
+    "related": [
+      "centralisation"
+    ]
+  },
+  {
+    "id": "federated-learning",
+    "term": "Federated learning",
+    "definition": "Training a shared model across distributed clients that keep their raw data local and share model updates instead.",
+    "citations": [
+      "mcmahan2017",
+      "kairouz2021"
+    ],
+    "modules": [
+      "federated-learning"
+    ],
+    "related": [
+      "secure-aggregation",
+      "differential-privacy"
+    ]
+  },
+  {
+    "id": "secure-aggregation",
+    "term": "Secure aggregation",
+    "definition": "A protocol that lets a server compute the sum of client updates without seeing any individual update. It protects confidentiality, not correctness.",
+    "citations": [
+      "bonawitz2017"
+    ],
+    "modules": [
+      "federated-learning"
+    ],
+    "related": [
+      "federated-learning"
+    ]
+  },
+  {
+    "id": "differential-privacy",
+    "term": "Differential privacy",
+    "definition": "A formal privacy guarantee bounding the influence of any single record on the output of a randomised computation.",
+    "citations": [
+      "dwork-roth2014",
+      "abadi2016"
+    ],
+    "modules": [
+      "federated-learning"
+    ],
+    "related": [
+      "membership-inference"
+    ]
+  },
+  {
+    "id": "membership-inference",
+    "term": "Membership inference",
+    "definition": "An attack that determines whether a specific record was used to train a model, exploiting memorisation or confidence differences.",
+    "citations": [
+      "shokri2017"
+    ],
+    "modules": [
+      "federated-learning"
+    ],
+    "related": [
+      "differential-privacy"
+    ]
+  },
+  {
+    "id": "model-poisoning",
+    "term": "Model poisoning",
+    "definition": "An attack in which a participant submits a malicious update to degrade a shared model or install a backdoor. Secure aggregation does not prevent it.",
+    "citations": [
+      "bagdasaryan2020"
+    ],
+    "modules": [
+      "federated-learning"
+    ],
+    "related": [
+      "federated-learning"
+    ]
+  },
+  {
+    "id": "dpi",
+    "term": "Deep packet inspection (DPI)",
+    "definition": "Inspection of protocol fields and payloads beyond basic headers, used for intrusion detection, application control and policy enforcement.",
+    "citations": [
+      "sp800-94",
+      "zeek",
+      "suricata"
+    ],
+    "modules": [
+      "deep-packet-inspection"
+    ],
+    "related": [
+      "ids-ips",
+      "flow-analysis"
+    ]
+  },
+  {
+    "id": "flow-analysis",
+    "term": "Flow analysis",
+    "definition": "Analysing metadata about network conversations — endpoints, ports, bytes, packets, timing — rather than payload content. It remains useful when traffic is encrypted.",
+    "citations": [
+      "rfc7011"
+    ],
+    "modules": [
+      "deep-packet-inspection"
+    ],
+    "related": [
+      "dpi"
+    ]
+  },
+  {
+    "id": "ids-ips",
+    "term": "IDS / IPS",
+    "definition": "An intrusion detection system alerts on suspicious traffic; an intrusion prevention system sits inline and can block it. Inline blocking raises false-positive impact.",
+    "citations": [
+      "sp800-94",
+      "suricata"
+    ],
+    "modules": [
+      "deep-packet-inspection"
+    ],
+    "related": [
+      "dpi"
+    ]
+  },
+  {
+    "id": "tls-interception",
+    "term": "TLS interception",
+    "definition": "Terminating TLS at a proxy to inspect plaintext. It creates a high-value key and trust target, breaks end-to-end guarantees and raises legal and privacy issues.",
+    "citations": [
+      "rfc8446"
+    ],
+    "modules": [
+      "deep-packet-inspection",
+      "tls-pki"
+    ],
+    "related": [
+      "dpi"
+    ]
+  },
+  {
+    "id": "soc",
+    "term": "Security Operations Centre (SOC)",
+    "definition": "The team and system that monitor telemetry, detect and triage security events, coordinate incident response and improve detections.",
+    "citations": [
+      "sp800-61r3",
+      "mitre-attack"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "siem",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "siem",
+    "term": "SIEM",
+    "definition": "Security information and event management: a platform that collects, normalises, correlates and searches security telemetry.",
+    "citations": [
+      "sp800-92",
+      "rfc5424"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "detection-engineering"
+    ]
+  },
+  {
+    "id": "detection-engineering",
+    "term": "Detection engineering",
+    "definition": "Designing, testing, deploying and maintaining detections as versioned products with owners, data dependencies, precision targets and runbooks.",
+    "citations": [
+      "sigma",
+      "mitre-attack"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "siem"
+    ]
+  },
+  {
+    "id": "alert-fatigue",
+    "term": "Alert fatigue",
+    "definition": "The degradation of analyst judgement caused by excessive, low-quality alerts. It is a security failure, not merely an operational inconvenience.",
+    "citations": [
+      "sp800-94",
+      "sp800-61r3"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "soc"
+    ]
+  },
+  {
+    "id": "incident-response",
+    "term": "Incident response",
+    "definition": "The structured process of preparing for, detecting, containing, eradicating, recovering from and learning from security incidents.",
+    "citations": [
+      "sp800-61r3"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "soc"
+    ]
+  },
+  {
+    "id": "mitre-attack",
+    "term": "MITRE ATT&CK",
+    "definition": "A knowledge base of adversary tactics and techniques used to map detection coverage, structure threat hunting and communicate about behaviour.",
+    "citations": [
+      "mitre-attack"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "detection-engineering"
+    ]
+  },
+  {
+    "id": "sigma-rule",
+    "term": "Sigma rule",
+    "definition": "A vendor-neutral format for describing SIEM detections that can be converted into multiple query languages.",
+    "citations": [
+      "sigma"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "detection-engineering"
+    ]
+  },
+  {
+    "id": "threat-hunting",
+    "term": "Threat hunting",
+    "definition": "A hypothesis-driven search for adversary activity that existing detections may have missed, using telemetry and threat intelligence.",
+    "citations": [
+      "mitre-attack",
+      "pyramid-of-pain"
+    ],
+    "modules": [
+      "soc-operations"
+    ],
+    "related": [
+      "detection-engineering"
+    ]
+  },
+  {
+    "id": "zero-knowledge-proof",
+    "term": "Zero-knowledge proof",
+    "definition": "A proof that convinces a verifier of a statement without revealing the witness, satisfying completeness, soundness and zero knowledge.",
+    "citations": [
+      "gmr1989"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "schnorr",
+      "snark"
+    ]
+  },
+  {
+    "id": "schnorr",
+    "term": "Schnorr proof",
+    "definition": "An interactive proof of knowledge of a discrete logarithm using a commitment, challenge and response; Fiat–Shamir makes it non-interactive.",
+    "citations": [
+      "gmr1989"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "zero-knowledge-proof"
+    ]
+  },
+  {
+    "id": "snark",
+    "term": "SNARK",
+    "definition": "A succinct non-interactive argument of knowledge. Many constructions offer tiny proofs but rely on a trusted setup and non-standard assumptions.",
+    "citations": [
+      "groth2016"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "zero-knowledge-proof"
+    ]
+  },
+  {
+    "id": "mpc",
+    "term": "Secure multi-party computation (MPC)",
+    "definition": "Protocols that let parties compute a function over private inputs while revealing only the result, under a specified corruption and network model.",
+    "citations": [
+      "yao1986",
+      "shamir1979"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "secret-sharing"
+    ]
+  },
+  {
+    "id": "secret-sharing",
+    "term": "Secret sharing",
+    "definition": "Splitting a secret into shares so that a qualified subset can reconstruct it while any smaller subset reveals nothing. Shamir's scheme is the classic threshold construction.",
+    "citations": [
+      "shamir1979"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "mpc"
+    ]
+  },
+  {
+    "id": "trusted-setup",
+    "term": "Trusted setup",
+    "definition": "A parameter-generation ceremony for some proof systems. If the secret randomness is retained or compromised, soundness or zero knowledge can fail.",
+    "citations": [
+      "groth2016"
+    ],
+    "modules": [
+      "zero-knowledge-mpc"
+    ],
+    "related": [
+      "snark"
+    ]
   }
 ]

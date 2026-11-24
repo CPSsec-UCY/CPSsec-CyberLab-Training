@@ -870,5 +870,779 @@
       "standardization",
       "website"
     ]
+  },
+  {
+    "id": "fips197",
+    "short": "NIST FIPS 197",
+    "type": "standard",
+    "title": "Advanced Encryption Standard (AES)",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2023,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.197-upd1",
+    "doi": "10.6028/NIST.FIPS.197-upd1",
+    "locator": "§4–5 (cipher), §6 (AES-128/192/256)",
+    "tags": [
+      "symmetric",
+      "aes",
+      "standard"
+    ]
+  },
+  {
+    "id": "sp800-38d",
+    "short": "NIST SP 800-38D",
+    "type": "standard",
+    "title": "Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC",
+    "authors": [
+      "Morris Dworkin"
+    ],
+    "year": 2007,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-38D",
+    "doi": "10.6028/NIST.SP.800-38D",
+    "locator": "§5–7 (GCM), §8 (security considerations)",
+    "tags": [
+      "aead",
+      "gcm",
+      "standard"
+    ]
+  },
+  {
+    "id": "rfc8439",
+    "short": "RFC 8439",
+    "type": "rfc",
+    "title": "ChaCha20 and Poly1305 for IETF Protocols",
+    "authors": [
+      "Yoav Nir",
+      "Adam Langley"
+    ],
+    "year": 2018,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc8439.html",
+    "locator": "§2 (ChaCha20), §2.8 (AEAD construction)",
+    "tags": [
+      "aead",
+      "chacha20",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc5116",
+    "short": "RFC 5116",
+    "type": "rfc",
+    "title": "An Interface and Algorithms for Authenticated Encryption",
+    "authors": [
+      "David McGrew"
+    ],
+    "year": 2008,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc5116.html",
+    "locator": "§2 (AEAD interface), §5 (algorithms)",
+    "tags": [
+      "aead",
+      "interface",
+      "rfc"
+    ]
+  },
+  {
+    "id": "sp800-57pt1r5",
+    "short": "NIST SP 800-57 Pt. 1 Rev. 5",
+    "type": "standard",
+    "title": "Recommendation for Key Management: Part 1 – General",
+    "authors": [
+      "Elaine Barker"
+    ],
+    "year": 2020,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-57pt1r5",
+    "doi": "10.6028/NIST.SP.800-57pt1r5",
+    "locator": "§5–6 (key lifecycle, protection)",
+    "tags": [
+      "key-management",
+      "standard"
+    ]
+  },
+  {
+    "id": "fips180-4",
+    "short": "NIST FIPS 180-4",
+    "type": "standard",
+    "title": "Secure Hash Standard (SHS)",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2015,
+    "publisher": "U.S. Department of Commerce",
+    "url": "https://doi.org/10.6028/NIST.FIPS.180-4",
+    "doi": "10.6028/NIST.FIPS.180-4",
+    "locator": "§4–6 (SHA-1, SHA-2 family)",
+    "tags": [
+      "hash",
+      "sha2",
+      "standard"
+    ]
+  },
+  {
+    "id": "rfc2104",
+    "short": "RFC 2104",
+    "type": "rfc",
+    "title": "HMAC: Keyed-Hashing for Message Authentication",
+    "authors": [
+      "Hugo Krawczyk",
+      "Mihir Bellare",
+      "Ran Canetti"
+    ],
+    "year": 1997,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc2104.html",
+    "locator": "§2–3 (definition and security)",
+    "tags": [
+      "mac",
+      "hmac",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc5869",
+    "short": "RFC 5869",
+    "type": "rfc",
+    "title": "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)",
+    "authors": [
+      "Hugo Krawczyk",
+      "Pasi Eronen"
+    ],
+    "year": 2010,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc5869.html",
+    "locator": "§2 (extract/expand), §3 (security)",
+    "tags": [
+      "kdf",
+      "hkdf",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc9106",
+    "short": "RFC 9106",
+    "type": "rfc",
+    "title": "Argon2 Memory-Hard Function for Password Hashing and Proof-of-Work Applications",
+    "authors": [
+      "Alex Biryukov",
+      "Daniel Dinu",
+      "Dmitry Khovratovich",
+      "Simon Josefsson"
+    ],
+    "year": 2021,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc9106.html",
+    "locator": "§3–4 (Argon2id, parameters)",
+    "tags": [
+      "password",
+      "argon2",
+      "rfc"
+    ]
+  },
+  {
+    "id": "owasp-password-storage",
+    "short": "OWASP Password Storage",
+    "type": "website",
+    "title": "OWASP Password Storage Cheat Sheet",
+    "authors": [
+      "OWASP Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OWASP Cheat Sheet Series",
+    "url": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html",
+    "locator": "Password hashing algorithms and work factors",
+    "tags": [
+      "password",
+      "owasp",
+      "guidance"
+    ]
+  },
+  {
+    "id": "lamport1982",
+    "short": "Lamport–Shostak–Pease 1982",
+    "type": "paper",
+    "title": "The Byzantine Generals Problem",
+    "authors": [
+      "Leslie Lamport",
+      "Robert Shostak",
+      "Marshall Pease"
+    ],
+    "year": 1982,
+    "container": "ACM Transactions on Programming Languages and Systems",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/357172.357176",
+    "doi": "10.1145/357172.357176",
+    "locator": "Vol. 4, No. 3, pp. 382–401",
+    "tags": [
+      "distributed",
+      "byzantine",
+      "foundations"
+    ]
+  },
+  {
+    "id": "gilbert-lynch2002",
+    "short": "Gilbert–Lynch 2002",
+    "type": "paper",
+    "title": "Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services",
+    "authors": [
+      "Seth Gilbert",
+      "Nancy Lynch"
+    ],
+    "year": 2002,
+    "container": "ACM SIGACT News",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/564585.564601",
+    "doi": "10.1145/564585.564601",
+    "locator": "Vol. 33, No. 2, pp. 51–59",
+    "tags": [
+      "distributed",
+      "cap",
+      "foundations"
+    ]
+  },
+  {
+    "id": "castro-liskov1999",
+    "short": "Castro–Liskov 1999",
+    "type": "paper",
+    "title": "Practical Byzantine Fault Tolerance",
+    "authors": [
+      "Miguel Castro",
+      "Barbara Liskov"
+    ],
+    "year": 1999,
+    "container": "Proceedings of the 3rd USENIX Symposium on Operating Systems Design and Implementation (OSDI)",
+    "publisher": "USENIX",
+    "url": "https://pmg.csail.mit.edu/papers/osdi99.pdf",
+    "locator": "pp. 173–186",
+    "tags": [
+      "distributed",
+      "consensus",
+      "byzantine"
+    ]
+  },
+  {
+    "id": "nakamoto2008",
+    "short": "Nakamoto 2008",
+    "type": "specification",
+    "title": "Bitcoin: A Peer-to-Peer Electronic Cash System",
+    "authors": [
+      "Satoshi Nakamoto"
+    ],
+    "year": 2008,
+    "publisher": "bitcoin.org",
+    "url": "https://bitcoin.org/bitcoin.pdf",
+    "locator": "§3–5 (timestamp server, proof-of-work, network)",
+    "tags": [
+      "blockchain",
+      "consensus",
+      "decentralisation"
+    ]
+  },
+  {
+    "id": "gencer2018",
+    "short": "Gencer et al. 2018",
+    "type": "paper",
+    "title": "Decentralization in Bitcoin and Ethereum Networks",
+    "authors": [
+      "Adem Efe Gencer",
+      "Soumya Basu",
+      "Ittay Eyal",
+      "Robbert van Renesse",
+      "Emin Gün Sirer"
+    ],
+    "year": 2018,
+    "container": "Financial Cryptography and Data Security (FC) 2018",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-662-58387-6_24",
+    "doi": "10.1007/978-3-662-58387-6_24",
+    "locator": "pp. 439–457",
+    "tags": [
+      "blockchain",
+      "measurement",
+      "decentralisation"
+    ]
+  },
+  {
+    "id": "sp800-207",
+    "short": "NIST SP 800-207",
+    "type": "standard",
+    "title": "Zero Trust Architecture",
+    "authors": [
+      "Scott Rose",
+      "Oliver Borchert",
+      "Stu Mitchell",
+      "Sean Connelly"
+    ],
+    "year": 2020,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-207",
+    "doi": "10.6028/NIST.SP.800-207",
+    "locator": "§2–3 (tenets, architecture)",
+    "tags": [
+      "zero-trust",
+      "architecture",
+      "standard"
+    ]
+  },
+  {
+    "id": "mcmahan2017",
+    "short": "McMahan et al. 2017",
+    "type": "paper",
+    "title": "Communication-Efficient Learning of Deep Networks from Decentralized Data",
+    "authors": [
+      "Brendan McMahan",
+      "Eider Moore",
+      "Daniel Ramage",
+      "Seth Hampson",
+      "Blaise Agüera y Arcas"
+    ],
+    "year": 2017,
+    "container": "Proceedings of AISTATS 2017, PMLR 54",
+    "publisher": "PMLR",
+    "url": "https://proceedings.mlr.press/v54/mcmahan17a.html",
+    "locator": "pp. 1273–1282",
+    "tags": [
+      "federated-learning",
+      "privacy",
+      "paper"
+    ]
+  },
+  {
+    "id": "kairouz2021",
+    "short": "Kairouz et al. 2021",
+    "type": "paper",
+    "title": "Advances and Open Problems in Federated Learning",
+    "authors": [
+      "Peter Kairouz",
+      "H. Brendan McMahan",
+      "Brendan Avent",
+      "Belén Serrano"
+    ],
+    "year": 2021,
+    "container": "Foundations and Trends in Machine Learning",
+    "publisher": "Now Publishers",
+    "url": "https://doi.org/10.1561/2200000083",
+    "doi": "10.1561/2200000083",
+    "locator": "Vol. 14, No. 1–2, pp. 1–210",
+    "tags": [
+      "federated-learning",
+      "survey"
+    ]
+  },
+  {
+    "id": "bonawitz2017",
+    "short": "Bonawitz et al. 2017",
+    "type": "paper",
+    "title": "Practical Secure Aggregation for Privacy-Preserving Machine Learning",
+    "authors": [
+      "Keith Bonawitz",
+      "Vladimir Ivanov",
+      "Ben Kreuter",
+      "Antonio Marcedone",
+      "H. Brendan McMahan",
+      "Sarvar Patel",
+      "Daniel Ramage",
+      "Aaron Segal",
+      "Karn Seth"
+    ],
+    "year": 2017,
+    "container": "Proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security (CCS)",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/3133956.3133982",
+    "doi": "10.1145/3133956.3133982",
+    "locator": "pp. 1175–1191",
+    "tags": [
+      "federated-learning",
+      "secure-aggregation",
+      "paper"
+    ]
+  },
+  {
+    "id": "abadi2016",
+    "short": "Abadi et al. 2016",
+    "type": "paper",
+    "title": "Deep Learning with Differential Privacy",
+    "authors": [
+      "Martin Abadi",
+      "Andy Chu",
+      "Ian Goodfellow",
+      "H. Brendan McMahan",
+      "Ilya Mironov",
+      "Kunal Talwar",
+      "Li Zhang"
+    ],
+    "year": 2016,
+    "container": "Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS)",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/2976749.2978318",
+    "doi": "10.1145/2976749.2978318",
+    "locator": "pp. 308–318",
+    "tags": [
+      "differential-privacy",
+      "machine-learning",
+      "paper"
+    ]
+  },
+  {
+    "id": "dwork-roth2014",
+    "short": "Dwork–Roth 2014",
+    "type": "paper",
+    "title": "The Algorithmic Foundations of Differential Privacy",
+    "authors": [
+      "Cynthia Dwork",
+      "Aaron Roth"
+    ],
+    "year": 2014,
+    "container": "Foundations and Trends in Theoretical Computer Science",
+    "publisher": "Now Publishers",
+    "url": "https://doi.org/10.1561/0400000042",
+    "doi": "10.1561/0400000042",
+    "locator": "Vol. 9, No. 3–4, pp. 211–407",
+    "tags": [
+      "differential-privacy",
+      "foundations"
+    ]
+  },
+  {
+    "id": "shokri2017",
+    "short": "Shokri et al. 2017",
+    "type": "paper",
+    "title": "Membership Inference Attacks Against Machine Learning Models",
+    "authors": [
+      "Reza Shokri",
+      "Marco Stronati",
+      "Congzheng Song",
+      "Vitaly Shmatikov"
+    ],
+    "year": 2017,
+    "container": "2017 IEEE Symposium on Security and Privacy (S&P)",
+    "publisher": "IEEE",
+    "url": "https://doi.org/10.1109/SP.2017.41",
+    "doi": "10.1109/SP.2017.41",
+    "locator": "pp. 3–18",
+    "tags": [
+      "privacy",
+      "membership-inference",
+      "attack"
+    ]
+  },
+  {
+    "id": "bagdasaryan2020",
+    "short": "Bagdasaryan et al. 2020",
+    "type": "paper",
+    "title": "How to Backdoor Federated Learning",
+    "authors": [
+      "Eugene Bagdasaryan",
+      "Andreas Veit",
+      "Yiqing Hua",
+      "Deborah Estrin",
+      "Vitaly Shmatikov"
+    ],
+    "year": 2020,
+    "container": "Proceedings of AISTATS 2020, PMLR 108",
+    "publisher": "PMLR",
+    "url": "https://proceedings.mlr.press/v108/bagdasaryan20a.html",
+    "locator": "pp. 2938–2948",
+    "tags": [
+      "federated-learning",
+      "poisoning",
+      "attack"
+    ]
+  },
+  {
+    "id": "sp800-94",
+    "short": "NIST SP 800-94",
+    "type": "standard",
+    "title": "Guide to Intrusion Detection and Prevention Systems (IDPS)",
+    "authors": [
+      "Karen Scarfone",
+      "Peter Mell"
+    ],
+    "year": 2007,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-94",
+    "doi": "10.6028/NIST.SP.800-94",
+    "locator": "§2–4 (detection, deployment, tuning)",
+    "tags": [
+      "ids",
+      "network",
+      "standard"
+    ]
+  },
+  {
+    "id": "zeek",
+    "short": "Zeek documentation",
+    "type": "website",
+    "title": "Zeek Network Security Monitor Documentation",
+    "authors": [
+      "The Zeek Project"
+    ],
+    "year": 2026,
+    "publisher": "Zeek",
+    "url": "https://docs.zeek.org/en/current/",
+    "locator": "Scripting, protocol parsers and notice framework",
+    "tags": [
+      "network",
+      "monitoring",
+      "implementation"
+    ]
+  },
+  {
+    "id": "suricata",
+    "short": "Suricata documentation",
+    "type": "website",
+    "title": "Suricata Documentation",
+    "authors": [
+      "Open Information Security Foundation"
+    ],
+    "year": 2026,
+    "publisher": "OISF",
+    "url": "https://docs.suricata.io/en/latest/",
+    "locator": "Rules, eve JSON output and flow handling",
+    "tags": [
+      "ids",
+      "dpi",
+      "implementation"
+    ]
+  },
+  {
+    "id": "rfc7011",
+    "short": "RFC 7011",
+    "type": "rfc",
+    "title": "Specification of the IP Flow Information Export (IPFIX) Protocol for the Exchange of Flow Information",
+    "authors": [
+      "Benoît Claise",
+      "Brian Trammell",
+      "Paul Aitken"
+    ],
+    "year": 2013,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc7011.html",
+    "locator": "§3–5 (information model, protocol)",
+    "tags": [
+      "network",
+      "telemetry",
+      "rfc"
+    ]
+  },
+  {
+    "id": "rfc5424",
+    "short": "RFC 5424",
+    "type": "rfc",
+    "title": "The Syslog Protocol",
+    "authors": [
+      "Rainer Gerhards"
+    ],
+    "year": 2009,
+    "publisher": "IETF",
+    "url": "https://www.rfc-editor.org/rfc/rfc5424.html",
+    "locator": "§6 (message format), §7 (structured data)",
+    "tags": [
+      "logging",
+      "syslog",
+      "rfc"
+    ]
+  },
+  {
+    "id": "sp800-61r3",
+    "short": "NIST SP 800-61r3",
+    "type": "standard",
+    "title": "Incident Response Recommendations and Considerations for Cybersecurity Risk Management",
+    "authors": [
+      "National Institute of Standards and Technology"
+    ],
+    "year": 2025,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-61r3",
+    "doi": "10.6028/NIST.SP.800-61r3",
+    "locator": "§2–5 (incident response lifecycle, playbooks)",
+    "tags": [
+      "incident-response",
+      "soc",
+      "standard"
+    ]
+  },
+  {
+    "id": "sp800-92",
+    "short": "NIST SP 800-92",
+    "type": "standard",
+    "title": "Guide to Computer Security Log Management",
+    "authors": [
+      "Karen Kent",
+      "Murugiah Souppaya"
+    ],
+    "year": 2006,
+    "publisher": "National Institute of Standards and Technology",
+    "url": "https://doi.org/10.6028/NIST.SP.800-92",
+    "doi": "10.6028/NIST.SP.800-92",
+    "locator": "§3–5 (log infrastructure, retention, review)",
+    "tags": [
+      "logging",
+      "soc",
+      "standard"
+    ]
+  },
+  {
+    "id": "mitre-attack",
+    "short": "MITRE ATT&CK",
+    "type": "website",
+    "title": "MITRE ATT&CK Knowledge Base",
+    "authors": [
+      "The MITRE Corporation"
+    ],
+    "year": 2026,
+    "publisher": "MITRE",
+    "url": "https://attack.mitre.org/",
+    "locator": "Enterprise tactics, techniques and procedures",
+    "tags": [
+      "soc",
+      "detection",
+      "threat-intelligence"
+    ]
+  },
+  {
+    "id": "sigma",
+    "short": "SigmaHQ",
+    "type": "website",
+    "title": "Sigma: Generic Signature Format for SIEM Systems",
+    "authors": [
+      "SigmaHQ"
+    ],
+    "year": 2026,
+    "publisher": "SigmaHQ",
+    "url": "https://sigmahq.io/",
+    "locator": "Rule format and conversion tooling",
+    "tags": [
+      "soc",
+      "detection",
+      "implementation"
+    ]
+  },
+  {
+    "id": "pyramid-of-pain",
+    "short": "Bianco 2013",
+    "type": "website",
+    "title": "The Pyramid of Pain",
+    "authors": [
+      "David J. Bianco"
+    ],
+    "year": 2013,
+    "publisher": "Enterprise Detection & Response",
+    "url": "https://detect-respond.blogspot.com/2013/03/the-pyramid-of-pain.html",
+    "locator": "Indicator value versus adversary cost",
+    "tags": [
+      "soc",
+      "detection",
+      "threat-intelligence"
+    ]
+  },
+  {
+    "id": "gmr1989",
+    "short": "Goldwasser–Micali–Rackoff 1989",
+    "type": "paper",
+    "title": "The Knowledge Complexity of Interactive Proof Systems",
+    "authors": [
+      "Shafi Goldwasser",
+      "Silvio Micali",
+      "Charles Rackoff"
+    ],
+    "year": 1989,
+    "container": "SIAM Journal on Computing",
+    "publisher": "SIAM",
+    "url": "https://doi.org/10.1137/0218012",
+    "doi": "10.1137/0218012",
+    "locator": "Vol. 18, No. 1, pp. 186–208",
+    "tags": [
+      "zero-knowledge",
+      "proofs",
+      "foundations"
+    ]
+  },
+  {
+    "id": "yao1986",
+    "short": "Yao 1986",
+    "type": "paper",
+    "title": "How to Generate and Exchange Secrets",
+    "authors": [
+      "Andrew Chi-Chih Yao"
+    ],
+    "year": 1986,
+    "container": "Proceedings of the 27th Annual Symposium on Foundations of Computer Science (FOCS)",
+    "publisher": "IEEE",
+    "url": "https://doi.org/10.1109/SFCS.1986.25",
+    "doi": "10.1109/SFCS.1986.25",
+    "locator": "pp. 162–167",
+    "tags": [
+      "mpc",
+      "foundations"
+    ]
+  },
+  {
+    "id": "shamir1979",
+    "short": "Shamir 1979",
+    "type": "paper",
+    "title": "How to Share a Secret",
+    "authors": [
+      "Adi Shamir"
+    ],
+    "year": 1979,
+    "container": "Communications of the ACM",
+    "publisher": "ACM",
+    "url": "https://doi.org/10.1145/359168.359176",
+    "doi": "10.1145/359168.359176",
+    "locator": "Vol. 22, No. 11, pp. 612–613",
+    "tags": [
+      "secret-sharing",
+      "foundations"
+    ]
+  },
+  {
+    "id": "groth2016",
+    "short": "Groth 2016",
+    "type": "paper",
+    "title": "On the Size of Pairing-Based Non-interactive Arguments",
+    "authors": [
+      "Jens Groth"
+    ],
+    "year": 2016,
+    "container": "Advances in Cryptology – EUROCRYPT 2016",
+    "publisher": "Springer",
+    "url": "https://doi.org/10.1007/978-3-662-49896-5_11",
+    "doi": "10.1007/978-3-662-49896-5_11",
+    "locator": "pp. 305–326",
+    "tags": [
+      "zero-knowledge",
+      "snark",
+      "paper"
+    ]
+  },
+  {
+    "id": "bulletproofs2018",
+    "short": "Bünz et al. 2018",
+    "type": "paper",
+    "title": "Bulletproofs: Short Proofs for Confidential Transactions and More",
+    "authors": [
+      "Benedikt Bünz",
+      "Jonathan Bootle",
+      "Dan Boneh",
+      "Andrew Poelstra",
+      "Pieter Wuille",
+      "Greg Maxwell"
+    ],
+    "year": 2018,
+    "container": "2018 IEEE Symposium on Security and Privacy (S&P)",
+    "publisher": "IEEE",
+    "url": "https://doi.org/10.1109/SP.2018.00020",
+    "doi": "10.1109/SP.2018.00020",
+    "locator": "pp. 315–334",
+    "tags": [
+      "zero-knowledge",
+      "range-proof",
+      "paper"
+    ]
   }
 ]

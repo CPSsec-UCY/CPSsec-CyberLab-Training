@@ -36,7 +36,7 @@ export function SideChannelLeak() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex overflow-hidden rounded-lg border border-white/10">
+        <div className="flex overflow-hidden rounded-lg border border-line">
           <button
             type="button"
             onClick={() => setMode("naive")}
@@ -74,12 +74,12 @@ export function SideChannelLeak() {
               className={`relative flex aspect-square items-center justify-center rounded-md border font-mono text-[9px] transition ${
                 index === secret
                   ? "border-cyber-cyan/40"
-                  : "border-white/10"
+                  : "border-line"
               }`}
               style={{
                 backgroundColor:
                   intensity === 0
-                    ? "rgba(15,23,42,0.5)"
+                    ? "rgba(108,77,246,0.06)"
                     : `rgba(34, 211, 238, ${0.08 + intensity * 0.55})`,
               }}
               title={`cache line ${index}: ${counts[index]} observations`}
@@ -107,7 +107,7 @@ export function SideChannelLeak() {
         </span>
       </div>
 
-      <div className="mt-4 rounded-lg border border-white/10 bg-ink-950/50 p-3 text-[11px] leading-5 text-slate-400">
+      <div className="mt-4 rounded-lg border border-line bg-ink-950/50 p-3 text-[11px] leading-5 text-slate-400">
         {mode === "naive" ? (
           <>
             The cache line containing the secret index is touched; all others stay cold. A Flush+Reload or

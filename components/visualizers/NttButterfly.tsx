@@ -82,7 +82,7 @@ export function NttButterfly() {
               max={16}
               value={value}
               onChange={(event) => update(index, Number(event.target.value))}
-              className="h-8 w-12 rounded-md border border-white/10 bg-ink-950/60 text-center font-mono text-xs text-cyber-cyan focus:border-cyber-cyan/50"
+              className="h-8 w-12 rounded-md border border-line bg-ink-950/60 text-center font-mono text-xs text-cyber-cyan focus:border-cyber-cyan/50"
               aria-label={`Coefficient ${index}`}
             />
           ))}
@@ -116,7 +116,7 @@ export function NttButterfly() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-xl border border-white/10 bg-ink-950/50 p-4">
+      <div className="mt-5 rounded-xl border border-line bg-ink-950/50 p-4">
         <div className="flex items-center justify-between">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyber-cyan">
             stage {step} / 4 · {STEP_LABELS[step]}
@@ -135,7 +135,7 @@ export function NttButterfly() {
               <div
                 key={index}
                 className={`rounded-lg border p-2 text-center transition ${
-                  highlighted ? "border-cyber-cyan/30 bg-cyber-cyan/[0.06]" : "border-white/10 bg-ink-900/60"
+                  highlighted ? "border-cyber-cyan/30 bg-cyber-cyan/[0.06]" : "border-line bg-ink-900/60"
                 }`}
               >
                 <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">a[{index}]</p>
@@ -152,7 +152,7 @@ export function NttButterfly() {
           })}
         </div>
 
-        <div className="mt-4 rounded-lg border border-white/10 bg-ink-900/60 p-3 font-mono text-[11px] leading-6 text-slate-300">
+        <div className="mt-4 rounded-lg border border-line bg-ink-900/60 p-3 font-mono text-[11px] leading-6 text-slate-300">
           {step === 0 ? (
             <span>Negacyclic product would need 16 multiplications for n = 4; butterflies reduce this to {N / 2} · log₂{N} = 4.</span>
           ) : null}
@@ -179,15 +179,15 @@ export function NttButterfly() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-white/10 bg-ink-950/40 p-3">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-ink-950/40 p-3">
         <svg viewBox="0 0 660 150" className="min-w-[560px]" role="img" aria-label="Butterfly diagram for a four point NTT">
           {[0, 1, 2, 3].map((index) => (
             <g key={index}>
-              <line x1="40" y1={30 + index * 30} x2="190" y2={30 + index * 30} stroke="rgba(148,163,184,0.25)" />
-              <line x1="250" y1={30 + index * 30} x2="420" y2={30 + index * 30} stroke="rgba(148,163,184,0.25)" />
-              <line x1="480" y1={30 + index * 30} x2="620" y2={30 + index * 30} stroke="rgba(148,163,184,0.25)" />
-              <text x="20" y={34 + index * 30} fill="#64748b" fontSize="9" fontFamily="monospace">b{index}</text>
-              <text x="625" y={34 + index * 30} fill="#67e8f9" fontSize="9" fontFamily="monospace">B{index}</text>
+              <line x1="40" y1={30 + index * 30} x2="190" y2={30 + index * 30} stroke="rgba(139,136,163,0.25)" />
+              <line x1="250" y1={30 + index * 30} x2="420" y2={30 + index * 30} stroke="rgba(139,136,163,0.25)" />
+              <line x1="480" y1={30 + index * 30} x2="620" y2={30 + index * 30} stroke="rgba(139,136,163,0.25)" />
+              <text x="20" y={34 + index * 30} fill="#6F6B85" fontSize="9" fontFamily="monospace">b{index}</text>
+              <text x="625" y={34 + index * 30} fill="#5B3DD8" fontSize="9" fontFamily="monospace">B{index}</text>
             </g>
           ))}
 
@@ -205,14 +205,14 @@ export function NttButterfly() {
                 <path
                   d={`M 250 ${y1} C 320 ${y1}, ${midX} ${(y1 + y2) / 2}, ${midX} ${(y1 + y2) / 2} C ${midX} ${(y1 + y2) / 2}, 400 ${y2}, 470 ${y2}`}
                   fill="none"
-                  stroke={index < 2 ? "rgba(34,211,238,0.5)" : "rgba(167,139,250,0.65)"}
+                  stroke={index < 2 ? "rgba(108,77,246,0.5)" : "rgba(168,85,247,0.65)"}
                   strokeWidth="1.2"
                 />
-                <circle cx={midX} cy={(y1 + y2) / 2} r="3" fill={index < 2 ? "#22d3ee" : "#a78bfa"} />
-                <text x={midX + 6} y={(y1 + y2) / 2 - 4} fill={index < 2 ? "#67e8f9" : "#c4b5fd"} fontSize="8" fontFamily="monospace">
+                <circle cx={midX} cy={(y1 + y2) / 2} r="3" fill={index < 2 ? "#6C4DF6" : "#A855F7"} />
+                <text x={midX + 6} y={(y1 + y2) / 2 - 4} fill={index < 2 ? "#5B3DD8" : "#7C5CFC"} fontSize="8" fontFamily="monospace">
                   {twiddle === 1 ? "×1" : "×ω"}
                 </text>
-                <text x={midX - 8} y={(y1 + y2) / 2 + 12} fill="#475569" fontSize="7" fontFamily="monospace">
+                <text x={midX - 8} y={(y1 + y2) / 2 + 12} fill="#8B88A3" fontSize="7" fontFamily="monospace">
                   span {span}
                 </text>
               </g>

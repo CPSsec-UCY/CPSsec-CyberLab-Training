@@ -39,7 +39,7 @@ export function FoTransform() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500">ciphertext</span>
-          <div className="flex overflow-hidden rounded-lg border border-white/10">
+          <div className="flex overflow-hidden rounded-lg border border-line">
             <button
               type="button"
               onClick={() => setTampered(false)}
@@ -92,7 +92,7 @@ export function FoTransform() {
                     ? "border-cyber-cyan/50 bg-cyber-cyan/10 shadow-glow"
                     : done
                       ? "border-emerald-400/25 bg-emerald-400/[0.05]"
-                      : "border-white/10 bg-ink-950/50 hover:border-white/25"
+                      : "border-line bg-ink-950/50 hover:border-line-strong"
                 }`}
               >
                 <span className={`font-mono text-[9px] uppercase tracking-[0.14em] ${active ? "text-cyber-cyan" : "text-slate-500"}`}>
@@ -108,7 +108,7 @@ export function FoTransform() {
         })}
       </div>
 
-      <div className="mt-4 rounded-xl border border-white/10 bg-ink-950/50 p-4" aria-live="polite">
+      <div className="mt-4 rounded-xl border border-line bg-ink-950/50 p-4" aria-live="polite">
         {!terminal ? (
           <>
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyber-cyan">
@@ -119,7 +119,7 @@ export function FoTransform() {
               key={`${step}-${tampered}`}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-3 rounded-lg border border-white/10 bg-ink-900 p-3 font-mono text-[11px] leading-6 text-slate-300"
+              className="mt-3 rounded-lg border border-line bg-ink-900 p-3 font-mono text-[11px] leading-6 text-slate-300"
             >
               {step === 0 ? (tampered ? "c* ≠ c  (flipped byte detected nowhere yet)" : "c* = c  (well-formed ciphertext)") : null}
               {step === 1 ? (tampered ? "m' = random-looking ≠ m" : "m' = m") : null}
@@ -148,7 +148,7 @@ export function FoTransform() {
       </div>
 
       <p className="mt-3 text-[11px] leading-5 text-slate-500">
-        The check must be constant-time: comparing ciphertexts with an early-exit <code className="rounded bg-white/10 px-1 font-mono">memcmp</code>{" "}
+        The check must be constant-time: comparing ciphertexts with an early-exit <code className="rounded bg-mist-200 px-1 font-mono">memcmp</code>{" "}
         leaks how many bytes an attacker guessed correctly.
       </p>
     </div>

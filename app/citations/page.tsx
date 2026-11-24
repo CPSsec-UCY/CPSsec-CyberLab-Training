@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 
 export default function CitationsPage() {
   const learningModules = getAllModules();
+  const moduleTitles = Object.fromEntries(learningModules.map((learningModule) => [learningModule.slug, learningModule.title]));
   const usage: Record<string, string[]> = {};
   for (const learningModule of learningModules) {
     for (const id of learningModule.citations) {
@@ -24,10 +25,10 @@ export default function CitationsPage() {
   return (
     <div className="container-page py-12 sm:py-16">
       <p className="eyebrow">Provenance</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+      <h1 className="mt-3 text-4xl font-semibold tracking-tight text-navy sm:text-5xl">
         Citation registry.
       </h1>
-      <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-400">
+      <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
         A single machine-validated database of primary sources. Inline references in modules open the same
         records; CI rejects unknown keys, malformed metadata and missing locators.
       </p>
@@ -40,16 +41,16 @@ export default function CitationsPage() {
       </div>
 
       <div className="mt-10">
-        <CitationRegistry usage={usage} />
+        <CitationRegistry usage={usage} moduleTitles={moduleTitles} />
       </div>
 
-      <div className="mt-10 rounded-xl border border-white/10 bg-ink-850/50 p-5 text-sm leading-6 text-slate-400">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-cyber-cyan">Citation policy</p>
+      <div className="mt-10 rounded-xl border border-line bg-white p-5 text-sm leading-6 text-body">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-brand-700">Citation policy</p>
         <p className="mt-2">
           Each module claims a precise locator (section, page, algorithm number or RFC section). Standards
           are cited by their DOI where one exists, and RFCs by their canonical rfc-editor URL. If a source
           cannot be verified, it should not be cited. Open a pull request with{" "}
-          <span className="font-mono text-slate-300">[citation]</span> in the title to correct a record.
+          <span className="font-mono text-body">[citation]</span> in the title to correct a record.
         </p>
       </div>
     </div>

@@ -36,7 +36,7 @@ export function GlossaryBrowser({
 
   return (
     <div>
-      <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-ink-850/60 p-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 sm:flex-row sm:items-center">
         <label className="relative flex-1">
           <span className="sr-only">Search glossary</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -44,7 +44,7 @@ export function GlossaryBrowser({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search a term or alias…"
-            className="w-full rounded-lg border border-white/10 bg-ink-950/70 py-2.5 pl-9 pr-3 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyber-cyan/50"
+            className="w-full rounded-lg border border-line bg-mist-50 py-2.5 pl-9 pr-3 font-mono text-xs text-navy placeholder:text-muted focus:border-cyber-cyan/50"
           />
         </label>
         <label>
@@ -52,7 +52,7 @@ export function GlossaryBrowser({
           <select
             value={moduleFilter}
             onChange={(event) => setModuleFilter(event.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-ink-950/70 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-slate-300 focus:border-cyber-cyan/50 sm:w-auto"
+            className="w-full rounded-lg border border-line bg-mist-50 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] text-slate-300 focus:border-cyber-cyan/50 sm:w-auto"
           >
             <option value="all">All modules</option>
             {moduleOptions.map((slug) => (
@@ -70,7 +70,7 @@ export function GlossaryBrowser({
 
       <dl className="mt-4 grid gap-3 md:grid-cols-2">
         {filtered.map((entry) => (
-          <div key={entry.id} id={entry.id} className="rounded-xl border border-white/10 bg-ink-850/50 p-4 scroll-mt-28">
+          <div key={entry.id} id={entry.id} className="rounded-xl border border-line bg-white p-4 scroll-mt-28">
             <div className="flex items-start justify-between gap-3">
               <dt className="font-semibold text-slate-100">{entry.term}</dt>
               <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-slate-600">{entry.id}</span>
@@ -100,7 +100,7 @@ export function GlossaryBrowser({
       </dl>
 
       {filtered.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
+        <div className="mt-8 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-400">
           No glossary entry matches that query.
         </div>
       ) : null}

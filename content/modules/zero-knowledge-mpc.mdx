@@ -1,0 +1,143 @@
+---
+slug: zero-knowledge-mpc
+title: "Zero-knowledge proofs and secure multi-party computation"
+subtitle: "Prove a statement without revealing the witness; compute on secrets without pooling them."
+track: "Advanced Cryptography"
+order: 10
+difficulty: "Advanced"
+readingTime: 19
+summary: "Interactive proofs, Schnorr, SNARKs, secret sharing, MPC threat models, trusted setup and the engineering cost of privacy-preserving computation."
+citations: ["gmr1989", "yao1986", "shamir1979", "groth2016", "bulletproofs2018"]
+tags: ["zero-knowledge", "mpc", "privacy", "cryptography"]
+prerequisites: ["asymmetric-primitives", "hashing-mac-kdf"]
+updated: "2026-11-24"
+lenses: [1, 2, 3, 4]
+---
+
+<Lens level={1} title="Convincing without revealing">
+
+## Two related promises
+
+A **zero-knowledge proof** convinces a verifier that a statement is true without revealing the secret witness. “I know the password” can become “I can prove I know the password” without sending it.
+
+**Secure multi-party computation (MPC)** lets parties compute a function of private inputs while revealing only the result. Hospitals can compute a shared statistic without exchanging patient records; banks can screen for fraud without pooling customers.
+
+## What neither tool does
+
+- A ZK proof does not make the underlying data true. It proves a relation about committed values.
+- MPC does not fix bad inputs, collusion or compromised endpoints. It protects inputs under a stated adversary model.
+
+<Callout variant="note" title="The verifier learns the statement, not the witness">
+A zero-knowledge proof reveals the fact being proved and usually the protocol transcript. It hides the witness and anything else the proof system promises to hide.
+</Callout>
+
+## Why it matters
+
+Privacy-preserving credentials, confidential transactions, private auctions, threshold custody and cross-organisation analytics all depend on these ideas. The cost is usually performance and complexity, not a lack of theory.
+
+<Figure caption="Run a toy Schnorr proof. Commit, challenge, respond and verify. Toggle the cheating prover to see soundness fail at the final check.">
+  <ZkSchnorrDemo />
+</Figure>
+
+<KnowledgeCheck
+  question="What does a zero-knowledge proof hide?"
+  options={["The statement being proved", "The witness that makes the statement true", "The verifier's public key", "The protocol version"]}
+  answer={1}
+  explanation="The proof convinces the verifier that the statement is true while hiding the witness. The statement itself is public."
+/>
+
+</Lens>
+
+<Lens level={2} title="Schnorr, SNARKs, secret sharing and MPC">
+
+## Interactive proof in one example
+
+For a public group with generator $g$ and public key $y = g^x$:
+
+1. Prover samples $r$ and sends $t = g^r$.
+2. Verifier sends a random challenge $c$.
+3. Prover sends $s = r + c x$.
+4. Verifier checks $g^s = t y^c$.
+
+The verifier learns that the prover knows $x$, not $x$ itself. Hashing the challenge with the statement (Fiat–Shamir) makes the proof non-interactive. <Cite id="gmr1989" locator="Vol. 18, pp. 186–208" />
+
+## Proof systems
+
+- **SNARKs** provide small proofs and fast verification, often with a trusted setup. Groth16 is a widely used pairing-based construction. <Cite id="groth2016" locator="pp. 305–326" />
+- **STARKs** avoid a trusted setup and rely on hash-based assumptions, at the cost of larger proofs.
+- **Bulletproofs** provide short range proofs without a trusted setup. <Cite id="bulletproofs2018" locator="pp. 315–334" />
+- **Sigma protocols** generalise the Schnorr pattern for many relations.
+
+## MPC building blocks
+
+- **Secret sharing:** split a secret into shares; a threshold reconstructs it, fewer shares reveal nothing. Shamir secret sharing is the canonical construction. <Cite id="shamir1979" locator="Vol. 22, pp. 612–613" />
+- **Garbled circuits:** two-party computation of a Boolean circuit. <Cite id="yao1986" locator="pp. 162–167" />
+- **Secret-sharing MPC:** evaluate arithmetic or Boolean circuits over shares.
+- **Commitments, oblivious transfer and zero-knowledge proofs:** compose into larger protocols.
+
+## Threat model first
+
+Ask who may be malicious, how many parties may collude, whether the network is synchronous, and whether fairness or output privacy is required. A semi-honest protocol assumes parties follow the protocol; a malicious model must also handle incorrect inputs and selective abort.
+
+</Lens>
+
+<Lens level={3} title="Completeness, soundness and simulation">
+
+## The three properties
+
+- **Completeness:** an honest prover with a valid witness convinces the verifier.
+- **Soundness:** a prover without a witness cannot convince the verifier except with small probability.
+- **Zero knowledge:** a simulator can produce transcripts indistinguishable from real ones without the witness.
+
+<Callout variant="lab" title="Simulation is the definition">
+For Schnorr, the simulator picks $c$ and $s$ first, then sets $t = g^s y^{-c}$. The resulting transcript is distributed like a real proof, so the proof leaks nothing beyond validity. The random-oracle model is doing real work when Fiat–Shamir replaces the interactive challenge.
+</Callout>
+
+## Trusted setup
+
+Some SNARKs require a structured reference string. A compromised ceremony can enable false proofs. Multi-party ceremonies reduce the risk, but you must verify the parameters and the ceremony transcript. Transparent proof systems avoid this trust assumption at a performance cost.
+
+## MPC security
+
+For secret-sharing MPC, correctness follows from linearity of sharing and a secure multiplication protocol. Security is argued by simulation: whatever the adversary sees can be generated from its inputs and outputs. The number of corruptions, corruption timing and network model all matter.
+
+## Output leakage
+
+Even a perfect MPC reveals the output. If the function's output identifies an individual or allows differencing attacks, the protocol is not enough. Combine MPC with differential privacy or query restrictions when the output itself is sensitive.
+
+</Lens>
+
+<Lens level={4} title="Circuits, proving time and side-channel reality">
+
+## Engineering costs
+
+- **Circuit size** dominates proof time and memory; a cleaner circuit can save orders of magnitude.
+- **Prover cost** is much higher than verifier cost; mobile provers are difficult.
+- **Trusted setup** adds ceremony, parameter distribution and verification burden.
+- **MPC networking** dominates WAN deployments; latency and bandwidth shape protocol choice.
+- **Threshold signing** avoids reconstructing a key but introduces coordination and abort handling.
+
+## Side channels and randomness
+
+Proofs and MPC protocols can leak through timing, memory access, power and abort behaviour. Randomness is part of the security boundary: a biased nonce can reveal a witness. Protect proving keys and shares as crown jewels.
+
+<Callout variant="danger" title="Do not accept “zero-knowledge” as a security proof">
+Ask what is hidden, from whom, under what collusion and network assumptions, and what the output itself reveals. A proof system with a broken setup, a leaky prover or a revealing output can fail operationally.
+</Callout>
+
+## Deployment patterns
+
+1. **Confidential transactions and rollups:** prove state transitions without publishing inputs.
+2. **Selective disclosure credentials:** prove attributes without revealing the document.
+3. **Private analytics:** MPC or secure aggregation across organisations.
+4. **Threshold custody:** distribute signing authority; no single share can sign.
+5. **Compliance proofs:** prove a policy holds without exposing raw records.
+
+<KnowledgeCheck
+  question="What does a simulator demonstrate in a zero-knowledge proof?"
+  options={["The prover is honest", "A transcript can be generated without the witness", "The verifier cannot abort", "The statement is true in the real world"]}
+  answer={1}
+  explanation="Zero knowledge is defined by a simulator that produces indistinguishable transcripts without the witness. It does not prove the real-world truth of the statement's inputs."
+/>
+
+</Lens>

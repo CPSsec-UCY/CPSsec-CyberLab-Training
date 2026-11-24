@@ -15,10 +15,10 @@ export default function GlossaryPage() {
   return (
     <div className="container-page py-12 sm:py-16">
       <p className="eyebrow">Glossary</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+      <h1 className="mt-3 text-4xl font-semibold tracking-tight text-navy sm:text-5xl">
         Shared vocabulary, precise definitions.
       </h1>
-      <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-400">
+      <p className="mt-5 max-w-3xl text-lg leading-8 text-body">
         Cross-linked terms from every module. Definitions are deliberately short; follow the citation or
         module link when you need the full argument.
       </p>
