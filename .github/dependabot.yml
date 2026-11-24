@@ -8,11 +8,17 @@ updates:
     groups:
       frontend:
         patterns: ["next", "react", "react-dom", "typescript", "@types/*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: cargo
     directory: "/wasm/pqc-lab"
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
