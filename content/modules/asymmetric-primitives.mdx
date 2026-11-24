@@ -5,8 +5,9 @@ subtitle: "The interfaces and attacker games that every post-quantum scheme must
 track: "Foundations"
 order: 2
 difficulty: "Intermediate"
-readingTime: 25
+readingTime: 85
 summary: "Learn the difference between encryption and encapsulation, why IND-CCA2 is the relevant target, and how signatures, KEMs and PQC families fit together."
+outcomes: ["Explain PKE, KEM and signature APIs and their different failure modes.", "Analyse IND-CCA2 and EUF-CMA attacker games.", "Trace the Fujisaki–Okamoto transform and implicit rejection.", "Evaluate hybrid combiners, serialization and implementation requirements."]
 citations: ["regev2009", "peikert2016", "lpr2010", "fujisaki-okamoto2013", "hofheinz2017", "fips203", "fips204", "fips205", "fips186-5", "rfc9180", "mceliece-spec", "mceliece1978", "nist-pqc", "nist-ir8545", "liboqs", "lyubashevsky2012"]
 tags: ["foundations", "kem", "signatures", "security-models"]
 prerequisites: ["quantum-threat"]
@@ -59,6 +60,22 @@ Raw RSA is malleable and deterministic. Real schemes need randomness, encoding a
 A common design mistake is to treat public-key encryption as a universal tool. Encryption does not authenticate the sender: anyone can encrypt under a public key. A signature does not hide the message: anyone can verify it. A hash does not prove who produced a file, and a key exchange does not by itself authenticate the peer.
 
 Protocols compose primitives with identities, transcripts and policy. A KEM gives a shared key; the protocol must decide which identity is allowed to establish it and what happens on failure. A signature proves a private-key operation; the verifier must decide which key and certificate chain it trusts.
+
+## Model the sender, recipient and attacker
+
+A clinic sends device configuration to an authenticated infusion controller with a long-lived decapsulation key. A network attacker can modify or replay messages, submit malformed ciphertexts, overload the signing service, or operate a controller whose key attests to a different identity. The clinic needs confidentiality and confidence in the controller’s software version.
+
+The attacker wants to learn or alter a configuration; the defender must contain one compromised endpoint without making enrollment and recovery unworkable. Encapsulation should not identify the sender, signatures must bind message and context, and decapsulation must not reveal structural plausibility. FIPS 203 specifies KEM failure behaviour; HPKE composes a KEM into authenticated encryption. <Cite id="fips203" locator="§3.3" /> <Cite id="rfc9180" locator="§4–5" />
+
+Recall XOR, probability, public and secret keys, and the difference between an assumption and a theorem. Read each attacker game as an experiment with a hidden bit. Public-key encryption does not identify the sender: anyone can encapsulate. A signature evidences private-key possession, but only trust policy turns that into an authenticated identity.
+
+<WorkedExample
+  title="Trace one configuration message through KEM and AEAD"
+  steps={["The controller publishes an ML-KEM-768 encapsulation key ek of 1,184 bytes.", "The clinic calls Encaps(ek), receiving ciphertext c of 1,088 bytes and shared secret K of 32 bytes.", "The clinic encrypts the six-byte ASCII configuration dose=2 with a standard AEAD and sends c plus the AEAD ciphertext.", "The AEAD ciphertext is 6 + 16 = 22 bytes, so the protected payload is 1,088 + 22 = 1,110 bytes before framing.", "The controller calls Decaps(dk, c), recovers the same 32-byte K and verifies the 16-byte tag before returning the six plaintext bytes."]}
+  result="Anyone could have produced the ciphertext, so confidentiality alone does not authenticate the clinic. The surrounding protocol must authenticate the controller’s key and separately authenticate the clinic, for example with a certificate-backed signature."
+/>
+
+The sizes are fixed by FIPS 203; the AEAD division follows HPKE. <Cite id="fips203" locator="Table 3" /> <Cite id="rfc9180" locator="§5" /> The KEM established a key; the symmetric AEAD handled variable-length data and uniform authentication failure.
 </Lens>
 
 <Lens level={2} title="The PQC family map and the size trade-offs">
@@ -133,6 +150,35 @@ The failure behaviour is part of the interface. A KEM that returns an error on a
 ## Key and ciphertext sizes
 
 Sizes are not an afterthought. An ML-KEM-768 encapsulation key is 1,184 bytes and a ciphertext is 1,088 bytes; an ML-DSA-65 signature is 3,309 bytes. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="§4" /> Protocol buffers, certificate chains, HSMs and firmware update formats must all accommodate those sizes before deployment.
+
+## Walk an HPKE-style hybrid exchange
+
+Start by fixing a suite: a KEM, a KDF and an AEAD. Then fix the HPKE mode, because base mode authenticates neither party, authentication mode binds the recipient to a public key, and the other modes add sender authentication or pre-shared-key material. The names are part of the protocol state; never select them from untrusted bytes without an allow-list. <Cite id="rfc9180" locator="§5" />
+
+<ProcessFlow
+  steps={[
+    {title: "Resolve key", detail: "Sender obtains the recipient’s authenticated encapsulation key and suite.", tone: "brand"},
+    {title: "Generate", detail: "Fresh classical and post-quantum ephemeral key pairs are sampled.", tone: "brand"},
+    {title: "Encapsulate", detail: "Each component produces a shared secret and its public transcript value.", tone: "brand"},
+    {title: "Derive", detail: "The specified hybrid combiner and KDF bind secrets, suite and context.", tone: "brand"},
+    {title: "Seal", detail: "AEAD encrypts the message and authenticates headers as associated data.", tone: "brand"},
+    {title: "Open", detail: "Receiver decapsulates, derives the same key and releases plaintext only after verification.", tone: "brand"}
+  ]}
+/>
+
+Serialise a labelled 32-byte classical value and a labelled 1,088-byte ML-KEM ciphertext in the negotiated order. The derived key comes from the protocol’s combiner and key schedule, not from choosing the longer secret. AAD carries the suite, mode, key identifiers and immutable headers; otherwise the same sealed body may be reinterpreted in another context.
+
+A static recipient key permits stored messages but increases compromise impact and lifetime. An ephemeral key can provide forward secrecy with a suitable exchange, at the cost of another message. ML-KEM-768 saves bandwidth relative to ML-KEM-1024 while targeting a lower category. <Cite id="fips203" locator="Table 3" />
+
+Seam failures include swapped transcript fields, an unauthenticated key identifier, mismatched KDF contexts, distinguishable malformed-ciphertext errors and cached keys that outlive revocation. Prevent them with an explicit suite, canonical encoding, authenticated key resolution and one failure outcome.
+
+<WorkedExample
+  title="Budget a hybrid sealed configuration"
+  steps={["Classical ephemeral public value: 32 bytes.", "ML-KEM-768 ciphertext: 1,088 bytes, so the combined encapsulation is 1,120 bytes.", "Plaintext dose=2 is 6 bytes and the AEAD tag is 16 bytes, so the sealed body is 22 bytes.", "Before framing, the message occupies 1,120 + 22 = 1,142 bytes.", "Add a 48-byte versioned header and an 8-byte record length: total wire payload is 1,142 + 48 + 8 = 1,198 bytes."]}
+  result="A 1,200-byte receive buffer is still too small because parsers need explicit overflow headroom; a 1,280-byte buffer fits this example, but the production limit must come from the longest supported suite and tested decoder behaviour."
+/>
+
+Sizes follow FIPS 203; the 16-byte tag and KEM/KDF/AEAD division follow the cited interface. <Cite id="fips203" locator="Table 3" /> <Cite id="rfc9180" locator="§4–5" /> Use the actual protocol specification, not this illustrative header.
 </Lens>
 
 <Lens level={3} title="Definitions, games and the FO theorem">
@@ -184,6 +230,31 @@ The FO theorem and signature proofs are reductions: a successful attacker yields
 ## Hybrid combiners
 
 A hybrid KEM concatenates two shared secrets and feeds them into a KDF. The combiner must be unambiguous and domain-separated; otherwise an attacker may be able to swap components or replay a secret across protocols. Use the combiner defined by the protocol (for example the TLS hybrid design) rather than inventing one. <Cite id="rfc9180" locator="§4" />
+
+## Formalise the KEM contract and its edge cases
+
+For every key pair and Encaps random tape, Decaps must return exactly the Encaps shared secret:
+
+$$
+\Pr[K' = K \mid (ek,dk) \leftarrow \mathsf{KeyGen};\ (c,K) \leftarrow \mathsf{Encaps}(ek)] = 1.
+$$
+
+Decapsulation is deterministic and total: malformed ciphertexts also map to 32 bytes. ML-KEM re-encrypts the recovered message and compares it with the supplied ciphertext. Success derives $K = \mathsf{KDF}(m' \,\|\, H(c))$; mismatch derives a rejection value from $z$ and $H(c)$. <Cite id="fips203" locator="§7.1" /> The proof charges the underlying PKE’s small failure probability rather than assuming zero.
+
+For an IND-CCA2 adversary $\mathcal A$, define its advantage as
+
+$$
+\mathrm{Adv}^{\mathrm{ind\mbox{-}cca2}}(\mathcal A)
+= \left|\Pr[b' = b] - \frac{1}{2}\right|.
+$$
+
+The reduction simulates the public key and random oracle. A successful distinction between the challenge key and rejection either distinguishes FO re-encryption or breaks derived-key pseudorandomness. Decryption failure is charged to the PKE error bound. The attacker becomes a weaker solver, so parameters must control the advantage loss. <Cite id="fujisaki-okamoto2013" locator="Vol. 26, pp. 80–101" /> <Cite id="hofheinz2017" locator="pp. 341–371" />
+
+Replaying a valid ciphertext returns the same secret, so the protocol needs its own nonce or sequence number. A wrong secret key usually produces rejection, with failure visible only at the later AEAD tag. Malformed lengths must share that observable path. Never reuse encapsulation randomness: deterministic encapsulation to a static key relates messages even with fresh AEAD nonces.
+
+EUF-CMA does not authenticate the intended signer if a protocol selects keys through an unauthenticated identifier. Canonicalise the message and bind its context and key-selection path. Fiat–Shamir also needs a correct rejection sampler: secret-dependent changes to the visible distribution break transcript simulation and the security argument. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
+
+
 </Lens>
 
 <Lens level={4} title="Interfaces, encoding and constant-time glue">
@@ -239,10 +310,72 @@ Hybrid constructions need domain separation and a sound combiner. Follow RFC 918
 6. Test known-answer vectors, negative cases and cross-implementation interoperability.
 7. Document the security level, parameter set and migration path for each key.
 
+## Build assurance around the API
+
+An adapter should own parameter validation, canonical serialisation and backend selection. Separate operations so access policy can differ: a signing HSM may permit Sign without export, while verifiers run in software. Keep algorithm identifiers in versioned metadata, not inferred from length.
+
+Benchmark the limiting operation. Boot may care about verification, a certificate authority about signing, and a relay about decapsulation memory. Measure cold and warm paths, allocation, queueing and failure cost. Polynomial arithmetic and its number-theoretic transform strongly affect speed and memory. <Cite id="fips203" locator="§4.3" /> A fast backend is not automatically safe.
+
+Test positive vectors, truncated and extended inputs, swapped fields, non-canonical coefficients, wrong keys, duplicates and random fuzzing. Cross-check two independent implementations. Interrupt signing and decapsulation to detect partial-secret or distinguishable-result leaks. Measure timing and, where warranted, power or electromagnetic traces; constant-time source alone does not prove resistance. <Cite id="fips203" locator="§3.3" /> <Cite id="fips204" locator="§3.6" />
+
+Pin a reviewed provider and record its validation evidence, while keeping a switchable second implementation. Retain old decapsulation keys until dependent archives expire, and old verification keys for their artifacts’ authenticity lifetime.
+
 <Callout variant="warning" title="A KEM is not a drop-in RSA replacement">
 Protocols must define how the ciphertext and shared secret are carried, how identities are bound and how failures are handled. A library swap is not a protocol migration.
 </Callout>
 </Lens>
+
+
+## Common failure modes
+
+| Failure mode | Root cause | Impact |
+| --- | --- | --- |
+| Encryption mistaken for authentication | KEM assumed to identify the sender | Confidential but unauthenticated messages |
+| Distinct decapsulation errors | Malformed and rejection paths differ | Chosen-ciphertext oracle |
+| Unlabelled hybrid concatenation | Components and suite are not identified | Cross-protocol substitution |
+| Encapsulation randomness reused | Static or cloned RNG state | Related shared secrets |
+| Wrong key selected | Key identifier is unauthenticated | Ciphertext opens under an attacker key |
+| Wrong signature context | Message or key path is not bound | Forgery of another protocol meaning |
+| Static keys retained forever | No expiry or compromise procedure | Long-lived decryption exposure |
+| Reference code promoted | Workbench mistaken for hardened provider | Side channels and parser bugs |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Peers derive different keys | Suite, order or context differs | Compare non-secret metadata with a known transcript |
+| Altered ciphertexts return error codes | Parse and re-encryption failures differ | Use implicit rejection and one outcome |
+| Signatures fail on one backend | Hint or coefficient encoding differs | Validate lengths against standard vectors |
+| Hybrid fails through a gateway | Buffers or opaque fields truncate it | Measure maximum encodings and update framing |
+| Invalid inputs collapse throughput | Costly decoding precedes length checks | Reject impossible lengths first |
+| Old archives stop opening | Private keys were destroyed early | Retain versioned keys through ciphertext expiry |
+
+## Design review checklist
+
+- [ ] The required notion is explicit: IND-CCA2, EUF-CMA, or both.
+- [ ] Public keys and key-selection identifiers are authenticated.
+- [ ] The suite fixes KEM, KDF, AEAD, parameters and mode.
+- [ ] Hybrid labels, ordering and domain separation are specified.
+- [ ] Encapsulation randomness is fresh; failure is fatal.
+- [ ] Decapsulation is deterministic, total and implicitly rejecting.
+- [ ] Encodings are canonical and length-checked.
+- [ ] Signatures bind message, version and identity context.
+- [ ] Two implementations pass shared positive and negative vectors.
+- [ ] Secret-dependent branches and variable-time arithmetic were reviewed.
+- [ ] Maximum objects fit every buffer, transport and HSM command.
+- [ ] Retention, compromise recovery and migration are documented.
+
+<GuidedWorkshop
+  id="asymmetric-primitives-workshop"
+  title="Design an authenticated research file-drop"
+  scenario="A laboratory sends experiment results to partner institutes. Files must stay confidential for ten years, senders must be attributable, and recipients should not learn each other’s private keys. The transport uses 4 KiB UDP datagrams, one partner HSM accepts 1 KiB commands, and a previous prototype reused its KEM random seed after every process restart."
+  tasks={["Specify the required confidentiality and authenticity properties.", "Choose a KEM, signature scheme and protocol mode for the file-drop.", "Size one six-byte control message and redesign transport framing for the chosen objects.", "Design key generation, rotation, archive retention and restart-safe randomness.", "Write positive, negative and interoperability tests that exercise failure paths."]}
+  hints={["A KEM protects a shared key; it does not prove who sent a file.", "Authentication mode in HPKE addresses recipient authentication, while sender attribution needs additional key evidence.", "Add 1,088 bytes of ML-KEM ciphertext, 22 bytes of sealed control data and a 3,309-byte ML-DSA signature.", "A process restart must never restore an old RNG or encapsulation state.", "Malformed ciphertexts should not be distinguishable from valid ciphertexts that fail the AEAD check."]}
+  solution={["Require IND-CCA2 confidentiality against an active network attacker and EUF-CMA authenticity for control messages. Bind recipient, sender, file identifier, version and transcript hash. Decapsulation keys and ciphertext metadata must remain usable for the ten-year archive, beyond ordinary credentials and process lifetimes.", "Use ML-KEM-768 for establishment and ML-DSA-65 for attributable controls, retaining a protocol-defined hybrid if needed. Resolve recipient keys through an authenticated directory, use an authenticated HPKE-style mode, and sign the sender identity in the control transcript. The HSM must support the larger operation or a supported assembly path; never truncate signatures.", "Six plaintext bytes become 22 bytes under a 16-byte-tag AEAD. With the 1,088-byte ML-KEM ciphertext, that is 1,110 bytes. Adding a 3,309-byte signature gives at least 4,419 bytes, exceeding the 4,096-byte datagram. Send a signed control fragment set, then data fragments, with lengths, sequence numbers and a transcript digest.", "Obtain fresh randomness from the OS or approved hardware on every boot and fail closed without entropy. Never persist an encapsulation RNG stream. Wrap recipient decapsulation keys with a long-lived KEK, retain versioned private keys for the archive period, and rotate signing keys on schedule and after compromise. The 1 KiB HSM limit requires supported streaming or host-side assembly.", "Run component vectors and exchange full transcripts between two implementations. Flip lengths, sequence numbers, ciphertext, signature and context; test wrong keys, duplicates, reordering, truncation and noise. Malformed KEM inputs and bad AEAD tags must share one external outcome. Restart processes mid-run and confirm fresh encapsulation randomness and intact archive keys."]}
+  takeaway="The security notion determines the composition; realistic object sizes and failure behaviour determine whether that composition can ship."
+/>
+
+The sizes used in the workshop follow the standardised ML-KEM-768 and ML-DSA-65 parameter sets, and the KEM-plus-AEAD pattern follows HPKE. <Cite id="fips203" locator="Table 3" /> <Cite id="fips204" locator="§4" /> <Cite id="rfc9180" locator="§4–5" />
 
 
 ## Key takeaways

@@ -5,8 +5,9 @@ subtitle: "What a sensor can see, what TLS hides, and why packet-level detection
 track: "Network & Protocol Security"
 order: 7
 difficulty: "Intermediate"
-readingTime: 20
+readingTime: 75
 summary: "Follow packets through capture, decode, flow reconstruction, detection and action, then examine the limits and risks of DPI under modern encryption."
+outcomes: ["Trace packets through capture, decode, flow, detection and action.", "Explain what TLS 1.3 hides and what metadata remains observable.", "Design signature and anomaly detections with base-rate awareness.", "Evaluate inline versus passive deployment, evasion, privacy and performance."]
 citations: ["sp800-94", "zeek", "suricata", "rfc7011", "rfc5424", "rfc8446"]
 tags: ["network", "dpi", "ids", "monitoring"]
 prerequisites: ["tls-pki"]
@@ -48,6 +49,16 @@ When payloads disappear, defenders move to flow behaviour, DNS and TLS metadata,
 A passive sensor on a mirrored port sees packet headers: source and destination addresses, ports, protocol, TCP flags, sequence numbers and timing. If the application is plaintext HTTP, it can also see the request line, headers and body. If the application is TLS 1.3, it sees a handshake and then encrypted records; the payload is opaque.
 
 That difference changes the detection strategy. A plaintext signature can look for `GET /admin`; an encrypted sensor must reason about the flow, the TLS metadata, the endpoint and the identity. It can still detect a compromised host calling a suspicious destination, but it may not know what was sent.
+
+### Threat model and incentives
+
+Start with the defender's questions. Is the objective to stop malware before execution, detect command-and-control after execution, prevent regulated data leaving the network, or reconstruct an incident? A hospital infusion-pump network, a public web tier and a research subnet need different placement and retention rules. The monitored assets include availability, patient safety, confidential records and the sensor's own parser memory. A false positive that disconnects a clinical device is not merely annoying; it can interrupt care.
+
+The active attacker wants to complete an objective without producing an interpretable alert. Encryption, fragmentation and protocol tunnelling increase the defender's uncertainty, while timing jitter and benign-looking destinations increase investigation cost. The attacker cares about time-to-detect and can rotate infrastructure cheaply. The defender cannot inspect every payload indefinitely, so its incentive is to collect high-value metadata, prioritise by asset risk and automate evidence gathering. A passive observer may infer behaviour without attacking; interception raises the privacy and legal risk for the defender itself.
+
+Several misconceptions distort design. A firewall is not a DPI sensor: port-and-protocol access control does not reconstruct application behaviour. A flow record is not a packet capture: it cannot support arbitrary content signatures. TLS 1.3 does not hide every useful field: addresses, ports, record sizes, timing and often SNI remain visible. Conversely, metadata does not prove malicious content: a large encrypted upload can be a backup or exfiltration. Finally, a detection that fires correctly in a replay lab may fail in production if the parser sees different tunnel, fragmentation or routing conditions.
+
+Write the visibility contract as a table: observable field, collection point, permitted use, retention and sensitivity. State where the design must use endpoint or identity telemetry instead. This prevents the team from promising payload inspection on an encrypted path and clarifies whether TLS interception is even an acceptable control.
 </Lens>
 
 <Lens level={2} title="Capture, decode, flow, detect, action">
@@ -104,6 +115,51 @@ Detection engineering is an arms race; test evasions, not only known samples.
 A plaintext HTTP request to `/admin` reveals the method, path, headers and body. A signature can match the path and the user agent. A TLS 1.3 connection to the same server reveals a handshake and encrypted records; the sensor may see the SNI, certificate and flow shape, but not `/admin`.
 
 If the endpoint is compromised, EDR telemetry may show the process and command line even when the network payload is opaque. If the endpoint is not instrumented, the defender must rely on flow behaviour, DNS and authentication logs. No single sensor tells the whole story.
+
+### Reconstruct a conversation, not a packet
+
+A stateful sensor joins packets by addresses, ports, protocol and TCP sequence space. It must tolerate retransmissions without applying a signature twice, handle out-of-order segments without losing context and avoid confusing a new connection that reuses a port with an old one. Consider a TLS connection over IPv4 with an Ethernet MTU of 1,500 bytes. After 20-byte IP and 20-byte TCP headers, the usual maximum segment payload is 1,460 bytes, before options reduce it further.
+
+<WorkedExample
+  title="Segment a hybrid TLS ClientHello"
+  steps={[
+    "A TLS handshake message contains 517 bytes of surrounding handshake fields plus an X25519MLKEM768 key-share entry of about 1,220 bytes.",
+    "The total handshake message is therefore about 1,737 bytes before any additional extensions.",
+    "With an effective TCP payload capacity of 1,460 bytes, the first segment carries at most 1,460 bytes.",
+    "The remaining 277 bytes must arrive in a later segment; a sensor matching only the first packet cannot evaluate a pattern spanning the boundary.",
+    "Reassembly tracks handshake length, record boundaries and TCP sequence numbers, then presents the complete logical message to protocol-aware detection."
+  ]}
+  result="Content detection must operate on the reconstructed stream. Packet-only matching both misses split patterns and creates false confidence when one fragment looks benign."
+/>
+
+The sensor records connection state and structured events: endpoints, TLS version, visible server name, certificate metadata, byte and packet counts, duration and close reason. Zeek exposes protocol semantics; Suricata matches protocol fields and reconstructed bytes. <Cite id="zeek" locator="Scripting and protocol parsers" /> <Cite id="suricata" locator="Rules, eve JSON output and flow handling" /> IPFIX flow export reduces storage but discards content needed for later analysis. <Cite id="rfc7011" locator="§3–5" />
+
+<ProcessFlow
+  steps={[
+    {title: "Capture", detail: "Copy traffic from a representative tap, mirror or host hook and count every drop.", tone: "brand"},
+    {title: "Decode", detail: "Parse link, tunnel, IP and transport fields while validating lengths.", tone: "teal"},
+    {title: "Reassemble", detail: "Track state, order segments and reconstruct streams across packets.", tone: "gold"},
+    {title: "Detect", detail: "Apply signatures, protocol checks, flow features and threat context.", tone: "coral"},
+    {title: "Enrich", detail: "Attach asset, identity and endpoint evidence with consistent timestamps.", tone: "brand"},
+    {title: "Act", detail: "Alert passively or enforce inline under an explicit failure policy.", tone: "teal"}
+  ]}
+/>
+
+Assign each rule a data requirement, direction, asset scope, response and owner. A rule needing decrypted HTTP cannot run on an encrypted backbone without approved interception. Scope exceptions narrowly by asset and protocol, preserve their justification and set expiry dates.
+
+<WorkedExample
+  title="Precision of a rare-attack detector"
+  steps={[
+    "Assume attack prevalence pi equals 0.001, sensitivity p equals 0.9 and false-positive rate q equals 0.01.",
+    "Among one million events, about 1,000 are attacks and 999,000 are benign.",
+    "True alerts number about 900; false alerts number about 9,990.",
+    "Precision is 900 divided by 10,890, or about 8.26%.",
+    "Reducing q to 0.001 yields about 999 false alerts and precision of 900 divided by 1,899, or about 47.4%."
+  ]}
+  result="At low prevalence, a tenfold reduction in false-positive rate matters more than a modest sensitivity increase. Alert capacity is part of detector design."
+/>
+
+Handle each stage explicitly. Capture overflow increments a monitored counter and invokes the inline fail policy. Parser failure quarantines the event rather than treating it as safe. Bound reassembly memory and time. Detection-engine failure follows authorised policy, and event metadata records whether traffic was inspected, sampled, dropped or unsupported.
 </Lens>
 
 <Lens level={3} title="Detection is classification under base rates">
@@ -163,6 +219,30 @@ These features support hunting and triage, but they rarely prove content-level m
 
 <Callout variant="lab" title="Normalise before you match">
 A signature that works on one parser can fail on another because of encoding, case, chunking or normalisation. Document the parser and the normalisation assumptions with the rule.
+
+### Formal detection model
+
+Let $X$ be an event, $Y\in\{0,1\}$ indicate an attack and $D$ indicate an alert. Sensitivity is $p=\Pr(D=1\mid Y=1)$; false-positive rate is $q=\Pr(D=1\mid Y=0)$; specificity is $1-q$. Bayes' rule gives precision as before. The expected number of false alerts over a period is
+
+$$
+E[F] = N(1-\pi)q,
+$$
+
+where $N$ is the number of evaluated events and $\pi$ is attack prevalence. If a sensor evaluates ten million flows per day with $q=0.001$, that is about 10,000 false alerts per day before correlation. Grouping, suppression and tuning are therefore part of the mathematical model, not cosmetic SIEM changes.
+
+A likelihood-ratio detector scores $L(x)=p(x\mid Y=1)/p(x\mid Y=0)$ and alerts above a threshold. Raising it reduces false alerts and true alerts, producing an ROC trade-off. Choose the threshold from the costs of missed attacks, investigations and blocked legitimate traffic. Accuracy is unsuitable because benign events dominate; laboratory precision does not transfer automatically to a rarer population.
+
+The Bayesian calculation assumes representative samples, stable prevalence and meaningful conditional probabilities. Correlated alerts violate independence: one compromised host may produce many detections of one incident. Endpoint compromise changes observations, and attackers can shift traffic distributions. Recompute metrics by asset class and time window, separating event-level from incident-level precision.
+
+### Correctness of parsing and limits of encrypted evidence
+
+For signature detection to be sound, the reconstructed byte string presented to the rule must be equivalent to the application's interpretation under the protocol version being inspected. Otherwise fragmentation, character encoding or decompression can make two different payloads look identical to the sensor. Treat normalisation as a specification with tests. Bound decompression ratios, recursion and buffer sizes; a parser that allocates unbounded memory creates a denial-of-service path independent of the attack signature.
+
+TLS 1.3 protects record payload confidentiality and integrity under the negotiated keys. <Cite id="rfc8446" locator="§5" /> A passive observer cannot verify a claim about plaintext content from ciphertext alone. Metadata-based detection is therefore a probabilistic inference over features such as timing, size and destination, not a proof of content. Two applications can intentionally produce identical flow shapes; a benign software updater can mimic beaconing; a CDN can host many destinations behind one address. Report confidence and supporting evidence rather than upgrading correlation into certainty.
+
+Flow features need their own units and assumptions. Periodicity can be estimated from inter-arrival gaps, but network queuing adds jitter. Volume anomalies require a baseline for the asset and time of day. Directionality helps distinguish uploads from downloads, but NAT and proxies alter endpoints. The design should specify the feature window, minimum packet count, treatment of retransmissions and missing samples. Without those choices, the same detection produces inconsistent results across sensor software.
+
+Evasion analysis compares the attacker's possible transformations with the detector's normalisation. If the parser understands gzip, the attacker can still exploit unsupported compression, nested archives or decompression errors. If a rule matches a header split across TCP segments, stream reassembly closes that gap but introduces state-exhaustion risk. Encryption removes the gap only by removing visibility. A defensible detection portfolio combines payload inspection where lawful and available, protocol validation, endpoint telemetry and identity-aware correlation so that one bypass does not erase every signal.
 </Callout>
 </Lens>
 
@@ -238,12 +318,104 @@ Packet capture can contain credentials, personal data and regulated content. Def
 - Forgetting retention, privacy and access control for captured payload.
 - Enabling inline blocking before measuring false positives.
 - Assuming a signature still covers a protocol after a version upgrade.
+
+### Deployment patterns and capacity planning
+
+A passive tap cannot interrupt production traffic. Mirror a representative link, but verify both directions and avoid oversubscribing the sensor. An eBPF host sensor sees endpoint flows a network tap may miss, but consumes host resources and inherits the host's integrity assumptions. An inline IPS can block in real time, yet turns parser bugs, stale rules and hardware failure into availability incidents.
+
+Plan capacity from packets per second and bytes per second, not link utilisation alone. Small packets consume more per-packet work; fragmented traffic, TLS handshakes and rule count increase cost. If a 10 Gb/s link carries 64-byte frames, it presents about 14.88 million frames per second before overhead. A sensor rated for a certain packet rate may saturate on small-packet traffic even when its byte throughput appears adequate. Benchmark the rule set, flow-table size, capture filters and logging destination together.
+
+Use hardware offload and kernel bypass where measured, but keep a functional reference path for debugging. Flow-table timeout and maximum-flow settings affect memory: too low creates churn and missed state; too high permits resource exhaustion. If full packet capture is required, capture around alerts or store a bounded rolling window rather than every payload indefinitely. Protect captures as sensitive data with encryption, access logging and deletion schedules.
+
+### Observability and testing
+
+Monitor NIC and kernel drops, capture-ring overruns, parser errors, reassembly failures, flow-table utilisation, detection latency, rule evaluation time and output-queue backpressure. Compare packet counters at the tap, sensor and collector; a sensor can report healthy while losing traffic upstream. Include sensor software version, ruleset hash and last successful heartbeat in every alert. Log action outcomes separately: an inline block attempt is not proof that traffic stopped.
+
+Test with replayed benign traffic, known-malicious samples and attacker-controlled evasions. Vary MTU, fragmentation, TCP options, out-of-order delivery, retransmissions, tunnels, compression and protocol versions. For an inline deployment, test fail-open and fail-closed with real failover hardware and confirm that recovery does not flap. Measure the false-positive cost on critical assets before enabling automatic blocking.
+
+1. Define the detection question and acceptable response for each network zone.
+2. Verify capture coverage in both directions and measure loss under peak small-packet load.
+3. Document protocol versions, tunnel types and normalisation assumptions for every rule.
+4. Set bounded reassembly, decompression and flow-table resources.
+5. Establish the base rate and measure precision by asset class.
+6. Correlate network events with identity and endpoint evidence using synchronised time.
+7. Define retention, access, encryption and deletion for payload captures.
+8. Benchmark worst-case packet rate, rule set and log throughput.
+9. Rehearse inline failure, bypass and rollback without disrupting critical services.
+10. Retest coverage after protocol, proxy, TLS or routing changes.
 </Lens>
 
+
+## Guided workshop: encrypted beaconing in a hospital
+
+A passive sensor sees a clinical workstation contact the same unfamiliar IP address every 62 seconds. Each connection lasts about four seconds, uploads roughly 8 KB and downloads 200 bytes. The destination uses TLS 1.3 with a recently issued certificate. Endpoint telemetry is available but delayed by twenty minutes. The workstation belongs to a radiology scheduling application, and the network team can place a targeted inline rule in front of that VLAN.
+
+<GuidedWorkshop
+  id="deep-packet-inspection-workshop"
+  title="Decide whether to observe, contain or block"
+  scenario="Distinguish a likely beacon from a legitimate polling service using metadata, endpoint evidence and asset criticality. The sensor cannot inspect TLS payload, and a wrong inline action could interrupt clinical scheduling."
+  tasks={[
+    "List the observable flow and TLS features and separate them from assumptions about content.",
+    "Calculate a beacon-score feature set with a window, periodicity tolerance and minimum sample count.",
+    "Enrich the event with DNS, certificate, asset-owner and endpoint evidence.",
+    "Choose passive, human-approved or automatic action and state the failure policy.",
+    "Design tests that show the detection works despite TLS, jitter and legitimate polling."
+  ]}
+  hints={[
+    "Regularity, fixed size and an external endpoint support a hypothesis but do not prove command-and-control.",
+    "Define jitter as a percentage or bounded milliseconds and require several intervals before scoring.",
+    "Certificate age is weak evidence; combine it with destination ownership and process identity.",
+    "Clinical asset criticality argues for rapid human-approved containment over an untested automatic rule.",
+    "Include a legitimate software updater with similar timing to measure the false-positive rate."
+  ]}
+  solution={[
+    "The sensor can observe source and destination addresses and ports, TLS version, visible SNI, certificate issuer and validity dates, connection duration, packet counts and directional byte totals. It cannot see the HTTP path, command channel or uploaded file. The approximately 62-second interval, four-second duration and 8 KB upload are behavioural features. Recent certificate issuance and an unfamiliar destination increase priority, but both have benign explanations.",
+    "Collect at least twelve successful connections in a fifteen-minute window. Compute the mean inter-arrival interval, standard deviation and the fraction of intervals within plus or minus three seconds of the median. Also record the median upload and download sizes. A plausible beacon score requires at least ten of twelve intervals inside the tolerance and upload-size variation below 20%. This is a screening rule, not a content verdict; retransmissions and connection failures must be excluded consistently.",
+    "Resolve historical DNS records, inspect certificate transparency-style metadata where available through existing tooling, and ask the asset owner which service should poll externally. Join the network event to process-creation and network-connection telemetry from the workstation. If the endpoint shows a radiology service making the connection and the destination is vendor-owned, the event may be benign. If the process is a scripting interpreter or a browser launched by an unexpected parent, escalate immediately.",
+    "Begin with passive alerting and request accelerated endpoint review. Because clinical scheduling matters, a trained analyst should approve isolation after corroboration rather than allowing a low-specificity timing rule to block automatically. If endpoint evidence confirms compromise, isolate the host through a tested mechanism, preserve volatile evidence and provide a documented clinical fallback. The inline sensor itself should fail open for this VLAN unless a separately approved safety policy requires otherwise.",
+    "Replay normal polling traffic, jittered command-and-control, short scans and long-lived TLS sessions through the same parser and rule path. Verify detection across TCP segmentation and MTU changes. Measure false alerts per thousand workstation-hours and time to enrichment, not only whether one malicious sample fires. Tune the tolerance and asset scope, document the residual encrypted-content uncertainty and add endpoint confirmation as the primary high-confidence response path."
+  ]}
+  takeaway="Encrypted visibility supports prioritisation, not certainty. Combine bounded behavioural features with endpoint identity and an asset-aware response policy."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Silent capture loss | Fewer events than interface counters suggest | SPAN oversubscription or full capture ring | Compare counters at every hop and alert on drops |
+| Stream mismatch | Rule fires inconsistently on equivalent traffic | Parser normalisation differs from application | Version parsers and test encodings and fragmentation |
+| Alert flood | Most alerts are benign deployments | Rare base rate and broad rule scope | Measure precision, group events and narrow exceptions |
+| Inline outage | Legitimate clinical or business traffic drops | Untested false positives or fail policy | Passive tuning and approved containment workflow |
+| Reassembly exhaustion | Sensor memory spikes on crafted fragments | Unbounded state and decompression | Cap buffers, ratios, flow counts and timeouts |
+| Encryption overclaim | Team believes payload is inspected | TLS termination or visibility not documented | Publish a per-zone visibility contract |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Interface looks idle | Wrong SPAN direction or VLAN filter | Validate capture with controlled packets on both directions |
+| Rule misses a known sample | Pattern spans segments or uses an unexpected encoding | Replay through stream reassembly and inspect normalised bytes |
+| Sensor CPU pegs under small packets | Per-packet rule and flow overhead | Profile hot rules, adjust capture filters and right-size capacity |
+| Endpoint and network times disagree | Unsynchronised clocks or proxy rewrites | Record event and ingestion time; fix NTP and document proxy boundaries |
+| Inline deployment blocks backups | Broad signature matches an expected data transfer | Add asset-scoped exception with owner, expiry and monitoring |
+| TLS flows lack expected metadata | Encrypted ClientHello or proxy termination | Inspect negotiation support and correlate at proxy or endpoint |
+
+## Design review checklist
+
+- [ ] Each network zone has a documented visibility and response contract.
+- [ ] Capture loss, parser failures and output backpressure are measurable end to end.
+- [ ] Rules identify protocol version, direction, fields and normalisation assumptions.
+- [ ] Reassembly, decompression and flow-table resources are bounded.
+- [ ] Base rate, precision and investigation cost are measured by asset class.
+- [ ] Encrypted detection is described as inference with explicit uncertainty.
+- [ ] Inline fail-open or fail-closed behaviour is approved and rehearsed.
+- [ ] Payload retention, access and deletion satisfy privacy and legal requirements.
+- [ ] Evasion tests cover fragmentation, tunnelling, encoding and jitter.
 
 ## Key takeaways
 
 - DPI provides visibility, not omniscience; encryption changes what is observable.
+
 - Capture, decode, flow and detection each have distinct failure modes.
 - Detection quality is a function of base rates and response cost, not just accuracy.
 - Inline blocking trades availability risk for control.

@@ -5,8 +5,9 @@ subtitle: "Why lattice schemes spend most of their cycles turning polynomial mul
 track: "Post-Quantum Cryptography"
 order: 11
 difficulty: "Advanced"
-readingTime: 22
+readingTime: 90
 summary: "From negacyclic convolution to the incomplete NTT used by ML-KEM, with a runnable coefficient-level lab and the implementation tricks that make it fast."
+outcomes: ["Multiply polynomials in a negacyclic ring and explain the wrap-around sign.", "Derive the negacyclic NTT and its inverse from evaluation/interpolation.", "Explain why ML-KEM uses an incomplete NTT and base-case multiply.", "Analyse Barrett/Montgomery reduction, SIMD layout, memory and constant-time constraints."]
 citations: ["fips203", "kyber-spec", "longa2016", "harvey2014", "lpr2010", "lpr2013-toolkit", "peikert2016", "montgomery1985", "liboqs"]
 tags: ["ntt", "lattice", "arithmetic", "implementation"]
 prerequisites: ["asymmetric-primitives"]
@@ -54,6 +55,18 @@ For ML-KEM-768, one encapsulation or decapsulation runs several NTTs and point-w
 For $n=256$, naive negacyclic multiplication needs about $256^2 = 65{,}536$ coefficient products. ML-KEM performs several such products per encapsulation or decapsulation, so the naive approach would dominate the CPU budget. The NTT reduces the transform and point-wise work to a few thousand butterflies, then a small base-case multiply.
 
 The speed-up is not only asymptotic. The transform's memory access pattern is regular enough to vectorise, while the schoolbook product has a much larger working set and more multiplications per output.
+
+## The engineering threat model
+
+The primary failure is usually not a cryptanalyst attacking the transform. It is a correct-looking implementation computing the wrong ring product, overflowing a lane, or using an unreduced public value where the standard requires a canonical representative. A single wrong twiddle can produce a polynomial that still has the right length and passes superficial checks but changes every key or ciphertext derived from it. In a KEM, that means honest parties may fail to agree; in a signature, it can mean invalid signatures or unsafe secret distributions if the error affects rejection logic.
+
+Use a concrete firmware scenario. A device library switches from a scalar NTT to an AVX2 implementation. Interoperability fails only for keys with certain coefficient patterns. The defender's first goal is algebraic equivalence: for every input, the new routine must return exactly the coefficients of the specified ring product. The second goal is bounded arithmetic: no intermediate may overflow its chosen word or lane type. The third goal is constant-time execution: the access pattern and correction decisions must not depend on secret coefficients.
+
+An attacker in this setting may submit malformed public keys or ciphertexts, tamper with firmware, or induce faults during decapsulation. The arithmetic implementation should reject non-canonical encodings before transform routines expand their scope. However, an NTT is a computational representation, not an authentication mechanism. It neither detects tampering nor makes a malformed polynomial safe.
+
+Misconceptions are expensive here. An NTT does not eliminate modular reduction; it changes where reduction is needed. A full transform is not automatically more correct than an incomplete one; correctness comes from implementing the ring isomorphism and the residual multiplication. Equal timing on one benchmark does not establish constant time, because secret-dependent branches can be absent from that input set while present in the code. Finally, a transform round-trip checks only part of the system: forward and inverse routines can share the same inverse bug and still cancel.
+
+Define invariants before optimising. Every coefficient has a documented range, every twiddle has a documented order, and every in-place stage has a documented layout. Keep a slow schoolbook multiplier as an oracle. Test products against that oracle before comparing speed, and keep the oracle in the test harness even after the optimised path becomes the default.
 </Lens>
 
 <Lens level={2} title="Inside the ring and the butterfly network">
@@ -114,6 +127,58 @@ $$
 Naive convolution gives coefficients $1,4,10,20,25,24,16$ before reduction, then the negacyclic wrap subtracts the terms of degree $\ge 4$ from the low coefficients. The result is exact but requires 16 products. The NTT computes the same result with two butterfly layers and point-wise products.
 
 The interactive diagram on this page lets you step through the pre-twist, bit reversal and butterflies for a four-coefficient ring. The same structure scales to 256 coefficients; only the tables and loop bounds change.
+
+## A coefficient-level walkthrough
+
+Start with the negacyclic identity $X^n=-1$. For each pair $i,j$ with $0\le i,j<n$, the product $a_i b_j X^{i+j}$ contributes with a plus sign if $i+j<n$ and a minus sign if $i+j\ge n$. Accumulating into 256 bins is simple but does $n^2$ modular multiplications. Reducing every accumulation immediately costs more divisions than reducing once at the end with a proven bound.
+
+The transform first changes the order of coefficients according to the butterfly network, often through bit reversal or a decimation-in-time/decimation-in-frequency convention. Each butterfly reads two values, multiplies one by a twiddle, and writes a sum and difference. The twiddle is public, so its table lookup is safe; the coefficients are secret, so their values must never select a table entry.
+
+For the ML-KEM incomplete NTT, seven radix-2 layers produce 128 blocks of two coefficients. In each block, multiplication still obeys the original ring. If the block basis is $1,X$ and $X^2=\zeta$, then
+
+$$
+(a_0+a_1X)(b_0+b_1X)=a_0b_0+\zeta a_1b_1+(a_0b_1+a_1b_0)X.
+$$
+
+This base-case formula is where the last twiddle is applied. It requires three ordinary field products after the shared product $a_0b_0$ and $a_1b_1$ are computed, or four without a Karatsuba-style optimisation. Omitting the $\zeta$ term is equivalent to using a cyclic relation and changes the scheme's ring.
+
+<WorkedExample
+  title="Negacyclic wrap-around in a four-coefficient ring"
+  steps={[
+    "Square a = (1, 2, 3, 4) in the field modulo 17. Ordinary convolution produces (1, 4, 10, 20, 25, 24, 16).",
+    "Terms of degree at least 4 wrap with a minus sign: c0 = 1 - 25 = -24, c1 = 4 - 24 = -20 and c2 = 10 - 16 = -6.",
+    "Reduce each result modulo 17: c0 = 10, c1 = 14, c2 = 11 and c3 = 20 mod 17 = 3.",
+    "As a check, X^4 = -1 modulo 17; treating degree 4 as positive instead would incorrectly leave 25 and 24 in the low coefficients."
+  ]}
+  result="The negacyclic square is (10, 14, 11, 3), not the unmodified convolution. The negative wrap is part of the multiplication definition, not a later correction."
+/>
+
+<WorkedExample
+  title="A complete toy NTT multiplication over the field modulo 17"
+  steps={[
+    "Use n = 4, primitive eighth root psi = 2 and omega = psi squared = 4. Transform a = (1, 2, 3, 4) at the points 2, 8, 15 and 9.",
+    "The evaluations are a-hat = (15, 13, 11, 16). Point-wise squaring gives (4, 16, 2, 1) modulo 17.",
+    "For inverse coefficient j = 0, sum the point-wise products to get 4 + 16 + 2 + 1 = 6 modulo 17. Multiply by n inverse = 13 and psi inverse to the j = 0 power = 1, giving 10.",
+    "For j = 2, the weighted sum is 4 + 16 times 16 + 2 + 16 = 6 modulo 17. The factors are psi inverse squared = 13 and n inverse = 13, so the coefficient is 6 times 13 times 13 = 11 modulo 17.",
+    "Computing the remaining inverse coefficients gives (10, 14, 11, 3), matching schoolbook negacyclic multiplication."
+  ]}
+  result="Evaluation, point-wise multiplication and interpolation agree exactly. The example is small enough to check by hand, but the same identity drives the 256-coefficient implementation."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Encode", detail: "Parse canonical 12-bit coefficients and establish each value's range.", tone: "brand"},
+    {title: "Transform", detail: "Apply the specified twiddles and seven butterfly layers to each polynomial.", tone: "brand"},
+    {title: "Reduce", detail: "Use Barrett or Montgomery arithmetic with proven intermediate bounds.", tone: "brand"},
+    {title: "Multiply", detail: "Multiply corresponding NTT lanes and complete each residual degree-one block.", tone: "brand"},
+    {title: "Invert", detail: "Apply inverse twiddles, multiply by n inverse and restore canonical coefficients.", tone: "brand"},
+    {title: "Check", detail: "Compare random products with the schoolbook oracle before benchmarking.", tone: "brand"}
+  ]}
+/>
+
+ML-KEM coefficients are encoded in 12 bits because $3329<2^{12}$. A decoder should accumulate the specified number of bytes, verify the input length, mask unused bits where the standard requires it, and reject a decoded value at least $q$. A transform can reduce any field representative to the same value, so it must not become a permissive substitute for parsing. Similarly, an output encoder must write the canonical representative rather than an arbitrary congruent integer.
+
+A useful laboratory exercise is to replace one twiddle with its negative. A round-trip through forward and inverse transforms using that same wrong table may still look plausible for selected inputs, while multiplication disagrees with schoolbook convolution. This demonstrates why oracle tests need independent operations rather than only inverse-pair consistency.
 </Lens>
 
 <Lens level={3} title="Evaluation at odd powers and the correctness identity">
@@ -185,6 +250,34 @@ $$
 Multiplication in the evaluation domain is point-wise, and the inverse transform interpolates back. The Chinese Remainder Theorem explains why the transform is a ring isomorphism: the polynomial ring splits into a product of smaller fields (or degree-two factors in the incomplete case).
 
 The incomplete NTT stops at degree-one factors because a 256-point negacyclic transform would require a primitive 512th root, which $\mathbb{Z}_{3329}$ does not contain. The 2×2 base-case multiply is not an approximation; it finishes the last layer exactly.
+
+## The algebra behind the butterflies
+
+When a primitive $2n$-th root $\psi$ exists, evaluation at $\psi^{2k+1}$ is injective on degree-less-than-$n$ polynomials. To see this, evaluate the transform at two roots and take a linear combination that isolates a coefficient using the inverse matrix. The matrix entries form a Vandermonde matrix on distinct points, so its determinant is nonzero. The displayed inverse is therefore exact, not an approximate FFT.
+
+The relation $X^n+1$ explains the odd powers. If $\alpha=\psi^{2k+1}$, then $\alpha^n=-1$. Reducing a product modulo $X^n+1$ preserves evaluation at every such $\alpha$, because replacing $X^n$ by $-1$ does not change the value at $\alpha$. Point-wise multiplication followed by inverse interpolation must consequently return the unique reduced polynomial. This is a direct correctness proof and also explains why using an even power of $\psi$ computes the wrong cyclic relation.
+
+The Chinese remainder view makes the incomplete case precise. Over $\mathbb{Z}_{3329}$,
+
+$$
+X^{256}+1=\prod_{j=0}^{127}(X^2-\zeta^{2j+1}),
+$$
+
+where $\zeta=17$ has order 256 and $\zeta^2$ has order 128. Each quadratic factor has distinct roots because the characteristic is odd. The ring is therefore a product of 128 quadratic extension rings, not a product of 128 copies of the base field. Seven butterfly layers reduce each polynomial to the quadratic factors; the final two-coefficient multiply handles each extension ring. This is why an incomplete transform is still a ring isomorphism. <Cite id="fips203" locator="§4.3.1" />
+
+Reduction must preserve the same arithmetic with bounded intermediates. Barrett reduction precomputes a reciprocal of $q$ and replaces division with multiplication and shifts. If $a$ is bounded so that the reciprocal estimate is accurate enough, a correctly rounded quotient is recovered and at most one conditional subtraction produces the residue. The conditional subtraction should be implemented with a mask, not a secret-dependent branch.
+
+Montgomery multiplication uses $R=2^b$ with $\gcd(R,q)=1$. Precompute $q'=-q^{-1}\bmod R$. For an input $T<qR$, compute
+
+$$
+m=Tq'\bmod R,\qquad U=(T+mq)/R.
+$$
+
+By construction $T+mq$ is divisible by $R$, so the division is a shift, and $U\equiv TR^{-1}\pmod q$. A final conditional subtraction keeps the result below $q$. Converting into Montgomery form multiplies by $R$ modulo $q$; converting back multiplies by $R^{-1}$. The point is that division by a power of two replaces division by $q$, while the expensive reciprocal is precomputed. <Cite id="montgomery1985" locator="Vol. 44, pp. 519–521" />
+
+The bounds matter as much as the formula. A 16-bit accumulator cannot safely hold an arbitrary product of two unreduced 16-bit values plus an addend. Lazy reduction may allow coefficients to range above $q$, but the next butterfly and the next multiplication must still fit the chosen width. Prove a single invariant for each stage rather than relying on observed random inputs. Edge cases include zero, $q-1$, the largest negative centred representative, and a butterfly whose sum crosses the word boundary while its difference does not.
+
+For performance, distinguish transform count from useful multiplication count. One full radix-2 transform has $n\log_2 n/2$ butterflies. ML-KEM's seven layers have $7\cdot128=896$ butterflies per transform, followed by the residual base-case work; calling it 1,024 full-transform butterflies describes the ideal complete transform but not the exact incomplete implementation. Benchmark the actual sequence and count point-wise products separately. <Cite id="longa2016" locator="pp. 124–139" />
 </Lens>
 
 <Lens level={4} title="Butterflies, lazy reductions and vector lanes">
@@ -246,8 +339,88 @@ A vectorised NTT can still leak through secret-dependent memory access or branch
 ## Benchmarking honestly
 
 Measure the transform, point-wise multiply, inverse transform and hashing separately. Report the CPU, compiler, optimisation level and whether the implementation is constant-time. A faster NTT that leaks through secret-dependent indexing is not an improvement.
+
+## Implementation workflow
+
+Begin with three independent coefficient-domain routines: encode, decode and schoolbook negacyclic multiplication. Give each a fixed buffer contract and an explicit coefficient range. Then add a forward transform, inverse transform and point-wise product. Differential tests should cover basis vectors, all-zero and all-$q-1$ inputs, sparse products, and random inputs over several seeds. Basis vectors reveal swapped stages; extremes reveal reduction mistakes; random inputs reveal twiddle-order errors.
+
+Implement the base-case multiplication before optimising the layers. For ML-KEM, verify each quadratic block against $(X^2-\zeta)$ and compare the complete product with the oracle. Test the inverse scaling by checking the all-ones polynomial: its forward evaluations are either zero or $n$ at the relevant roots, and the inverse must recover every coefficient as one. This catches a missing $n^{-1}$ without requiring a reference implementation.
+
+SIMD layout is an interface, not merely a loop rewrite. Decide whether adjacent coefficients or independent polynomial blocks occupy lanes. Mark alignment requirements, handle the tail without secret-dependent branches, and avoid unaligned loads that cross protected page boundaries. Precompute twiddles in the exact lane order used by the kernel. A scalar-to-vector conversion performed once per operation may be cheaper than shuffling inside every butterfly.
+
+Use branch-free correction for modular subtraction. One pattern computes $d=a-b$, forms $m=d\gg(W-1)$ for a suitably signed representation, and adds $m\mathbin{\&}q$; another uses a comparison mask. Either way, test the generated assembly on the supported compiler versions. The source-level absence of an `if` is not enough if a library call, bounds check or division was lowered to a branch.
+
+Profile the stages separately. Record cycles per transform, point-wise product, inverse transform, coefficient packing and Keccak call. Report both median and a high percentile under a realistic workload. On an embedded target, also record peak stack, static table size and cache misses. A kernel that is faster when hot but requires an impractical prefetch table may lose end to end.
+
+Operationally, version the coefficient representation and ring parameters together. A public key generated with one root convention must not be decoded by a routine using another. Firmware should authenticate the implementation identifier before accepting a cryptographic key, and rollback should restore a compatible pair. Keep a known-answer corpus that includes every parameter set and an independent library result for each test input.
+
+Troubleshoot a mismatch by reducing the problem size. First test field multiplication and reduction, then one butterfly, then the transform inverse, then the base case, and only then the full pipeline. Print public test vectors with stage boundaries so a colleague can compare the first divergent value. Never print secret production coefficients; use a deterministic test key in an isolated debugging harness.
 </Lens>
 
+<GuidedWorkshop
+  id="ntt-workshop"
+  title="Diagnose an AVX2 NTT that fails only on dense coefficients"
+  scenario="A new ML-KEM backend passes sparse known-answer tests and random small inputs, but decapsulation fails when a peer sends dense public values. The implementation keeps coefficients as signed 16-bit lanes and performs two butterflies before reduction. Its base-case routine also omits the residual twiddle. You have a scalar oracle, a failing ciphertext and a build with AVX2 enabled."
+  tasks={[
+    "Separate parsing, transform, reduction and base-case hypotheses using a coefficient-domain test.",
+    "Derive a safe bound for two consecutive butterflies when coefficients approach 3328.",
+    "Check the residual quadratic-block multiplication against X squared = zeta.",
+    "Design SIMD differential tests that exercise dense values and boundary reductions.",
+    "Specify the release gate for correctness, constant-time behaviour and measured performance."
+  ]}
+  hints={[
+    "A forward/inverse round-trip can cancel a shared scaling error.",
+    "Write down the maximum absolute sum and difference after each stage.",
+    "The final block is not ordinary cyclic convolution.",
+    "Dense inputs maximise carries and sums; sparse inputs often hide overflow."
+  ]}
+  solution={[
+    "First decode the public polynomial and multiply it by the secret with the scalar schoolbook oracle. If that disagrees with the failing path, the parser or modular reduction is already wrong. Next compare one forward transform and one inverse transform independently. A round-trip alone is insufficient because a missing scale can cancel. Finally, isolate the two-coefficient residual blocks after seven layers.",
+    "A safe lazy bound must include twiddle multiplication, addition and the next stage's input. With values bounded by B, a product can approach q times B before reduction, and a following sum can add another B-sized term. If the claimed bound exceeds the signed 16-bit range, either reduce earlier, use wider accumulators or prove a tighter stage-specific bound. Testing observed inputs does not establish the bound; the implementation note must include the inequality for every stage.",
+    "For a block a = 900 + 1200X and b = 2100 + 300X modulo 3329 with X squared = 17, the raw constant term is 1890000 plus 17 times 360000 = 8010000, which reduces to 426. The linear term is 900 times 300 plus 1200 times 2100 = 2790000, which reduces to 298. The correct block product is 426 + 298X; omitting the twiddle gives the wrong constant term.",
+    "Use a fixed corpus containing 0, 1, 1664, 3327 and 3328 in several lanes, plus dense random polynomials. Compare every transformed coefficient and the final product against the scalar oracle. Run scalar, SSE and AVX2 builds over the same corpus. Include boundary products whose unreduced sums exceed 32767, and fuzz the decoder with non-canonical values at or above 3329.",
+    "Release only when all coefficient outputs match the oracle, all parser negative tests pass, the stage bounds are documented, and the exact binary has been checked for secret-dependent branches and addresses. Then benchmark end-to-end decapsulation with the same Keccak and sampling routines. A faster kernel that changes a coefficient or introduces a conditional reduction is not eligible."
+  ]}
+  takeaway="Treat the NTT as a verified arithmetic pipeline with a scalar oracle; SIMD speed is useful only after ring semantics and overflow bounds are exact."
+/>
+
+## Common failure modes
+
+| Failure | Typical cause | Detection | Prevention |
+| --- | --- | --- | --- |
+| Cyclic instead of negacyclic product | High-degree terms are added rather than subtracted | Schoolbook oracle mismatch on basis products | Implement $X^n=-1$ explicitly in the oracle |
+| Wrong twiddle order | Primitive root or exponent table is misindexed | Random products disagree while lengths look valid | Verify root order and test basis vectors |
+| Incomplete base case uses $X^2=1$ | Residual twiddle is omitted | Error appears after point-wise multiplication | Use the quadratic-block formula and KATs |
+| 16-bit lane overflow | Lazy reduction bound ignores a later add or product | Failure concentrated on dense inputs | Prove bounds per stage and widen or reduce |
+| Missing inverse scale | $n^{-1}$ is omitted | Round-trip may fail or products may be scaled | Test the all-ones polynomial independently |
+| Non-canonical input accepted | Transform reduces values that the parser should reject | Malformed public key reaches arithmetic | Validate 12-bit values before transformation |
+| Secret-dependent correction | Reduction uses a branch or table indexed by a coefficient | Timing or taint analysis flags the loop | Use masks and audit generated code |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Sparse tests pass, dense tests fail | Accumulator or lazy-reduction bound is too large | Add boundary-heavy differential tests and reduce earlier |
+| Forward and inverse cancel the error | Shared twiddle or scale bug | Test each direction against an independent oracle |
+| Only SIMD fails | Lane order, tail handling or alignment differs | Compare scalar and vector layouts coefficient by coefficient |
+| Product fails only after seven layers | Residual base case is wrong | Check $X^2=\zeta$ and each quadratic block |
+| Intermittent KEM disagreement | Wrong public root convention or malformed decoding | Pin the parameter version and validate canonical inputs |
+| Optimised build is faster but flagged by taint analysis | Compiler introduced a conditional path | Inspect assembly and use audited reduction primitives |
+
+## Design review checklist
+
+- [ ] The ring modulus, coefficient width and canonical input range are documented.
+- [ ] The root of unity and every twiddle exponent are generated or verified independently.
+- [ ] Seven layers and the residual quadratic multiplication match the standard.
+- [ ] Every lazy-reduction stage has a proved upper and lower bound.
+- [ ] Addition, subtraction and multiplication have boundary tests at 0 and $q-1$.
+- [ ] A schoolbook negacyclic oracle checks random and structured products.
+- [ ] Forward, inverse and point-wise routines are tested independently.
+- [ ] SIMD lane layout, alignment and tail handling are explicit.
+- [ ] Generated code has no secret-dependent branch, address or division.
+- [ ] Encoders and decoders reject wrong lengths and non-canonical values.
+- [ ] Benchmarks report CPU, compiler, flags, stage costs and memory use.
+- [ ] Firmware and libraries pin compatible parameter and implementation versions.
 
 ## Key takeaways
 

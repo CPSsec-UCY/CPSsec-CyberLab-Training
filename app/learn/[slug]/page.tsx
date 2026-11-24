@@ -8,6 +8,7 @@ import { getCitations } from "@/lib/citations";
 import { ModuleHeader } from "@/components/modules/ModuleHeader";
 import { ModuleNav } from "@/components/modules/ModuleNav";
 import { ModuleReferences } from "@/components/citations/ModuleReferences";
+import { CourseOverview } from "@/components/course/CourseOverview";
 import { DepthLensProvider } from "@/components/depth/DepthLensProvider";
 import { DepthLensSwitcher } from "@/components/depth/DepthLensSwitcher";
 
@@ -41,6 +42,7 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
     <article>
       <ModuleHeader module={learningModule} citationCount={citations.length} />
 
+      <CourseOverview module={learningModule} />
       <div className="container-page py-6">
         <DepthLensProvider>
           <DepthLensSwitcher />

@@ -37,6 +37,11 @@ export type TrackName =
 
 export type Difficulty = "Introductory" | "Intermediate" | "Advanced";
 
+export interface CourseChapter {
+  level: LensLevel;
+  title: string;
+}
+
 export interface ModuleMeta {
   slug: string;
   title: string;
@@ -46,6 +51,7 @@ export interface ModuleMeta {
   difficulty: Difficulty;
   readingTime: number;
   summary: string;
+  outcomes: string[];
   citations: string[];
   tags: string[];
   prerequisites: string[];
@@ -55,6 +61,7 @@ export interface ModuleMeta {
 
 export interface Module extends ModuleMeta {
   content: string;
+  chapters: CourseChapter[];
 }
 
 export interface GlossaryEntry {

@@ -197,6 +197,17 @@ a {
   animation: lens-in 0.35s ease both;
 }
 
+[data-depth-root][data-depth-mode="guide"] [data-lens] {
+  display: block;
+  animation: lens-in 0.35s ease both;
+}
+
+[data-depth-root][data-depth-mode="guide"] [data-lens] + [data-lens] {
+  margin-top: 2rem;
+  border-top: 1px solid #e7e4f1;
+  padding-top: 2rem;
+}
+
 @keyframes lens-in {
   from {
     opacity: 0;

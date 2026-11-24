@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import type { LensLevel, Module, ModuleMeta, TrackName } from "@/lib/types";
+import type { CourseChapter, LensLevel, Module, ModuleMeta, TrackName } from "@/lib/types";
 import { TRACK_ORDER } from "@/lib/tracks";
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "modules");
@@ -22,6 +22,16 @@ function normaliseLenses(value: unknown, content: string): LensLevel[] {
   return [...found].sort() as LensLevel[];
 }
 
+
+function extractChapters(content: string): CourseChapter[] {
+  const chapters: CourseChapter[] = [];
+  const pattern = /<Lens\s+level=\{?["']?([1-4])["']?\}?\s+title=["']([^"']+)["']/g;
+  for (const match of content.matchAll(pattern)) {
+    chapters.push({ level: Number(match[1]) as LensLevel, title: match[2] });
+  }
+  return chapters.sort((a, b) => a.level - b.level);
+}
+
 function readModule(fileName: string): Module {
   const filePath = path.join(CONTENT_DIR, fileName);
   const raw = fs.readFileSync(filePath, "utf8");
@@ -37,6 +47,7 @@ function readModule(fileName: string): Module {
     difficulty: (data.difficulty as ModuleMeta["difficulty"]) ?? "Intermediate",
     readingTime: Number(data.readingTime ?? 15),
     summary: data.summary as string,
+    outcomes: (data.outcomes as string[] | undefined) ?? [],
     citations: (data.citations as string[] | undefined) ?? [],
     tags: (data.tags as string[] | undefined) ?? [],
     prerequisites: (data.prerequisites as string[] | undefined) ?? [],
@@ -44,7 +55,7 @@ function readModule(fileName: string): Module {
     lenses: normaliseLenses(data.lenses, content),
   };
 
-  return { ...meta, content };
+  return { ...meta, content, chapters: extractChapters(content) };
 }
 
 export function getAllModules(): Module[] {

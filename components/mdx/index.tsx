@@ -35,6 +35,9 @@ import { QuantumTimeline } from "@/components/illustrations/QuantumTimeline";
 import { NttWork } from "@/components/illustrations/NttWork";
 import { DpiVisibility } from "@/components/illustrations/DpiVisibility";
 import { FederatedThreatMatrix } from "@/components/illustrations/FederatedThreatMatrix";
+import { GuidedWorkshop } from "@/components/course/GuidedWorkshop";
+import { WorkedExample } from "@/components/course/WorkedExample";
+import { ProcessFlow } from "@/components/course/ProcessFlow";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
   if (href.startsWith("/")) {
@@ -84,5 +87,8 @@ export const mdxComponents = {
   NttWork,
   DpiVisibility,
   FederatedThreatMatrix,
+  GuidedWorkshop,
+  WorkedExample,
+  ProcessFlow,
   a: MdxLink,
 };

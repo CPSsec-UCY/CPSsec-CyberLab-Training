@@ -5,8 +5,9 @@ subtitle: "WOTS+, FORS and a hypertree of one-time keys — conservative cryptog
 track: "Post-Quantum Cryptography"
 order: 14
 difficulty: "Advanced"
-readingTime: 25
+readingTime: 90
 summary: "How SPHINCS+ became FIPS 205: stateless hash-based signatures, the WOTS+/FORS/hypertree stack, parameter trade-offs, and why the security assumptions are so small."
+outcomes: ["Explain WOTS+, FORS and hypertree construction and verification.", "Distinguish stateless SLH-DSA from stateful XMSS/LMS.", "Interpret parameter sets, signature sizes and hash-only security bounds.", "Evaluate hashing performance, randomness, faults and deployment trade-offs."]
 citations: ["fips205", "sphincs-spec", "sphincs2019", "wots2013", "rfc8391", "fips202", "liboqs", "boneh1997", "nist-ir8545"]
 tags: ["pqc", "signature", "hash-based", "slh-dsa", "fips-205"]
 prerequisites: ["asymmetric-primitives"]
@@ -54,6 +55,20 @@ Code signing roots, firmware verification, long-lived archives and conservative 
 Consider a firmware root key that must verify updates for 20 years and is used only a few times per release. A 30 KB signature is irrelevant compared with the update image, and the conservative hash-only assumption is valuable. The same scheme would be a poor fit for a high-volume TLS handshake on a constrained device.
 
 SLH-DSA is stateless: the signer can be restored from a backup, cloned, or run on two machines without reusing a one-time key. XMSS and LMS are more compact but require the signer to track state. That difference is operational, not cosmetic.
+
+## Threat model and a firmware-root scenario
+
+SLH-DSA targets EUF-CMA security. The attacker may obtain signatures on chosen firmware manifests and attempt to forge a signature for a new manifest under the public root. It may collect a very large number of signatures within the standard's stated signing limit, and it may use quantum algorithms. The defender must keep the secret seeds confidential, derive the message randomizer correctly, implement every domain-separated hash and release a signature that verifies against the pinned root.
+
+A bootloader trusts a 32-byte SLH-DSA-128s public root for twenty years. An offline signing service produces a 7,856-byte signature for each release. The attacker can modify update files and signatures in transit but cannot read the signing service. A separate operational attacker may clone the service, restore an old backup or corrupt its random source. Statelessness removes the one-time-key counter, but it does not remove the long-lived secret seed or the need to protect randomness and faults.
+
+Defender goals include conservative cryptographic assumptions, canonical verification and reliable large-object handling. The bootloader needs enough contiguous memory or a streaming verifier for the signature. The signing service needs protected seed storage and enough workspace for authentication paths. The release pipeline must authenticate the complete manifest and ensure that no layer truncates the signature to fit a legacy field.
+
+Misconceptions often start with the phrase hash-only. It does not mean security follows from collision resistance alone. WOTS+ relies on second-preimage resistance of its chain function, FORS relies on hiding and few-time properties, and the full bound accounts for hash queries and signature queries. Nor does stateless mean randomisation is irrelevant: the message randomizer is part of the construction's security and fault analysis.
+
+Bandwidth is a security parameter in practice. A 49,856-byte signature can exceed a protocol's record, flash partition or database column. Silently truncating it causes denial of service; accepting an alternative parser's malformed value can create inconsistency. Choose the parameter set with the verifier's memory and transport constraints in view. A small public key does not make the signature small, and fast signing does not imply fast verification.
+
+Availability is distinct from forgery resistance. Hash-only implementations still suffer from faulty randomness, corrupted seed material and side channels. A signature that fails verification is a correctness event; a fault that reveals seed information is a security event. The service should verify before release, monitor verification failure rates and retain enough independent build information to diagnose an incompatible parameter set.
 </Lens>
 
 <Lens level={2} title="WOTS+, FORS and the hypertree stack">
@@ -121,6 +136,51 @@ FORS signs a digest with a small forest of trees: one leaf is revealed per tree,
 5. Include the authentication path up the hypertree, signing each tree root with the layer above.
 
 Verification reverses the process and checks the final root against the public key. <Cite id="fips205" locator="§7–9" />
+
+## Hash chains and authentication paths by hand
+
+WOTS+ uses base-$w$ digits of a digest. For a chain of length $w-1$, signing digit $d_i$ reveals the value after $d_i$ hashes; verification applies the remaining $w-1-d_i$ hashes and compares the endpoint. Address and domain separation are prepended so that the same secret value used at two positions does not produce the same chain. In the 128-bit small parameter set, $n=16$ bytes and $w=16$, so $\mathrm{len}_1=\lceil128/4\rceil=32$. The checksum adds $\mathrm{len}_2=9$ chains, for 41 chains total. Each chain can require up to 15 hash calls. <Cite id="fips205" locator="§5" />
+
+<WorkedExample
+  title="A WOTS+ chain and the danger of reuse"
+  steps={[
+    "For illustration only, use the invertible toy map H(x) = 3x + 7 modulo 101 and starting value x0 = 10. This map is not a cryptographic hash.",
+    "The chain begins x1 = 37, x2 = 17, x3 = 58, x4 = 80 and continues to x15 = 18.",
+    "A first digest with digit d = 4 reveals x4 = 80. Verification hashes it 15 - 4 = 11 more times and must obtain x15 = 18.",
+    "If the same key signs another digest with digit d-prime = 7, it reveals x7 = 29. An observer now knows a later value on the first chain and an earlier value on the second chain.",
+    "The observer can construct a chain component for the first digest at position 7 and for the second at position 4, illustrating why one-time use is essential."
+  ]}
+  result="Each individual revealed value verifies against the endpoint, but combining signatures from a reused key exposes enough chain positions to forge components. SLH-DSA avoids this by deriving message-specific one-time keys."
+/>
+
+FORS splits a digest into $k$ chunks, each selecting one leaf in a tree of height $a$. A signature contains the selected secret value and its sibling path in each tree. The verifier recomputes that tree's root, hashes the roots into the FORS public key, and then follows the hypertree authentication path. Selecting one leaf per tree limits what each signature reveals, but many signatures gradually reveal more leaves; the few-time security bound accounts for this.
+
+<WorkedExample
+  title="A two-tree FORS forest"
+  steps={[
+    "Use a toy pair hash H(a,b) = a + b + 1 modulo 101. Tree 0 has leaves (10, 20, 30, 40), parents (31, 71) and root 2.",
+    "Tree 1 has leaves (5, 6, 7, 8), parents (12, 16) and root 29. The FORS public value commits to roots (2, 29).",
+    "A four-bit digest 1010 selects leaf index 2 in tree 0 and leaf index 1 in tree 1.",
+    "For tree 0, reveal leaf 30 and path (40, 71). Verification computes 30 + 40 + 1 = 71, then 31 + 71 + 1 = 2 modulo 101.",
+    "For tree 1, reveal leaf 6 and path (5, 16). Verification computes 6 + 5 + 1 = 12, then 12 + 16 + 1 = 29."
+  ]}
+  result="Both authentication paths reproduce the committed roots. The toy hash is linear and insecure; it only makes the path arithmetic visible. Real FORS uses the parameter set's approved hash with address separation."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Randomise", detail: "Derive the message randomizer from the secret seed and message.", tone: "brand"},
+    {title: "Digest", detail: "Hash the randomizer and message into the prescribed digest.", tone: "brand"},
+    {title: "FORS", detail: "Select one leaf per small tree and reveal the corresponding paths.", tone: "brand"},
+    {title: "WOTS", detail: "Sign the FORS public key with a bottom-layer one-time key.", tone: "brand"},
+    {title: "Hypertree", detail: "Reveal XMSS authentication paths and sign each parent root above.", tone: "brand"},
+    {title: "Verify", detail: "Recompute all roots and compare the final result with the public root.", tone: "brand"}
+  ]}
+/>
+
+The hypertree parameters show the size/work tradeoff. The 128s set has height 63 and 7 layers, so each tree has height 9. The 128f set has height 66 and 22 layers, so each tree has height 3. Shorter trees reduce WOTS+ and authentication-path work per layer, but there are more layers to sign. The total height still governs the number of available leaves; it is not chosen independently of the signing bound.
+
+For SHAKE-128s, the public key contains two 16-byte values: the secret-seed-derived public seed and the root. A verifier first parses the signature's randomizer and message-dependent values, then recomputes the digest and FORS roots using the public seed. It does not need the secret seed, but it must reproduce the address construction exactly. A one-position error in layer, tree or leaf indexing produces a different hash and a failed signature.
 </Lens>
 
 <Lens level={3} title="Hash assumptions, few-time security and tight bounds">
@@ -168,6 +228,22 @@ Grover halves preimage security and quantum collision search reduces collision s
 <Callout variant="lab" title="Few-time is not many-time">
 FORS and WOTS+ are not general-purpose many-time signatures. The hypertree and parameter choices keep the number of revealed one-time keys within the security bound. Reusing a WOTS+ key across two different digests is a break.
 </Callout>
+
+## Security bounds and verification invariants
+
+A useful abstraction is a target-subset collision. After $Q$ signatures, each FORS tree has revealed $Q$ selected leaves among $2^a$ possibilities. The birthday-scale chance of a repeated leaf in one tree is approximately $Q^2/2^{a+1}$ when $Q$ is small relative to the tree size. Across $k$ trees, the collision exposure grows by a factor of $k$. This is an intuition for the few-time bound, not the complete FIPS 205 security formula; the standard also accounts for preimage searches, hash queries and the hypertree.
+
+WOTS+ has a different failure pattern. Its base-$w$ digit sequences are designed so that a second-preimage attack must find a new digest with a compatible signature. The checksum chains prevent an attacker from simply choosing arbitrary digits that keep the signature shorter. Address separation ensures that chains at different positions, layers and trees are independent hash domains. Omitting an address component collapses those domains and invalidates the argument. <Cite id="wots2013" locator="pp. 173–188" />
+
+Hypertree correctness follows by induction. The bottom layer's XMSS signature authenticates the FORS public key under a leaf of its tree. The next layer authenticates that tree's root, and so on. At layer $\ell$, the verifier recomputes the signed root using the supplied WOTS+ signature and authentication path, then uses it as the target root for layer $\ell-1$. After the top layer, equality with the public root establishes that the same sequence of one-time keys authenticated the original digest.
+
+Statelessness changes key selection, not this verification chain. The signer derives a message-specific seed and chooses one-time keys pseudorandomly within the tree. Reusing the exact same message with the same randomizer can repeat a signature without revealing two different digest signatures; different messages must lead to different one-time key selections. The security proof bounds accidental or adversarial collisions over the allowed signing quantity. A broken randomizer can increase correlation and is therefore treated as a security failure, not a performance inconvenience.
+
+The assumptions are deliberately narrow. The approved hash functions must provide the required preimage, second-preimage and pseudorandomness properties. Address separation, key derivation and tree traversal must match the standard. Generic quantum search reduces preimage security, while quantum collision finding has a different cost from classical birthday search; parameter sizes are selected with those reductions in mind. Hash-based does not mean that implementation faults, seed disclosure or side channels disappear. <Cite id="fips205" locator="§11" />
+
+Verification must reject malformed structures before doing expensive work where possible. Check the exact signature length, randomizer length, FORS indices, WOTS+ digit ranges and hypertree path lengths. Recompute every root and compare the final root without early acceptance of an intermediate match. Do not normalise an out-of-range index modulo the tree size. Treat a signature for one parameter set as invalid under another, even if both use the same public-key length.
+
+Output privacy is usually less central for signatures than for MPC, but metadata still matters. Signing time can reveal the parameter set or workload, and a repeated signature can reveal repeated inputs. Bind release identifiers and timestamps through the message being signed. The signature itself is public by design; the secret seeds, chain intermediates that have not been selected, and signing workspace remain confidential.
 </Lens>
 
 <Lens level={4} title="Hash calls, memory and operational failure modes">
@@ -225,7 +301,90 @@ The signer holds authentication paths and intermediate nodes. The "s" parameter 
 <Callout variant="danger" title="A large signature is still a security boundary">
 If a protocol silently truncates or fragments an SLH-DSA signature, verification fails or, worse, a different parser accepts a malformed value. Treat signature size as a protocol parameter.
 </Callout>
+
+## Implementation patterns and operations
+
+Structure the implementation around a hash-address helper rather than scattered index arithmetic. One function should encode the layer, tree, type, keypair and chain or leaf position according to the parameter set. Unit-test that helper with fixed addresses before testing the full signature. Most interoperability failures in hash-based signatures come from a correctly implemented hash receiving the wrong domain or position bytes.
+
+Use fixed-size workspaces for FORS trees, WOTS+ chains and hypertree authentication paths. The small parameter sets are attractive for constrained devices partly because their intermediate values are short, not only because signatures are smaller. Avoid recursion for tree traversal when stack depth is uncertain; use explicit index arrays and bounded loops. Streaming verification can process a large signature in chunks, but it must authenticate the total length and retain the computed roots needed for the next layer.
+
+Parallelise only independent work. Different FORS trees can be evaluated concurrently, and WOTS+ chains for distinct digits are independent once addresses are fixed. Hypertree layers are sequential because each signs the root needed by the layer above. Measure hash throughput, address-generation overhead and memory traffic; adding threads to a dependency chain can reduce performance.
+
+Protect both secret seeds and the randomizer workflow. The secret seed generates SK seed, SK.prf and the public seed through the specified derivation. Import the public seed from the public key or derive it from the secret seed as required, and verify consistency when both forms are available. Keep the signing seed out of process dumps and logs. A cloned stateless signer is not automatically a key-compromise event, but an uncontrolled clone still doubles exposure of the same long-lived secret.
+
+Use approved randomness and the standard's signing interface. Verify the exact serialized signature before releasing it when faults are in scope. Recompute the final root or invoke an independent verifier in the signing pipeline; this catches corrupted paths and address state. Redundancy should not reuse the same faulty address helper without scrutiny. Monitor internal verification failures and stop the service if they rise unexpectedly.
+
+Transport deserves its own test plan. Encode signatures with a length field large enough for the selected set. Test update bundles near the largest signature size, fragmented network records, flash-wear limits and database column sizes. The bootloader should reject a truncated signature before allocating unbounded memory. If a protocol uses a hybrid signature, both components must be present, canonical and independently verified according to the protocol rule.
+
+Run standard known-answer vectors for all selected sets, then differential-test with an independent implementation. Fuzz the verifier's FORS indices, chain values and path lengths. Mutate every signature region and require rejection unless the mutation produces a different valid signature, which is not expected for these serialized structures. Benchmark signing and verification separately on the target CPU, including cold-cache and constrained-memory cases.
+
+During operation, rotate compromised seeds through the trust-anchor process and retain the old public root only for a defined legacy-verification window. Statelessness simplifies failover, but it does not make snapshot rollback harmless: a restored signer must still have the correct software, random source and seed. Keep the parameter-set identifier with every artifact so an engineer can distinguish a large but valid signature from a malformed one.
 </Lens>
+
+<GuidedWorkshop
+  id="slh-dsa-workshop"
+  title="Fit a conservative firmware signature into a constrained bootloader"
+  scenario="A bootloader has a 32 KiB update-metadata partition and verifies SLH-DSA at boot. The release team wants SLH-DSA-256f for its category-5 profile, but that signature is 49,856 bytes and the manifest plus certificate metadata already consume 8,000 bytes. A proposal is to truncate the signature and add a custom checksum. The signing service runs in two cloned stateless workers."
+  tasks={[
+    "Calculate whether the proposed metadata fits and identify the exact protocol constraint.",
+    "Compare a smaller SLH-DSA set with moving signature storage or streaming the update.",
+    "Explain why a checksum cannot replace the missing authentication-path data.",
+    "Review the two cloned signing workers for randomness, seed protection and fault handling.",
+    "Write an acceptance plan covering maximum signatures, fragmentation, wrong parameter sets and truncated paths."
+  ]}
+  hints={[
+    "49,856 plus 8,000 exceeds 32,768 before any allocator overhead.",
+    "The small/fast choice changes signing work and size, not the public root's trust meaning.",
+    "Every omitted hash-chain value or authentication sibling is information the verifier needs.",
+    "Stateless does not mean that both workers can share exposed seed material or broken randomness."
+  ]}
+  solution={[
+    "The proposed signature alone occupies 49,856 bytes, which already exceeds the 32,768-byte partition by 17,088 bytes. Adding 8,000 bytes of manifest and certificate metadata gives 57,856 bytes, an excess of 25,088 bytes before allocator overhead. Truncation cannot preserve verification because the signature is not a padded blob with a removable suffix; it is a sequence of WOTS+ values and authentication paths.",
+    "A category-5 small set such as SLH-DSA-256s has a 29,792-byte signature and a 64-byte public key. Signature plus metadata is 37,792 bytes, still above 32 KiB, so the team must also reduce metadata, enlarge the partition or store the signature in a separately measured region. A lower-category set may fit, but changing category is a security decision rather than a formatting fix. Streaming the update can reduce peak RAM but does not eliminate the total storage requirement.",
+    "A checksum detects accidental corruption; it does not authenticate a path to the public root. If a FORS sibling or WOTS+ chain value is removed, the verifier cannot recompute the committed intermediate node. A custom compressed encoding is possible only if it preserves all information and is reviewed as a new protocol format; silently truncating standard signature bytes is not such a format.",
+    "Cloning a stateless worker does not reuse a counter-based one-time key, but both workers hold the same long-lived seed and must derive message-specific keys using the approved randomizer process. Protect seed import and memory, inject healthy randomness tests and prevent an old snapshot from restoring incompatible software. Verify the serialized signature before release and stop the worker on an internal verification anomaly.",
+    "Use exact maximum-size artifacts for every supported parameter set, then test fragmented transfers and cold-cache verification. Submit a signature under the wrong public root and expect failure. Truncate each signature region in turn and expect deterministic rejection without out-of-bounds access. Finally, benchmark signing and verification on the actual boot CPU and record peak RAM, flash usage and boot-time margin."
+  ]}
+  takeaway="Choose SLH-DSA parameters with the verifier's complete storage and memory budget; never trade away authentication-path data to meet a legacy size field."
+/>
+
+## Common failure modes
+
+| Failure | Cause | Impact | Prevention |
+| --- | --- | --- | --- |
+| Signature is truncated | Legacy field or partition assumes classical sizes | Verification failure | Size the full artifact and reject truncation |
+| Wrong parameter set is used | Small and fast sets share a family name | Different signature length and hash behaviour | Store and validate the explicit set identifier |
+| Address bytes are misordered | Layer, tree or type fields are swapped | Every path hashes to the wrong node | Centralise and test address construction |
+| FORS index is normalised | Parser reduces an out-of-range value modulo tree size | Malformed input may reach the wrong leaf | Reject before hashing |
+| Randomizer source is broken | RNG failure or snapshot rollback | Security proof assumptions fail | Approved randomness and health checks |
+| Secret seed is copied broadly | Cloned workers share unprotected storage | Long-term root compromise | Protected key import and isolated workers |
+| Faulted path is released | No internal verification | Invalid signature or information leak | Verify exact serialized output |
+| Hybrid rule is misapplied | Only one signature is checked | Weaker than intended combined security | Define and test both-required semantics |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Signature exceeds a fixed metadata field | Parameter set or length calculation is wrong | Measure exact bytes and redesign storage |
+| Every FORS path fails | Public seed, digest or address construction differs | Compare fixed addresses and digest bytes |
+| WOTS verifies in one library but not another | Chain order or digit/checksum encoding differs | Check base-$w$ encoding and standard vectors |
+| Only top hypertree layer fails | Root ordering or layer count is wrong | Verify each intermediate root independently |
+| Signing is unexpectedly slow | Small set chosen without workload analysis | Compare hash counts and target hardware limits |
+| Internal verification intermittently fails | Randomness, memory corruption or address state fault | Stop release and isolate seed, RNG and workspace |
+
+## Design review checklist
+
+- [ ] The parameter set, hash family and security category are explicit in every artifact.
+- [ ] Public-key, signature and metadata sizes fit the verifier's measured budget.
+- [ ] FORS indices, chain values and path lengths are checked before hashing.
+- [ ] Address construction is centralised and covered by fixed test vectors.
+- [ ] WOTS+ digit and checksum encoding matches the selected set.
+- [ ] Hypertree layer count, tree height and root order are verified independently.
+- [ ] Secret seeds and randomizer material are protected across cloning and rollback.
+- [ ] Internal verification and fault injection run before signature release.
+- [ ] Transport and flash paths preserve every signature byte.
+- [ ] Known-answer, differential and region-mutation tests pass on target hardware.
+- [ ] Signing, verification, peak RAM and boot-time margins are benchmarked.
 
 ## Key takeaways
 

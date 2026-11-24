@@ -5,8 +5,9 @@ subtitle: "How FIPS 204 signs without leaking the secret, and why a signature so
 track: "Post-Quantum Cryptography"
 order: 13
 difficulty: "Advanced"
-readingTime: 25
+readingTime: 95
 summary: "The Fiat–Shamir-with-aborts construction behind ML-DSA: masking vectors, norm bounds, hints, rejection sampling, and the side-channel risks that remain."
+outcomes: ["Trace ML-DSA key generation, signing and verification.", "Explain Fiat–Shamir with aborts, norm bounds and hint encoding.", "Analyse why rejection sampling prevents secret leakage.", "Review nonce, side-channel and fault risks in signing implementations."]
 citations: ["fips204", "dilithium-spec", "lyubashevsky2012", "regev2009", "lpr2010", "fips203", "liboqs", "kocher1996", "boneh1997", "nist-ir8545"]
 tags: ["pqc", "signature", "lattice", "ml-dsa", "fips-204"]
 prerequisites: ["ml-kem", "ntt-polynomials"]
@@ -55,6 +56,18 @@ A signature is not an encryption of the message. It proves that the signer knew 
 <Callout variant="warning" title="Nonce reuse is catastrophic">
 Two signatures using the same masking vector can reveal the secret. This is the lattice analogue of ECDSA nonce reuse. Randomness generation and fault protection are part of the signature's security boundary.
 </Callout>
+
+## Threat model and a concrete signing session
+
+ML-DSA targets existential unforgeability under chosen-message attack, or EUF-CMA. The attacker may request signatures on messages of its choice, inspect every signature, and then produce a new message-signature pair that verifies. A strong attacker may adapt later messages to earlier signatures. It should not learn useful information about the long-term secret key from those interactions. The defender must preserve the secret key, produce a fresh masking vector for each signing attempt, and release only candidates satisfying every standard check.
+
+A firmware service makes the boundary concrete. It signs a manifest hash with ML-DSA-65, stores the secret seed in a secure element, and returns a 3,309-byte signature. Build workers may request many signatures concurrently; a compromised co-tenant may influence message bytes and observe service latency. The attacker can choose manifests but does not control the trusted device. Fault injection, rollback of random state and side-channel measurements are separate adversary capabilities that must be stated rather than assumed away.
+
+Defender goals include message binding, canonical encoding, rejection discipline and fault detection. The challenge must hash the exact message context, public key and high bits specified by the standard. Norm and hint checks must happen before serialisation. A signature should be verified internally before release when the threat model includes faults, even though algebraic verification normally belongs to the recipient.
+
+Misconceptions are dangerous in a signing API. A signature does not encrypt the manifest or keep it secret. A deterministic signing mode is not the same as reusing an arbitrary nonce: repeating the same standard-compliant deterministic operation on the same message can repeat a signature, but nonce derivation must still bind the message. Hedged signing adds fresh randomness and can reduce some fault risks; it does not excuse repeated nonces or leaky arithmetic. Rejection is not merely a way to produce a nicer-looking signature; it is part of the simulation-based security argument.
+
+Availability and latency deserve explicit budgets. The rejection loop has a data-dependent number of attempts, so signing time is naturally variable. Set a service deadline appropriate for the expected attempt distribution, but never bypass the norm check to meet it. If a deadline expires, return a retryable internal error without releasing a partial candidate. Monitor high-percentile latency and rejection rate; a sudden change can signal a bad random source, a changed parameter set or a faulted device.
 </Lens>
 
 <Lens level={2} title="Key generation, signing loop and verification">
@@ -134,6 +147,50 @@ then applies the high/low decomposition and checks that the challenge hash match
 ## Sizes and parameter selection
 
 ML-DSA-44, ML-DSA-65 and ML-DSA-87 trade security level against signature size and rejection rate. The smaller set has a 2,420-byte signature; the largest is 4,627 bytes. Choose based on the verifier's trust lifetime, bandwidth and hardware. <Cite id="fips204" locator="§4" />
+
+## Parameter details and the signing loop
+
+The norm controls are concrete. For ML-DSA-44, $\gamma_1=2^{17}$, $\gamma_2=(q-1)/32$, $\beta=78$ and the hint weight bound is $\omega=80$. For ML-DSA-65, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/88$, $\beta=120$ and $\omega=180$. For ML-DSA-87, $\gamma_1=2^{19}$, $\gamma_2=(q-1)/120$, $\beta=120$ and $\omega=120$. The challenge Hamming weights are bounded by $\tau=39,49,60$ respectively. These values must be changed as a complete set, never tuned independently. <Cite id="fips204" locator="§4" />
+
+Signing starts by deriving the message digest $\mu$ and expanding a nonce seed into $y$. Compute $w=Ay$, extract its high bits, and hash them with $\mu$ to obtain the small challenge polynomial $c$. Form $z=y+cs_1$ and reduce it to the specified centered representative. Inspect every coefficient of $z$: one coefficient at or above the norm limit rejects the whole candidate. The signer also computes the low bits $w-cs_2$ and the hint vector, then checks the hint weight and rounding conditions. A rejected attempt is discarded completely; its $y$, $z$ and hint must not influence the next attempt except through the approved random source.
+
+<WorkedExample
+  title="A strict norm rejection in ML-DSA-65"
+  steps={[
+    "ML-DSA-65 has gamma_1 = 524288 and beta = 120, so the acceptance bound is gamma_1 - beta = 524168.",
+    "Suppose one candidate coefficient is y = 524167 and the challenge times the corresponding secret coefficient contributes +1. Then z = 524168.",
+    "The rule is the infinity norm strictly less than 524168, so equality rejects this candidate. A single offending coefficient rejects the entire signature attempt.",
+    "On a fresh attempt, let y = 524160 and the same contribution be +1. Then z = 524161, which passes this coordinate's norm check.",
+    "Passing one coordinate is not final acceptance: all z coefficients, the hint weight and the rounding conditions must still pass."
+  ]}
+  result="The boundary is strict, and the rejection is all-or-nothing for an attempt. Implementations must compare the maximum norm across the full vector without releasing an out-of-range candidate."
+/>
+
+<WorkedExample
+  title="Why reusing a masking vector leaks the secret"
+  steps={[
+    "Consider a scalar projection of the signing equation z = y + c s1. Use y = 1000, secret s1 = 7, challenge c1 = 1 and a second challenge c2 = 3 with the same y.",
+    "The first response is z1 = 1000 + 1 times 7 = 1007. The second response is z2 = 1000 + 3 times 7 = 1021.",
+    "Subtract the public responses: z2 - z1 = 14. The masking vector cancels, leaving (c2 - c1) times s1 = 2 times 7.",
+    "Divide by the nonzero challenge difference: s1 = 14 divided by 2 = 7. In the actual ring, division uses a challenge-polynomial inverse when it exists; the same leakage principle applies."
+  ]}
+  result="Reusing y across different challenges exposes a linear equation about the secret. The example is scalar arithmetic for intuition; real ML-DSA operates on vectors in a quotient ring."
+/>
+
+Verification reverses the algebraic relation. Parse the signature into exactly $c$, $z$ and the encoded hint. Reject non-canonical $z$ coefficients, excess hint weight, malformed hint trailing data and a challenge with too many nonzero coefficients. Compute $w'=Az-c t_1 2^d$ modulo $q$, recover the high bits using the hint, and compare the challenge hash with $c$. Verification must not accept an equivalent but non-canonical signature encoding, because signature malleability can break protocols that use signatures as unique identifiers.
+
+<ProcessFlow
+  steps={[
+    {title: "Derive", detail: "Bind the message context and expand protected nonce material into y.", tone: "brand"},
+    {title: "Commit", detail: "Compute w = A y and hash the prescribed high bits with the message digest.", tone: "brand"},
+    {title: "Respond", detail: "Form z = y + c s1 and compute the low-bit correction hint.", tone: "brand"},
+    {title: "Reject", detail: "Discard the whole attempt if norm, hint weight or rounding checks fail.", tone: "brand"},
+    {title: "Verify", detail: "Optionally verify the exact serialized candidate before release.", tone: "brand"},
+    {title: "Release", detail: "Return canonical c, z and hint bytes, then wipe attempt state.", tone: "brand"}
+  ]}
+/>
+
+For a service, separate the message-context derivation from the nonce derivation. The caller should supply the exact bytes to be signed, and the API should return which canonical message digest was used. If two layers add prefixes, trailers or length fields independently, a valid signature may cover different bytes than the verifier reconstructs. Use one versioned signing-context specification and known-answer tests for it.
 </Lens>
 
 <Lens level={3} title="Fiat–Shamir with aborts, norms and hints">
@@ -202,6 +259,24 @@ The transcript contains $c$, $z$ and $h$, not $s_1$ or $s_2$. The hint reveals o
 <Callout variant="lab" title="Why rejection is a security control">
 Releasing an out-of-bound candidate would let an attacker collect samples whose distribution depends on the secret. Rejection is not a performance optimisation; it is what makes the signature simulatable.
 </Callout>
+
+## Decomposition, hints and the simulation argument
+
+For a public scaling parameter $\alpha$, write an integer $r$ as $r=\alpha r_1+r_0$ with $r_0$ in the centered interval determined by the standard. The high part is obtained by rounding $r/\alpha$, and the low part is the remaining offset. For $t=t_1 2^d+t_0$, the signer knows $t_0$ but the public key publishes only $t_1$. During signing, the signer computes $w-cs_2$ so that the low bits needed for the challenge match what the verifier can reconstruct.
+
+The hint is a correction bit, not a copy of $t_0$. In the standard's high-bit helper, a set hint increments the recovered high part by one modulo the permitted range; an unset hint leaves it unchanged. The verifier applies the hint to the high part of $Az-c t_1 2^d$. If the hint does not yield the hashed challenge, verification fails. The total number of set hints must not exceed $\omega$, and the serialized hint must decode canonically. These checks prevent an attacker from choosing arbitrary corrections that make verification easier.
+
+The signing response is computed modulo $q$, but the norm check uses centered representatives. A field element near $q$ is a small negative number for this purpose. Failing to centre before measuring the norm can reject every valid negative coefficient; accepting a large positive representative instead leaks a different distribution. The implementation therefore needs one documented conversion used consistently by signing, verification and serialisation.
+
+Fiat–Shamir-with-aborts has two linked ideas. Fiat–Shamir makes $c=H(\mu\|\mathsf{HighBits}(w))$ a challenge the signer cannot choose after seeing $y$. Aborts reshape the released response. If $y$ is sampled from a fixed interval and $z=y+cs_1$ is accepted only in a slightly smaller interval, the accepted distribution approaches the distribution induced by sampling $z$ directly from that smaller interval and setting $y=z-cs_1$. The residual dependence on the secret is controlled by the rejection bound and the parameter choices; it is not correct to claim that every finite implementation has literally perfect independence. <Cite id="lyubashevsky2012" locator="pp. 738–755" />
+
+A simulation-based proof explains the tradeoff. The simulator programs the challenge hash so that a guessed challenge is consistent with a response it can generate without $s_1$. It samples a candidate $z$ from the target interval, derives a corresponding commitment, and programs the hash if it has not already been fixed. Guessing the query position and waiting for consistent programming introduce a reduction loss. Rejection bounds limit how often a real signer produces candidates that the simulator cannot reproduce. The security reduction therefore depends on hash behaviour, Module-SIS or Module-LWE assumptions, and the number of signing and hash queries.
+
+The verifier equation also connects unforgeability to a short-vector problem. A forger that produces a new accepted $(c,z,h)$ supplies a small $z$ related to $Ay$ for some challenge. Under the random-oracle simulation, extracting enough such relations would solve a Module-SIS instance or collide with a programmed challenge. This is a proof sketch rather than a complete security derivation: the module rank, norm bounds, hint extraction and reduction loss all matter.
+
+Edge cases are part of the verifier's job. Reject wrong lengths, coefficients outside $[0,q)$, $z$ outside the centered norm bound, a challenge with more than $\tau$ nonzero coefficients, and a hint with more than $\omega$ set bits. Reject non-canonical trailing hint bytes. A verifier should not normalise these values into acceptance, because the signature bytes are what protocols hash and log. Also distinguish verification failure from internal failure: a malformed public signature returns false; an unavailable or corrupted public-key object is a local error.
+
+The hint and challenge are public but should still be encoded unambiguously. The same message signed under different keys should use a key-bound context where required by the application. The proof system does not decide whether a manifest name, signer identity or expiration policy is correct; those checks belong to the verifier's surrounding policy. A mathematically valid signature can still be unacceptable because its certificate chain, key usage or release identifier is wrong.
 </Lens>
 
 <Lens level={4} title="Constant-time signing and the nonce problem">
@@ -266,7 +341,88 @@ A fault during signing can produce a signature that reveals the secret or breaks
 4. Fault injection and side-channel evaluation.
 5. Interoperability with independent implementations.
 6. Benchmark rejection rate and worst-case signing latency.
+
+## Implementation patterns for a signing device
+
+Keep the secret seed in protected storage and expand only the components needed for the current attempt. A workspace should include fixed buffers for $y$, $w$, $z$, the challenge, the hint and serialization. Reuse those buffers after every rejection, wiping values that could survive into telemetry or a later operation. Do not allocate a new workspace based on a secret-dependent norm or hint count.
+
+Derive the nonce exactly as the standard specifies for the selected deterministic or hedged mode. In hedged mode, combine fresh randomness with the secret and message-bound material through the prescribed KDF. Never concatenate randomness after an insufficiently bound hash and assume the result is safe. Test that identical inputs in deterministic mode are reproducible and that different messages in either mode produce different masking material; the latter test detects many nonce-derivation regressions without exposing the secret.
+
+The signing loop should have a fixed internal sequence for each attempt: transform $y$, multiply, hash, form $z$, inspect norm, construct hint and validate it. The number of attempts can vary, but no attempt should branch on secret table indices or perform variable-time division. Compute the maximum absolute centered coefficient with branch-free comparisons and masks. Serialize only after acceptance so an encoder never observes a rejected candidate.
+
+Fault protection is a separate layer. A glitch during $cs_1$, a skipped norm check or a corrupted hint can produce a signature outside the proved distribution. Verify the exact serialized candidate before release when the device threat model includes faults, and consider redundant computation for the most sensitive stages. Verification catches many invalid outputs, but it is not a proof against every active fault; physical sensors, redundant randomness and secure boot remain relevant.
+
+For a signing service, bind the request identifier to the message bytes and return the signature with the exact public-key identifier. This prevents an operator from attaching a valid signature to a different manifest during transport. Rate-limit signing requests and cap queue depth. Because latency depends on rejection, expose a retryable timeout rather than weakening acceptance checks. Never log the secret, nonce seed, masking vector or rejected $z$.
+
+Test known-answer vectors for all three parameter sets, then differential-test against an independent implementation over random keys and messages. Add negative tests that alter every signature component, exceed the hint weight, use non-canonical coefficients and truncate the final byte. Fuzz the verifier separately from the signer. Measure attempt count and latency on the target hardware, and run static taint analysis with the secret marked as sensitive.
+
+On deployment day, pin the library, compiler and hardware feature set. Review the generated comparison and sampling routines, run timing and power evaluation, and exercise fault injection. Re-run these checks after enabling a new CPU feature or crypto provider. Keep an offline recovery plan for key compromise; changing the signature algorithm alone does not revoke manifests already signed with a leaked key.
 </Lens>
+
+<GuidedWorkshop
+  id="ml-dsa-workshop"
+  title="Contain a repeated masking vector in a firmware signer"
+  scenario="A firmware signing appliance signs two different manifests with ML-DSA-65. After a snapshot rollback, both signatures are found to have used the same masking vector. The signer also allows an operator to disable internal verification when deadlines are missed. No secret has yet been confirmed stolen, and the two signatures are already public."
+  tasks={[
+    "Show algebraically what the two public responses reveal when y is reused with different challenges.",
+    "Explain why internal verification cannot detect every repeated-nonce security failure.",
+    "Contain the incident by identifying affected keys, manifests and downstream trust anchors.",
+    "Fix nonce derivation, rollback recovery and deadline behaviour without bypassing rejection.",
+    "Design regression tests for repeated randomness, nonce uniqueness, canonical hints and fault injection."
+  ]}
+  hints={[
+    "Subtract z2 - z1 before attempting any key recovery.",
+    "A repeated-nonce signature can verify perfectly.",
+    "Assume public signatures have been copied by observers.",
+    "A service deadline may cause retry or abort, never acceptance of a failed candidate."
+  ]}
+  solution={[
+    "In a scalar projection, z1 = y + c1 s1 and z2 = y + c2 s1. Subtracting cancels y and gives z2 - z1 = (c2 - c1)s1. With toy values y = 1000, s1 = 7, c1 = 1 and c2 = 3, the public responses are 1007 and 1021; their difference 14 divided by challenge difference 2 reveals 7. In the real quotient ring, the attacker obtains linear relations involving the secret polynomial and may be able to derive a forgery.",
+    "Internal verification checks whether a signature satisfies the public equation. Both repeated-nonce signatures can satisfy it, so verification is not a nonce-reuse detector. The security failure comes from the joint distribution of public responses, not from an invalid individual signature. Treat the key as potentially compromised once reuse on different challenges is confirmed.",
+    "Stop signing with the affected key, preserve authenticated logs, identify every signature produced since the suspect randomness state was introduced and inventory all published manifests. Rotate to a newly generated key through the trust-anchor process, revoke or distrust the old key where supported, and re-sign artifacts according to the incident policy. Do not assume that deleting the appliance snapshot removes public copies.",
+    "Use the standard's hedged or deterministic nonce derivation with fresh, protected randomness as appropriate. Persist a monotonic anti-rollback value outside the restored snapshot, or design recovery so the appliance cannot sign until randomness state is re-established under control. Replace deadline bypasses with bounded retry and abort. Verify serialized signatures before release, while recognising that verification is an additional fault check rather than a substitute for nonce uniqueness.",
+    "Inject a random source that repeats, restore an old snapshot and confirm that signing refuses or switches to a safe recovery state. Compare nonce-derived material in a test harness without exposing production secrets. Keep boundary tests for gamma_1 - beta, omega and tau, malformed hint encodings, and every signature length. Run fault injection that skips or corrupts norm and hint checks, and require the device to withhold the candidate."
+  ]}
+  takeaway="Rejection protects the signature distribution, but only unique, correctly derived masking material prevents the repeated-nonce leak; verification alone cannot detect it."
+/>
+
+## Common failure modes
+
+| Failure | Cause | Impact | Prevention |
+| --- | --- | --- | --- |
+| Masking vector repeats across messages | Rollback, RNG failure or nonce derivation omits the message | Linear leakage about the secret key | Hedged derivation and anti-rollback state |
+| Norm check uses ordinary residues | Missing centered conversion before infinity norm | Valid negatives rejected or unsafe outputs accepted | One canonical centring routine with boundary tests |
+| Hint weight is not checked | Verifier accepts arbitrary correction bits | Verification outside the specified relation | Enforce $\omega$ and canonical hint decoding |
+| Rejection is bypassed under load | Deadline handling releases a candidate | Secret-dependent output distribution | Abort or retry without weakening checks |
+| Challenge encoding is ambiguous | Message context or public input is not fully bound | Signature can be attached to another statement | Versioned canonical signing context |
+| Faulted signature is released | No verify-before-release or redundancy | Invalid output or key leakage | Verify serialized candidate and evaluate faults |
+| Verification normalises malformed input | Parser repairs out-of-range values | Signature malleability and policy confusion | Strict canonical parsing and false return |
+| Signing service logs attempt buffers | Debug logging includes $y$ or rejected $z$ | Nonce and secret leakage | Structured public-only telemetry |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Signing latency rises after an update | Higher rejection rate or slower sampling/NTT | Compare attempt counts and stage timings on fixed vectors |
+| Negative coefficients always reject | Norm is measured before centred reduction | Check conversion at $-1$, $-2$ and near $\gamma_1$ |
+| Independent verifier rejects valid output | Hint encoding or challenge context differs | Compare serialized bytes and public-input hashing |
+| Signatures repeat unexpectedly | Deterministic mode or repeated nonce derivation | Confirm mode, message binding and randomness health |
+| Fuzzed verifier accepts strange hints | Weight, trailing-byte or challenge checks are missing | Add all canonicality and bound tests |
+| Faulted output occasionally verifies | Fault did not change the final relation | Repeat fault campaign and add redundant sensitive stages |
+
+## Design review checklist
+
+- [ ] The parameter set fixes $\gamma_1$, $\gamma_2$, $\beta$, $\tau$, $\omega$ and $d$ together.
+- [ ] Message context and public-key identity are bound before nonce derivation.
+- [ ] Deterministic or hedged nonce derivation follows the selected standard mode.
+- [ ] Rollback, cloning and random-source failure cannot repeat $y$ across challenges.
+- [ ] The infinity norm uses centered coefficients and the strict $\gamma_1-\beta$ bound.
+- [ ] Hint weight, challenge weight, lengths and canonical encodings are enforced.
+- [ ] Rejection discards the whole attempt and never bypasses checks for latency.
+- [ ] Secret-dependent sampling and arithmetic have fixed memory and control flow.
+- [ ] Fault injection and verify-before-release cover sensitive signing stages.
+- [ ] Signing and verification have independent known-answer and negative tests.
+- [ ] Telemetry excludes nonces, secret vectors and rejected candidates.
 
 ## Key takeaways
 

@@ -5,8 +5,9 @@ subtitle: "Train a shared model without collecting raw data — and learn why pr
 track: "Distributed Systems & Privacy"
 order: 6
 difficulty: "Intermediate"
-readingTime: 21
+readingTime: 80
 summary: "How federated averaging works, what secure aggregation and differential privacy actually protect, and why poisoning, Sybil and inference attacks remain."
+outcomes: ["Trace a FedAvg round with weighted aggregation and client dropout.", "Separate privacy controls from integrity controls.", "Explain secure aggregation, differential privacy and composition.", "Analyse poisoning, backdoors, membership inference and operational testing."]
 citations: ["mcmahan2017", "kairouz2021", "bonawitz2017", "abadi2016", "dwork-roth2014", "shokri2017", "bagdasaryan2020"]
 tags: ["federated-learning", "privacy", "differential-privacy", "poisoning"]
 prerequisites: ["centralised-decentralised", "hashing-mac-kdf"]
@@ -61,6 +62,16 @@ Three hospitals want a model that predicts a rare complication. Each has a few h
 - Who owns the final model, and who may query it?
 
 These are governance and security questions, not just machine-learning questions.
+
+### Threat model: two attackers with different goals
+
+Separate the curious aggregator from the malicious participant. The curious aggregator may be contractually restricted but still technically able to inspect updates, timing, client identities and released models. Its incentive is to improve a service or infer commercially valuable information. The malicious client wants the global model to misclassify a trigger, leak membership information, gain disproportionate influence or waste the consortium's resources. A network observer may learn participation and model version even without reading encrypted updates. A model consumer can submit chosen queries and exploit overfitting. Each capability requires a separate control; hiding one update from the server does not stop a poisoned aggregate.
+
+In an eight-hospital deployment, a rare-condition model is trained for two hundred rounds. Each hospital benefits if accuracy improves, but a hospital with unusual equipment also wants its local performance preserved. That creates incentives to free-ride, distort data or waste resources. Secure aggregation reduces the aggregator's visibility, yet it also makes outlier inspection harder without an authorised verification path.
+
+Several intuitive claims are wrong. Keeping records local does not mean updates are anonymous: gradients or parameter differences can encode examples. Adding noise once does not give a fixed lifetime privacy guarantee, because repeated releases compose. Hiding individual updates does not mean the final aggregate is safe: ten colluding clients can target the same feature. More clients do not automatically reduce poisoning; a large attacker-controlled population can increase both weight and confidence. A good threat-model statement names the privacy unit, the collusion threshold, the number of adversarial updates and whether the server follows the protocol.
+
+Define success before training: clinical utility, bounded privacy loss, maximum poisoning impact and round availability. Reject a candidate if clean validation accuracy falls by more than two percentage points or any protected subgroup falls by more than five points. These policy thresholds turn concerns into testable release gates.
 </Lens>
 
 <Lens level={2} title="Rounds, aggregation and the privacy stack">
@@ -119,6 +130,51 @@ The server may be unable to see an individual update, but it still incorporates 
 Suppose four clients have 420, 310, 580 and 260 samples. The weighted average gives the largest client about 37% of the update and the smallest about 17%. A malicious client with 5,000 samples could dominate unless the server caps per-client influence. That is why contribution bounds and clipping are security controls, not only privacy controls.
 
 If one client drops out during secure aggregation, the server needs enough remaining shares to reconstruct the sum. The dropout threshold, timeout and recovery behaviour are part of the protocol design.
+
+### Follow one round end to end
+
+The coordinator checks authentication, approved training code, model version and device readiness, then samples clients with a documented policy. Uniform sampling supports an unbiased estimate; favouring large or fast clients changes it. The server sends the model hash, round identifier, clipping norm, noise configuration and deadline.
+
+A client freezes the model version, runs deterministic local steps, clips the update and applies local privacy. It creates masked shares and signs a commitment. A client leaving after usable shares may still be included; one leaving earlier is a dropout, not silently zero unless the protocol says so.
+
+The aggregator verifies commitments, reconstructs only after the threshold holds, divides by included sample counts, applies global noise and records privacy accounting. Evaluate on an independently governed held-out set, not only easy-to-reach clients. Publish a signed model manifest and await acknowledgements before the next round.
+
+<ProcessFlow
+  steps={[
+    {title: "Select", detail: "Authenticate eligible clients and sample without hiding participation bias.", tone: "brand"},
+    {title: "Train", detail: "Clients run a pinned training procedure against a versioned global model.", tone: "teal"},
+    {title: "Bound", detail: "Clip each contribution so one client cannot set aggregate sensitivity.", tone: "gold"},
+    {title: "Mask", detail: "Secret-share masked updates and commit to their integrity.", tone: "brand"},
+    {title: "Reconstruct", detail: "Aggregate only when the dropout threshold leaves enough usable shares.", tone: "coral"},
+    {title: "Evaluate", detail: "Account for privacy, test utility and sign the candidate model.", tone: "teal"}
+  ]}
+/>
+
+<WorkedExample
+  title="Weighted FedAvg with an over-large client"
+  steps={[
+    "The selected clients have sample counts 420, 310, 580 and 260, totalling 1,570.",
+    "Their scalar parameter updates are 4, 2, 6 and 1, so each client's weight is its sample count divided by 1,570.",
+    "Compute the weighted numerator: 420 times 4 plus 310 times 2 plus 580 times 6 plus 260 times 1 equals 6,040.",
+    "Divide 6,040 by 1,570 to obtain approximately 3.847.",
+    "The largest client controls 580 divided by 1,570, or about 36.9% of the update; the unweighted mean would be 3.25."
+  ]}
+  result="FedAvg is sample-weighted, not an equal average. A client with many samples can dominate unless the system separately caps influence or uses a robust aggregation rule."
+/>
+
+<WorkedExample
+  title="Secure-aggregation dropout arithmetic"
+  steps={[
+    "Eight clients are selected and the reconstruction threshold is six usable contributions.",
+    "Five clients submit all shares and two submit enough shares to reconstruct; one disappears before submission.",
+    "Seven usable contributions remain, which meets the threshold of six.",
+    "The aggregate uses the actual included sample counts and records the dropout, rather than assuming all eight contributed.",
+    "If three clients disappear, only five remain and the round aborts without publishing an incomplete aggregate."
+  ]}
+  result="The threshold converts dropout into an explicit availability condition. Six-of-eight reconstruction tolerates two total dropouts, but the collusion bound of the secret-sharing scheme is a separate parameter."
+/>
+
+Version configuration with the round. Clipping controls sensitivity, deadlines control participation and the reconstruction threshold controls dropout availability. Test these interacting knobs together.
 </Lens>
 
 <Lens level={3} title="The objective, the guarantee and the adversary">
@@ -174,6 +230,38 @@ Membership inference exploits differences in model behaviour between training an
 An attacker can scale an update to dominate the average, target a trigger pattern, or collude across clients. Backdoors are especially difficult because the model behaves normally on clean inputs. Defences include clipping, robust aggregation (for example coordinate-wise median), anomaly detection, contribution bounds, client reputation and independent evaluation. <Cite id="bagdasaryan2020" locator="pp. 2938–2948" />
 
 No single defence covers all attackers. The threat model must state whether clients can be malicious, whether the server is honest-but-curious, and whether Sybil identities are cheap.
+
+### Privacy units, sensitivity and composition
+
+The word privacy is incomplete until the unit is named. Record-level DP limits the effect of adding or removing one example; client-level DP limits the effect of one client's entire dataset; update-level DP may protect a single vector contribution but not the underlying client. Neighbouring datasets must differ only under the declared relation. Client-level DP is usually the relevant claim when each hospital contributes one bounded update, but it is not interchangeable with record-level DP. <Cite id="dwork-roth2014" locator="Vol. 9, pp. 211–407" />
+
+For a vector-valued query with clipping bound $C$, the Gaussian mechanism adds noise with standard deviation proportional to $C/\varepsilon$. A common one-release calibration for $(\varepsilon,\delta)$-DP with $\varepsilon<1$ is
+
+$$
+\sigma = C\sqrt{\frac{2\ln(1/\delta)}{\varepsilon^2}}.
+$$
+
+The formula is only valid for the specified mechanism, privacy unit and sensitivity analysis; it is not a recipe for arbitrary objectives. With independent releases, basic composition gives $\varepsilon_{\text{total}}\le \sum_r \varepsilon_r$. Advanced composition can be tighter when individual epsilons are small, but it does not remove accounting. DP guarantees are worst-case: they say the output distributions change little for neighbours, not that every record is impossible to infer. Post-processing cannot increase privacy, but a released model plus side information can still support attacks outside the protected unit. <Cite id="abadi2016" locator="pp. 308–318" />
+
+<WorkedExample
+  title="Noise and budget for repeated hospital updates"
+  steps={[
+    "Choose client-level DP with clipping norm C equal to 1, epsilon equal to 0.8 and delta equal to 0.00001 for one round.",
+    "Compute the Gaussian standard deviation: 1 times the square root of 2 times ln of 100000, divided by 0.8.",
+    "The square-root term is approximately 4.840, so sigma is approximately 6.050.",
+    "Across 50 independent rounds, basic composition gives total epsilon at most 50 times 0.8, or 40.",
+    "An advanced-composition bound with the same delta is roughly 0.8 times the square root of 2 times 50 times ln of 100000, or about 26.7."
+  ]}
+  result="A seemingly moderate per-round epsilon becomes very large over a training run. Fix the total privacy budget first, then allocate it across rounds and any public model releases."
+/>
+
+### Correctness and robustness are separate arguments
+
+Secure aggregation must reconstruct the intended sum despite missing shares and malicious contributions. Correctness assumes authenticated shares, consistent dimensions, correct commitments and a compatible reconstruction threshold. Confidentiality limits collusion; neither property establishes that the sum is useful or benign. <Cite id="bonawitz2017" locator="pp. 1175–1191" />
+
+A coordinate-wise median has a breakdown point of one half for one coordinate, but coordinated poisoning across coordinates or heterogeneous data can defeat it. A trimmed mean requires a bound on the attacker population. Clipping limits magnitude, not direction, so many bounded malicious clients can still bias an average.
+
+FedAvg is an optimisation approximation. If selected clients draw from the weighted population objective and use sufficiently small steps, averaging can approximate central SGD. Partial participation, local overfitting and changing distributions introduce bias and variance. Edge cases include zero samples, non-finite values, repeated client identifiers and updates for the wrong round.
 </Lens>
 
 <Lens level={4} title="Systems engineering for federated rounds">
@@ -229,13 +317,106 @@ No single defence covers all attackers. The threat model must state whether clie
 
 <Callout variant="danger" title="Federated is not a compliance certificate">
 Data minimisation, lawful basis, retention and user transparency still apply. A federated training pipeline can still produce a privacy-invasive deployed model, and model updates can be personal data.
+
+### Deployment patterns and performance
+
+A production coordinator is a state machine, not a notebook. Persist the round identifier, selected client commitments, included contributors, model hash, clipping and noise parameters, privacy accountant state and evaluation result before publishing a model. Make publication idempotent so a retry cannot consume the privacy budget twice. Separate the training plane from the public model-serving plane: an attacker who can query the model may be different from the curious aggregator that trained it.
+
+Communication often dominates runtime. A 10-million-parameter model uses about 40 MB in 32-bit floating point and 10 MB after 8-bit quantisation. To 1,000 clients, download and upload together consume about 80 GB or 20 GB before overhead. Sparse updates and compression reduce traffic but can change clipping, noise and poisoning behaviour; verify exact encode/decode equivalence.
+
+Schedule clients with backpressure and stagger uploads to avoid a deadline thundering herd. Cache the global model by hash and reject stale contributions. On constrained phones, defer training to charging and unmetered conditions; that policy affects population representation. Track broad participation cohorts rather than extra personal data.
+
+### Observability, testing and response
+
+Useful round telemetry includes eligible and selected clients, submission and dropout rates, deadline percentiles, reconstruction failures, update norms before and after clipping, non-finite-value rate, training loss aggregates and candidate-versus-baseline utility. Privacy accounting is a hard gate: a failed accountant must stop publication, not emit a warning. Anomaly dashboards should avoid displaying raw gradients or unique client-level metrics unless an authorised analysis process justifies them.
+
+Test with honest heterogeneity and adversarial clients simultaneously. Include Byzantine scaling, feature-colluding backdoors, Sybil identities, stale code, duplicated rounds, malformed shares and dropouts at every protocol boundary. Run membership-inference and subgroup-utility evaluations on every candidate class of change. Verify that a rollback restores the previous signed model and privacy-accountant checkpoint without rerunning the poisoned round.
+
+The round runbook should define who can pause training, invalidate a model, revoke a participant, preserve privacy accounting and communicate regressions. Rehearse a poisoned-round response before production.
+
+1. Pin and attest the training code and objective configuration.
+2. Authenticate clients and make Sybil enrolment materially costly.
+3. Record the privacy unit, clipping norm, total epsilon and delta before training.
+4. Enforce dropout, deadline and idempotency rules in the coordinator state machine.
+5. Validate finite values, dimensions, round identity and update commitments.
+6. Measure traffic and p95 round completion under realistic client constraints.
+7. Monitor aggregate quality and participation without collecting unnecessary raw data.
+8. Test poisoning, dropout, stale-model and reconstruction-failure paths.
+9. Gate release on privacy accounting and independent evaluation.
+10. Rehearse model rollback, participant revocation and consumer notification.
 </Callout>
 </Lens>
 
 
+## Guided workshop: recovering a poisoned hospital round
+
+A ten-hospital federation has completed thirty rounds of a complication-prediction model. Round 31 selects eight hospitals, uses a six-contribution reconstruction threshold and reports a small aggregate norm after clipping. Overall validation accuracy looks stable, but two hospitals using a particular scanner model show a sharp regression. The coordinator cannot inspect individual updates because secure aggregation is enabled. One hospital has also renewed its enrolment credentials twice in the last month.
+
+<GuidedWorkshop
+  id="federated-learning-workshop"
+  title="Contain the regression without discarding the privacy guarantees"
+  scenario="Decide whether to publish round 31, investigate a possible targeted poisoning attack and restore service. Assume eight selected clients, six required contributions and client-level DP with a total epsilon budget of 5 across the whole training programme."
+  tasks={[
+    "Determine which dropout patterns permit reconstruction and whether the observed norm proves safety.",
+    "Separate the evidence for a privacy failure, an integrity failure and ordinary distribution shift.",
+    "Design an investigation that does not reveal honest clients' updates to the curious aggregator.",
+    "Choose containment, rollback and participant-revocation actions with clear authority.",
+    "Update the release gate and privacy accounting before resuming training."
+  ]}
+  hints={[
+    "A reconstruction threshold says when the sum is available, not whether the sum is benign.",
+    "The scanner-specific pattern suggests a trigger or cohort shift, but subgroup regression is not attribution.",
+    "Consider an independent audit quorum or a separately consented diagnostic round rather than deanonymising production.",
+    "Keep the last signed model and accountant checkpoint ready before any new round starts.",
+    "Allocate the remaining epsilon across future rounds; do not treat each release as a fresh budget."
+  ]}
+  solution={[
+    "Six-of-eight reconstruction succeeds if at least six contributions remain usable, so two dropouts are tolerated. If all eight submitted usable shares, the round can reconstruct even though one is malicious. A small post-clipping aggregate norm can result from cancellation between honest and poisoned updates, or from clipping an extreme vector; it does not certify integrity. The coordinator should first verify commitments, included counts, round identifiers and that evaluation data were unchanged.",
+    "There is no direct evidence of a privacy failure: individual updates remain hidden and the privacy accountant passed. The integrity hypothesis is targeted poisoning, especially because two scanner cohorts regress together. Distribution shift, a new scanner firmware and a genuine change in patient mix are alternatives. Preserve the signed candidate and round metadata, compare clean and subgroup metrics with the previous three rounds, and label confirmed observations separately from hypotheses. Do not publish round 31 while the regression exceeds the agreed release threshold.",
+    "Because secure aggregation prevents individual inspection, ask a separately authorised audit quorum to open its shares under a documented purpose and retention limit, or run a consented diagnostic round with robust aggregation and independent evaluation. Freeze the suspicious client's future eligibility rather than exposing its update to the central aggregator. Credential renewals are a lead, not proof: legitimate hospitals replace staff and certificates. Review enrolment identity, device attestation and contribution history before revocation.",
+    "Restore the round-30 signed model as the served version, invalidate the round-31 manifest and tell consumers which version is authoritative. Keep the poisoned candidate in restricted evidence storage only if policy permits. Pause the client if evidence crosses the documented threshold, rotate any compromised enrolment material and repeat the round with that client excluded only when the sampling and accounting changes are approved. Verify recovery on the affected scanner cohorts before resuming normal cadence.",
+    "Add scanner and site characteristics to privacy-preserving evaluation slices, and require no protected-subgroup regression greater than the agreed tolerance. Combine clipping with a robust aggregation rule and contribution reputation, then rerun poisoning simulations. Record the round's epsilon against the remaining total budget and allocate a smaller per-round epsilon for later rounds. Publish an incident note covering the decision, uncertainty, model version and follow-up tests."
+  ]}
+  takeaway="Secure aggregation can prevent an investigation and still permit poisoning. Design an authorised audit path, independent evaluation and rollback before the privacy guarantee is needed."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Privacy claim without a unit | Team says DP but cannot define neighbours | Record, client and update privacy conflated | Declare unit, relation and total budget |
+| Budget reset each round | Total epsilon grows unnoticed | Releases accounted independently | Persistent accountant and hard publication gate |
+| Hidden poisoning | Aggregate looks plausible but targeted accuracy falls | Confidentiality mistaken for integrity | Robust aggregation and subgroup evaluation |
+| Selection bias | Model improves only for easy or fast clients | Scheduling favours convenient devices | Track representative participation cohorts |
+| Dropout deadlock | Rounds repeatedly abort | Reconstruction threshold too high | Tune threshold and timeout against observed dropout |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Aggregate cannot be reconstructed | Too many clients left before usable shares | Verify threshold, deadlines and share acknowledgements; abort safely |
+| Global accuracy falls after a round | Poisoning, drift or excessive clipping | Roll back, compare cohorts and run authorised diagnostics |
+| Privacy accountant rejects publication | Budget exhausted or metadata inconsistent | Stop releases, reconcile round history and reallocate remaining budget |
+| Client uploads fail with dimension errors | Model version or quantisation mismatch | Check signed model hash and deterministic encode/decode tests |
+| Slow clients never participate | Deadline or sampling policy excludes them | Stagger scheduling and measure cohort participation |
+| Utility collapses when epsilon shrinks | Noise too large for clipped signal | Revisit total budget, architecture and privacy unit rather than bypassing DP |
+
+## Design review checklist
+
+- [ ] The privacy unit, neighbouring relation, epsilon, delta and composition method are explicit.
+- [ ] Secure aggregation's dropout threshold and collusion threshold are stated separately.
+- [ ] Every client update is bound to a signed round and pinned training configuration.
+- [ ] Clipping, robust aggregation and Sybil controls have documented limits.
+- [ ] Evaluation includes clean data, subgroup slices and poisoning simulations.
+- [ ] Communication and completion budgets include both model download and update upload.
+- [ ] The coordinator persists privacy accounting and model manifests idempotently.
+- [ ] Monitoring avoids raw updates and unnecessary client-level personal data.
+- [ ] A rollback restores the previous model and accountant state without republishing.
+
 ## Key takeaways
 
 - Federated learning reduces raw-data centralisation but does not automatically provide privacy or integrity.
+
 - Secure aggregation protects update confidentiality, not correctness.
 - Differential privacy needs a unit, a budget and composition accounting.
 - Poisoning and backdoors require separate robust-aggregation and monitoring controls.

@@ -5,8 +5,9 @@ subtitle: "No architecture is automatically secure. What changes when one operat
 track: "Distributed Systems & Privacy"
 order: 5
 difficulty: "Intermediate"
-readingTime: 20
+readingTime: 70
 summary: "Compare centralised, federated, consortium and peer-to-peer architectures through trust boundaries, Byzantine failure, CAP, governance and operational reality."
+outcomes: ["Compare centralised, federated, consortium and permissionless trust models.", "Apply CAP and Byzantine quorum bounds to concrete architectures.", "Evaluate consensus, identity, recovery and upgrade authority.", "Measure decentralisation and design controls for failure and capture."]
 citations: ["lamport1982", "gilbert-lynch2002", "castro-liskov1999", "nakamoto2008", "gencer2018", "sp800-207", "kairouz2021"]
 tags: ["distributed", "consensus", "architecture", "trust"]
 prerequisites: ["asymmetric-primitives"]
@@ -66,6 +67,14 @@ For each component, ask:
 - Who can recover a lost credential?
 
 If the answer is “the operator” for every row, you have a centralised system with a single trust boundary. If the answers differ, document the trust set and the quorum required to change state. That worksheet is more useful than a decentralisation score.
+
+### Build the threat model before choosing the topology
+
+Consider a regional payments platform that must settle transfers, prevent double spending and remain available during a national network incident. Its security objectives are ledger integrity, authorisation, non-repudiation, recovery and bounded settlement delay. The passive attacker observes traffic; the active attacker replays messages; the insider attempts an unauthorised transfer; the compromised operator tries to rewrite history. A regulator and a customer also need evidence that the platform behaved correctly. These are different adversaries with different costs, so counting validators alone cannot establish security.
+
+A central operator has strong incentives to protect the ledger because fraud and outage damage its business, but it can also censor or disclose records. Validators may favour their own members or collude with a counterparty. In a permissionless network, an attacker buys hash power or stake; measurable cost does not guarantee honest participation. The defender preserves protocol credibility, while attackers seek short-term extraction or disruption.
+
+Three misconceptions cause bad architecture decisions. First, **more replicas do not mean more independence**: seven validators operated by one cloud account have one effective failure domain. Second, **consensus does not establish truth outside the protocol**: if every validator receives the same false exchange rate, they can agree on a false ledger entry. Third, **decentralisation does not remove recovery**: keys, governance clients and human decisions still concentrate authority. Measure the smallest coalition that can rewrite state, censor, recover or upgrade; that is the real trust boundary.
 </Lens>
 
 <Lens level={2} title="Architectures, consensus and recovery">
@@ -100,6 +109,53 @@ Do not grant implicit trust based on network location. Authenticate and authoris
 ## Recovery and identity
 
 In a centralised system, account recovery is an operator workflow with identity proofing. In a consortium, it is a policy decision with quorum approval. In a permissionless system, identity is a key pair; recovery is multi-signature, social recovery or loss. Each answer changes the threat model: recovery mechanisms are often the weakest link because they bypass the cryptography.
+
+### A concrete consortium walkthrough
+
+Suppose seven hospitals operate a shared audit ledger. Four organisations control one validator each, an independent infrastructure provider controls two, and a patient representative controls one. The charter allows at most two Byzantine validators and requires five signatures to commit a batch. Membership changes require five of seven approvals plus a thirty-day notice period. Configuration choices include a three-second block interval, a ten-second view timeout, a maximum batch size and a rule for handling an offline validator. These numbers are not universally correct: they express the desired recovery time, the observed network delay and the tolerated denial-of-service window.
+
+A transfer begins at a hospital gateway. The gateway authenticates the user, assigns a monotonic request identifier and signs the transaction. A validator checks the signature, account balance, replay identifier and clinical policy before pre-preparing the request. Other validators validate independently rather than trusting the proposer's assertion. They prepare only when the transaction is valid, then commit after collecting a certificate containing five matching votes. The ledger appends the transaction and returns a receipt. A restarting validator requests a checkpoint or replays certified entries rather than inferring history from its block.
+
+The protocol must distinguish ordinary latency from a partition. If five validators remain connected, the system continues to commit. If a network split leaves three and four validators, neither side has five votes, so both stop committing new transfers. Reads may continue from local checkpoints with a clear freshness warning, but the payment endpoint must reject requests that require settlement certainty. Once the partition heals, validators exchange certificates and converge on the highest certified sequence number. Fencing tokens prevent an isolated site administrator from acting on stale authority.
+
+<ProcessFlow
+  steps={[
+    {title: "Authorise", detail: "Gateway verifies identity, policy and a unique request identifier before signing.", tone: "brand"},
+    {title: "Propose", detail: "The current leader broadcasts a batch to all seven known validators.", tone: "teal"},
+    {title: "Validate", detail: "Each replica independently checks signatures, state transitions and replay rules.", tone: "brand"},
+    {title: "Vote", detail: "Validators prepare only after local validation and reject equivocating proposals.", tone: "gold"},
+    {title: "Certify", detail: "Five matching commit votes form a quorum certificate bound to the batch.", tone: "coral"},
+    {title: "Recover", detail: "Rejoining replicas verify checkpoints and replay missing certified batches.", tone: "teal"}
+  ]}
+/>
+
+<WorkedExample
+  title="Seven validators and the largest tolerated Byzantine minority"
+  steps={[
+    "Set the fault budget to two compromised validators, so f equals 2.",
+    "Apply the classical oral-message bound n at least 3f + 1: 3 times 2 plus 1 equals 7.",
+    "Choose a quorum of 2f + 1, which is 5 of 7.",
+    "Intersect any two quorums: 5 + 5 - 7 equals 3 shared replicas, at least one of which is honest.",
+    "Check availability separately: with three validators offline, four remain and no quorum of five can form."
+  ]}
+  result="The seven-validator system can preserve safety with two Byzantine faults, but it stops committing when more than two replicas are unavailable. Safety tolerance and availability are not the same number."
+/>
+
+<WorkedExample
+  title="A partition at a payments gateway"
+  steps={[
+    "A gateway can reach validators 1 through 4, while validators 5 through 7 form the other component.",
+    "Each side tests whether it can obtain five valid commit votes; both sides fail that test.",
+    "The gateway returns a retryable settlement-unavailable response rather than accepting a transfer against stale state.",
+    "Read-only balance queries return the last certified value plus its checkpoint timestamp.",
+    "After healing, validators reject any local chain without a five-vote certificate and resume from the common certified prefix."
+  ]}
+  result="Choosing consistency during the partition prevents double spending. The product must expose retry semantics because CAP constrains the operation, not the entire application."
+/>
+
+### Configuration choices that change the security model
+
+Membership policy is as important as the consensus code. If the same person can add validators and approve the resulting policy change, decentralisation is nominal. Limit emergency membership changes to a documented threshold, separate proposer authority from admission authority and test removal of a malicious validator. Rate limits protect against spam, but overly broad limits can become censorship; quotas should bind to authenticated principals.
 </Lens>
 
 <Lens level={3} title="CAP, Byzantine bounds and the trust set">
@@ -140,6 +196,24 @@ Write down who can read state, who can write state, how many faults are tolerate
 
 <Callout variant="lab" title="Identity provider compromise">
 A central identity provider can authenticate users to every connected service. Compromising it is equivalent to compromising many systems at once. A decentralised identity design may reduce this blast radius, but it introduces recovery, revocation and interoperability problems. The right architecture depends on which failure is worse for the organisation.
+
+### Define the properties precisely
+
+**Safety** means that nothing bad happens: two honest replicas never commit conflicting values at the same log position. **Liveness** means that valid requests eventually commit once the network is stable and enough replicas participate. **Validity** requires a committed value to have been proposed by a correct participant. These properties can be proven separately; a safe but halted system has not failed the same way as one that commits fraud.
+
+A quorum system is a collection $Q$ of subsets. It is consistent when any two quorums intersect, and available when at least one member of $Q$ is contained in every possible non-faulty replica set. With classical crash faults, majority quorums of size $\lfloor n/2\rfloor+1$ suffice. With Byzantine faults, the larger vote size matters because intersecting replicas may themselves be faulty. For $n=3f+1$ and quorum size $q=2f+1$,
+
+$$
+|Q_1 \cap Q_2| \ge 2q-n = f+1.
+$$
+
+Since at most $f$ replicas are faulty, at least one replica in every intersection is honest. Honest replicas do not vote for conflicting values at the same position, which is the core safety argument. This is an assumption-driven result: authenticated point-to-point messages, identifiable participants, known membership and a static or carefully managed fault bound are part of the model. <Cite id="lamport1982" locator="pp. 382–401" />
+
+The bound $n \ge 3f+1$ is not a law for every consensus mechanism. Signed messages, trusted hardware, randomised protocols and economic consensus change the assumptions and trade-offs. Adding replicas increases fault tolerance only if they are independent and the protocol is configured for the new membership.
+
+CAP requires its own precision. Linearizability means that every operation appears to take effect atomically at one instant between its invocation and response. It is stronger than eventual consistency and different from serialisability of database transactions. The partition argument applies when a client cannot distinguish an unavailable replica from a slow one. It does **not** imply that a healthy database always sacrifices consistency, or that every read must fail when one replica is isolated. Apply the theorem per operation and state the consistency contract visible to clients. <Cite id="gilbert-lynch2002" locator="Vol. 33, No. 2, pp. 51–59" />
+
+A final edge case is external truth. Consensus proves that a state transition followed agreed rules; it cannot prove that an input was accurate. Put provenance, sanity bounds and dispute windows around external inputs that can move money or alter safety-critical decisions.
 </Callout>
 </Lens>
 
@@ -189,8 +263,95 @@ Ask how many independent entities can censor a transaction, finalise a block, ch
 ## Choosing an architecture
 
 Use centralisation when you need low latency, strong consistency, clear accountability and easy recovery. Use decentralisation when no single party should be able to censor or rewrite history, and the application tolerates weaker finality and higher coordination cost. Most systems are hybrids; document the boundary and test failure.
+
+### Deployment and observability
+
+Run validators as independent failure domains, but do not confuse geographic separation with control independence. Measure CPU saturation, disk write latency, network delay, view-change rate, queue depth, vote age and checkpoint divergence for every replica. A healthy aggregate dashboard can hide one validator repeatedly timing out. Export event time, ingestion time, validator identity, view number, block height and quorum-certificate status. Alert on missing quorum certificates, not merely missing blocks, because a server may be producing blocks that clients cannot verify.
+
+Set performance budgets from the product contract. If settlement must complete within five seconds for 99.9% of requests, measure from client submission through validation, consensus, persistence and receipt. The timeout must exceed realistic network and disk tails, yet be short enough to recover from a failed leader. Test with packet loss, clock skew, garbage-collection pauses and a slow disk on one validator.
+
+Use canary validators for new code and expand only after checkpoint equality, latency and error checks pass. Software rollback is usually safe for the consensus binary; a state-machine rollback requires a protocol-level decision and can violate auditability. Exercise that distinction.
+
+### Operational readiness checklist
+
+Fault injection should cover crashes during every phase of a proposal, delayed and reordered messages, duplicate votes, equivocation, clock drift, disk exhaustion and loss of a trust anchor. Partition the network into all relevant splits rather than only a simple majority/minority division. Verify that clients detect stale reads and that recovery reconstructs state from certificates, not gossip. Run key-rotation and membership-change drills under load. A backup is not proven until a separate environment has restored it and verified its final certificate.
+
+1. Record the fault model, independence assumptions and per-operation consistency contract.
+2. Size quorums for the stated Byzantine and availability budgets, then test the arithmetic against actual membership.
+3. Separate proposer, validator-admission, upgrade-signing and recovery authorities.
+4. Replicate validators across independent power, network, cloud and administrative domains.
+5. Protect signing keys with hardware or threshold custody and rehearse rotation and compromise response.
+6. Monitor quorum progress, state divergence and external oracle freshness.
+7. Benchmark p95 and p99 latency under loss, slow disks and clock skew.
+8. Test partition recovery, state reconstruction, software rollback and emergency membership changes.
+9. Verify that monitoring and governance tooling do not introduce a single hidden administrator.
+10. Review the smallest coalition able to censor, rewrite, recover or upgrade after every membership change.
 </Lens>
 
+
+## Guided workshop: redesigning a municipal settlement ledger
+
+A city currently runs a central ledger for payments between transport, energy and water utilities. One operations team can correct balances, approve vendors and deploy software. The city wants three utilities and two independent service providers to validate transactions, while retaining a five-second settlement target. One provider operates two validators, so seven validators are proposed. A vendor offers to host the monitoring dashboard and recovery service for all seven.
+
+<GuidedWorkshop
+  id="centralised-decentralised-workshop"
+  title="Set the fault budget, quorum and recovery authority"
+  scenario="Design the trust boundary for a seven-validator municipal ledger. Assume at most two validators may be Byzantine, but any three may be unavailable. The current central administrator must not retain an unreviewed bypass, and clients must understand when a receipt is final."
+  tasks={[
+    "Compute the required replica count, commit quorum and quorum intersection for the stated Byzantine budget.",
+    "Identify the availability limit and explain what a client sees when that limit is crossed.",
+    "Map read, write, recovery, membership and upgrade authorities, including the hosted dashboard.",
+    "Specify monitoring signals and fault-injection tests for split brain and stale state.",
+    "Design a validator-key compromise procedure that removes the key without allowing one administrator to rewrite history."
+  ]}
+  hints={[
+    "Use n at least 3f + 1 and q equal to 2f + 1; then recompute the largest unavailable set.",
+    "Distinguish a stopped ledger from stale reads, and make retry semantics part of the API.",
+    "Ask which vendor credential could reconstruct a key, alter membership or approve an upgrade.",
+    "Track certificates, view changes and checkpoint divergence per validator rather than only block height.",
+    "Removal evidence, admission approval and a replacement key should have different authorisers."
+  ]}
+  solution={[
+    "With f equal to 2, the classical oral-message model requires n at least 7. A commit quorum is 5, and any two quorums intersect in at least 3 replicas, including an honest one. Three unavailable validators leave four participants, so no quorum can form. The design therefore tolerates two Byzantine faults for safety but only two simultaneous unavailable validators for progress; treating those limits as interchangeable would be a requirements error.",
+    "During a three-validator outage or partition, new settlement requests must return a retryable unavailable status. A read-only endpoint may return the latest locally certified balance only if it includes a checkpoint timestamp and an explicit stale-state warning. Reconciliation after healing begins from the highest valid quorum certificate. Clients retry with the same request identifier, allowing the gateway to detect duplicate submissions instead of creating a second payment.",
+    "The seven validator slots must be controlled by genuinely independent entities. If one provider operates two, it still has only two votes under the stated threshold, but its network and administrative control must not also encompass the other five. The hosted dashboard gets read-only telemetry or a narrowly scoped support role; it cannot reconstruct threshold keys, approve membership or sign upgrades. Separate the membership quorum from transaction quorums, require multi-party approval for charter changes and log emergency access with independent review.",
+    "Each validator exports quorum-certificate age, view-change count, proposal rejection reason, disk sync latency and checkpoint hash. The platform tests a 3-versus-4 network split, a crash after prepare, duplicate and conflicting votes, a slow disk, clock skew and loss of the newest checkpoint. The expected result is a safe halt during partition and deterministic convergence after recovery. Tests must also prove that stale reads cannot be mistaken for certified settlement receipts.",
+    "A compromised key publishes evidence through an authenticated incident channel. A membership quorum of at least five freezes that validator's participation and marks its slot for replacement; it does not use the compromised key to authorise a state rewrite. A different recovery quorum, with separately held shares, approves a new key for the slot. Verify the new validator against a recent checkpoint, canary it and restore participation only after certificate agreement and latency checks. Preserve the incident log and rotate any shared monitoring credentials exposed to the same operator."
+  ]}
+  takeaway="Specify safety, availability and authority separately. A quorum protects state transitions; governance, key custody and observability determine who can abuse the surrounding system."
+/>
+
+## Common failure modes
+
+| Failure mode | Observable symptom | Root cause | Guardrail |
+| --- | --- | --- | --- |
+| Apparent centralisation | All validators share a cloud account or admin identity | Independence measured by server count | Map control-plane ownership and hosting concentration |
+| Split brain | Two sites report different final heights | Quorum or fencing rule misconfigured | Require certificates and reject writes without quorum |
+| Validator capture | Repeated censorship or membership changes by one coalition | Admission and transaction authority combined | Separate charters, thresholds and emergency powers |
+| Upgrade deadlock | Validators run incompatible protocol versions | No activation window or compatibility test | Version negotiation, canaries and staged activation |
+| Key loss | A validator silently stops participating | Single-copy key and no recovery drill | Threshold custody and tested replacement |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Block height advances but clients cannot verify receipts | Quorum certificates are missing or produced by a minority | Check participant membership, signature thresholds and certificate distribution |
+| Frequent leader changes during peak load | Timeout below network or disk tail latency | Capture latency percentiles, repair slow replicas and retune conservatively |
+| Rejoining replica never catches up | Checkpoint trust anchor mismatch or missing log range | Verify anchor hashes and restore the certified range from independent peers |
+| Recovery key works without quorum | Backup workflow bypasses threshold policy | Remove implicit full-key export and require multi-party authorisation |
+| Network heals but two histories persist | Both sides accepted an uncertified extension | Stop clients, identify the certified prefix and discard uncertified tails |
+| Monitoring says healthy during censorship | Dashboard follows throughput, not request outcomes | Track rejected valid requests, per-client completion and proposer concentration |
+
+## Design review checklist
+
+- [ ] The largest Byzantine and unavailable sets are stated separately, with quorum arithmetic shown.
+- [ ] Every operation has an explicit consistency and retry contract during partition.
+- [ ] Validator independence includes hosting, networking, administrators and key material.
+- [ ] Quorum intersection protects safety under the stated authentication and membership model.
+- [ ] External data has provenance, bounds and a dispute path rather than being treated as consensus truth.
+- [ ] Membership, upgrade, recovery and emergency authorities have distinct approvers.
+- [ ] Split-brain, equivocation, clock-skew and slow-disk tests have expected safety outcomes.
+- [ ] Observability shows certificate progress and divergence per independent entity, not only uptime.
 
 ## Key takeaways
 

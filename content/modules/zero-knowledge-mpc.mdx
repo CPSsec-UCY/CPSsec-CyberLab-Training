@@ -5,8 +5,9 @@ subtitle: "Prove a statement without revealing the witness; compute on secrets w
 track: "Advanced Cryptography"
 order: 10
 difficulty: "Advanced"
-readingTime: 21
+readingTime: 85
 summary: "Interactive proofs, Schnorr, SNARKs, secret sharing, MPC threat models, trusted setup and the engineering cost of privacy-preserving computation."
+outcomes: ["Explain completeness, soundness and zero knowledge.", "Trace a Schnorr proof and its simulator.", "Compare SNARKs, STARKs, Bulletproofs and MPC building blocks.", "Analyse trusted setup, circuit correctness, side channels and output privacy."]
 citations: ["gmr1989", "yao1986", "shamir1979", "groth2016", "bulletproofs2018"]
 tags: ["zero-knowledge", "mpc", "privacy", "cryptography"]
 prerequisites: ["asymmetric-primitives", "hashing-mac-kdf"]
@@ -53,6 +54,18 @@ Privacy-preserving credentials, confidential transactions, private auctions, thr
 A consortium of banks wants to detect fraud patterns across customers without pooling transaction records. MPC can compute a joint statistic or train a model over encrypted inputs, revealing only the agreed output. A zero-knowledge proof can let one bank prove that its contribution satisfies a policy — for example, that no customer exceeds a reporting threshold — without revealing the underlying accounts.
 
 The hard part is not the primitive. It is defining the policy, deciding what the output itself reveals, and proving that the deployed circuit implements the policy. A private computation that outputs a per-customer score can still violate privacy.
+
+## Threat model: who learns what
+
+Consider a bank proving eligibility for a syndicated loan. The public statement is that its exposure is below a threshold; the witness contains the account balances and identity mappings used to calculate that exposure. A verifier should learn the eligibility result, not the balances. In the companion MPC computation, five banks may learn the total exposure, but no bank should learn another bank's individual contribution. These are different disclosure rules, so they need separate specifications.
+
+The attacker may eavesdrop on messages, submit chosen public statements, corrupt endpoints, or control one participant in the computation. A stronger MPC attacker controls two colluding participants and deliberately sends malformed messages. The defender must preserve input privacy, authenticate the intended public key, detect invalid statements, and ensure that one participant cannot force the others to reveal shares during recovery. If fairness is required, either all parties receive the output or none do; if only security against abort is promised, an adversary may prevent delivery while learning nothing.
+
+Write the model before choosing a proof system. Record the number of malicious parties $t$, whether corruption is static or adaptive, whether messages can be delayed or reordered, and which parties see the result. A proof verifier is usually a passive machine, but a malicious verifier can send challenges adaptively and retain transcripts. A protocol that is secure against an eavesdropper is not automatically secure against that verifier.
+
+The defender's goals also include bounded work and verifiable parameter provenance. A prover should not be tricked into proving a different predicate through a reused challenge, and an MPC participant should not accept a share vector that reconstructs inconsistently. Availability is separate: an adversary can always refuse to participate even when privacy and correctness hold.
+
+Common misconceptions make the model smaller than reality. Zero knowledge does not mean the proof has no metadata; proof length, proving time and repeated statements can leak application information. MPC does not make colluding parties honest, and a threshold does not protect an output that deliberately identifies every input. Finally, privacy of intermediate values and privacy of the final answer are distinct claims. A sum can be protected during computation yet disclose a sole nonzero contributor when released.
 </Lens>
 
 <Lens level={2} title="Schnorr, SNARKs, secret sharing and MPC">
@@ -101,6 +114,52 @@ MPC has complementary building blocks: secret sharing distributes a value, garbl
 ## What the proof does not establish
 
 A proof establishes that a witness satisfies the circuit. It does not establish that the witness corresponds to real-world facts, that the input was not manipulated, or that the output is safe to reveal. Those are application and governance questions.
+
+## From a relation to a protocol
+
+A relation is a set of pairs $(x,w)$: the public statement $x$ and a witness $w$. Before writing a circuit, express it as constraints. For the loan example, $x$ might be a root committing to a balance sheet, and $w$ contains opening values and ownership proofs. The circuit checks that the same values feed both the commitment and the exposure sum. Merely checking that a number is below a threshold proves nothing about the account from which it came.
+
+For Schnorr, choose a group of known order $p$, a generator $g$, secret exponent $x$, and public key $y=g^x$. The prover samples a nonce $r$ uniformly, sends $t=g^r$, receives a challenge $c$, and responds with $s=r+cx \bmod p$. Verification recomputes $g^s$ and $t y^c$. If either side uses different bytes for $y$ or $c$, verification fails; if the prover reuses $r$ with different challenges, two responses expose a linear equation about $x$.
+
+<WorkedExample
+  title="Schnorr arithmetic in a small group"
+  steps={[
+    "Use the toy group of order p = 23 with generator g = 11. Choose secret x = 7, so public key y = 11^7 mod 23 = 7.",
+    "Choose nonce r = 3 and send commitment t = 11^3 mod 23 = 20. The verifier sends challenge c = 5.",
+    "Compute response s = 3 + 5 times 7 = 38 mod 22, because the group has order 22; therefore s = 16.",
+    "Verify g^s = 11^16 mod 23 = 18 and t y^c = 20 times 7^5 mod 23 = 20 times 17 mod 23 = 18."
+  ]}
+  result="Both sides equal 18, so this toy proof is complete. The example illustrates the algebra only; a 22-element group is trivially searchable and is not secure."
+/>
+
+Shamir sharing chooses a random polynomial $f$ of degree at most $t$ with constant term equal to the secret. Party $i$ receives $f(i)$. Any $t$ points determine no information about $f(0)$ beyond what was already known; any $t+1$ points interpolate it. For multiplication, additive shares are useful because local addition is free. Parties use preprocessed multiplication triples so that neither the inputs nor the product are opened during the protocol.
+
+<WorkedExample
+  title="Additive shares and a Beaver multiplication triple"
+  steps={[
+    "Work modulo 101. Party 0 holds x shares (2, 38) summing to 40, and Party 1 holds y shares (3, 22) summing to 25.",
+    "Use a random triple for a = 6, b = 7 and ab = 42, shared as a = (2, 4), b = (3, 4) and ab = (20, 22).",
+    "Open masking differences d = x - a = 34 and e = y - b = 18. These values reveal no input if the triple shares are uniformly random.",
+    "Party 0 computes z0 = 20 + 3 times 34 + 2 times 18 + 34 times 18 = 770 mod 101 = 63. Party 1 computes z1 = 22 + 4 times 34 + 4 times 18 = 230 mod 101 = 28.",
+    "Add the output shares: 63 + 28 = 91 mod 101, matching 40 times 25 = 1000 mod 101 = 91."
+  ]}
+  result="The product can be reconstructed without either party opening x or y. The example also shows why triple generation, freshness and share consistency are security-critical implementation details."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Specify", detail: "Write the public statement, private witness, adversary and required output privacy.", tone: "brand"},
+    {title: "Compile", detail: "Translate the predicate into audited arithmetic or Boolean constraints.", tone: "brand"},
+    {title: "Bind", detail: "Domain-separate commitments, public inputs and the verifier challenge.", tone: "brand"},
+    {title: "Prove", detail: "Run the prover with protected witnesses and approved random coins.", tone: "brand"},
+    {title: "Verify", detail: "Reject malformed encodings and check the complete proof relation.", tone: "brand"},
+    {title: "Disclose", detail: "Release only the approved result and apply query controls to that result.", tone: "brand"}
+  ]}
+/>
+
+A non-interactive proof must bind the statement to the challenge. A simplified Fiat–Shamir transcript is $(t,c,s)$ with $c=H(\text{context}\|x\|t)$. Omitting $x$ allows a proof for one statement to be replayed for another. Omitting context can cross-bind a credential proof to a transaction proof with the same witness. The precise hash-to-group or hash-to-field encoding is part of the protocol, not an interchangeable utility.
+
+For MPC, translate the computation into a fixed sequence of additions and multiplications. Check that every intermediate has an owner, a sharing representation and a reconstruction point. Recovery must not request all shares from an untrusted participant. If the function includes a comparison whose result selects an output, implement that selection on shared values or prove the branch condition; do not let one party choose which private branch to execute.
 </Lens>
 
 <Lens level={3} title="Completeness, soundness and simulation">
@@ -148,6 +207,22 @@ A semi-honest protocol assumes parties follow the protocol but inspect the trans
 <Callout variant="lab" title="Circuit correctness is a security property">
 If the circuit checks the wrong predicate, a valid proof certifies a false business statement. Audit the circuit against the policy, not only the proof system.
 </Callout>
+
+## Precise properties and reductions
+
+For a relation $R$, completeness says that for every $(x,w)\in R$, an honest prover using fresh randomness makes an honest verifier accept except with a probability explicitly allowed by the definition. Soundness says that for every $x\notin L_R$, every efficient prover, even one that chooses its strategy after seeing $x$, has only negligible probability of producing an accepted proof. Knowledge soundness is stronger: an extractor can recover a witness from a convincing prover under the stated setup and random-oracle assumptions.
+
+Zero knowledge compares two distributions of entire verifier views. An ideal functionality gives the simulator the statement and allowed public auxiliary information but not the witness. If a simulator can reproduce the real view, then the real interaction adds no usable witness information. This must hold against a verifier that chooses challenges adaptively, not merely against a fixed challenge sequence.
+
+Schnorr's interactive zero-knowledge simulator illustrates the quantifiers. It chooses $c$ and $s$ uniformly, sets $t=g^s y^{-c}$, and programs the random-oracle challenge at $(x,t)$ to $c$. The simulated transcript satisfies verification. Without the random-oracle programming step, choosing $c$ after seeing $t$ does not model a real verifier that commits its challenge first. Special soundness gives an extractor: two accepting transcripts with the same $t$ but challenges $c_1\ne c_2$ yield $s_1-s_2=(c_1-c_2)x \bmod p$, so the extractor solves for $x$ when the challenge difference is invertible.
+
+Fiat–Shamir replaces the interactive challenge with $H(x\|t)$. The reduction rewrites a non-interactive forger into an interactive adversary by programming the hash and guessing which programmed challenge the forgery will use. That guess causes a loss in the reduction. Domain separation prevents cross-protocol reuse. Challenge length must make guessing negligible, and the hash encoding must map unambiguously to a group element or field value. A verifier must still reject a response outside the canonical field or scalar range.
+
+For $n$ parties with a static threshold $t$, a secret-sharing MPC protocol can provide perfect input privacy when $n>2t$ and the corruption view is simulated using the corrupt parties' own inputs and outputs. Correctness follows inductively: addition preserves shares, the multiplication protocol reconstructs the product correctly, and reconstruction reveals only the declared function output. In the Beaver example, the local output shares sum to the true product because $xy=ab+b(x-a)+a(y-b)+(x-a)(y-b)$.
+
+The security argument must also cover malicious behaviour. Semi-honest security does not let the simulator invent inconsistent inputs for a corrupt party; that is precisely what a malicious adversary may do. Authenticated shares, input-consistency checks, commitments, or zero-knowledge proofs of correct local computation address this gap. Selective abort requires an additional argument that the adversary learns nothing from the shares it saw before refusing to continue. Protocol composition is not automatic: an adversary controlling parties in two invoked subprotocols may correlate their random tapes unless independence is specified.
+
+Edge cases belong in the statement. What happens when the witness is empty, the public input is duplicated, the verifier reuses randomness, or the same proof is replayed? Replay protection may require a nonce or state outside the proof. What happens when MPC output is undefined, such as division by zero? The function must define an abort or shared sentinel. None of these cases is fixed by calling the system zero knowledge or secure.
 </Lens>
 
 <Lens level={4} title="Circuits, proving time and side-channel reality">
@@ -214,8 +289,88 @@ Ask what is hidden, from whom, under what collusion and network assumptions, and
 <Callout variant="danger" title="“Zero-knowledge” is not a complete security claim">
 Ask what is hidden, from whom, under what assumptions, and what the output reveals. A proof system with a leaky prover or a revealing output can fail operationally.
 </Callout>
+
+## Implementation patterns and operational review
+
+Keep circuit generation deterministic and versioned with the policy. A witness generator should consume typed, validated records and fail closed before proving. Separate public inputs from witness memory so that a logging wrapper cannot accidentally serialise the witness. For a SNARK, pin the proving-key hash, verifier-key hash, compiler version and setup transcript; a valid proof under the wrong key is still a deployment failure.
+
+Treat the prover as a high-value signing process. Give it a dedicated worker, bounded queues and controlled concurrency. Use an approved random source for every nonce or witness commitment. Zeroise witness buffers on success and error, and prevent core dumps from copying them. If the prover is remote, authenticate the request and return a proof bound to the exact public-input digest the caller intended.
+
+For MPC, schedule rounds rather than passing an unrestricted message stream between peers. Each message needs a protocol identifier, session identifier, party identity, round number and authenticated payload. Buffer incomplete rounds, reject inconsistent duplicate values and define timeouts that do not reconstruct secrets. A participant that disconnects may cause abort; it must not be able to request extra shares simply by claiming to be the recovery coordinator.
+
+Measure constraint count, proving time, peak memory and proof bytes separately. A circuit with one million constraints and one with two million may differ by more than a factor of two once preprocessing is included. For MPC, record round latency, bytes per party and recovery time on the actual WAN. Avoid quoting a localhost benchmark as a production latency.
+
+Test three layers. First, unit tests compare tiny circuits against the same predicate evaluated on ordinary integers. Second, adversarial tests mutate every public input, proof element and share message, including non-canonical encodings and truncated arrays. Third, end-to-end tests restore a prover or MPC participant from backup while another request is active. Include a setup-parameter mismatch and a compromised random source in the test plan; both should produce a clear refusal rather than a plausible-looking result.
+
+During operation, monitor proof acceptance rates, proving latency, participant dropout and output-query volume. A sudden rise in proof failures can mean a compiler upgrade changed the circuit encoding. Repeated tiny outputs from an MPC service can reveal a changed dataset through differencing. Rate limits and a documented release schedule are therefore security controls, not only abuse controls.
+
+When a proof fails, first verify the exact public inputs and parameter hashes, then reproduce with the known-good compiler. Do not regenerate setup parameters as a troubleshooting shortcut. When an MPC round fails, preserve authenticated logs of public metadata, identify the last committed round, and restart from a defined checkpoint without broadcasting shares. Verify-before-release is useful for signatures produced by MPC, but it does not replace checking that all required parties approved the same message.
 </Lens>
 
+<GuidedWorkshop
+  id="zk-mpc-workshop"
+  title="Audit a private loan-exposure proof and MPC release"
+  scenario="Five banks must compute a combined exposure and decide whether it exceeds a lending limit. One bank also proves that its submitted exposure is below its internal cap. The deployment uses a malicious-party MPC protocol tolerating one corruption, a non-interactive proof, and a daily public total. A reviewer discovers that the proof circuit omits the bank identifier and that the MPC output is released even when one participant disconnects."
+  tasks={[
+    "Define the proof statement, witness, public inputs and adversary before changing the circuit.",
+    "Find the replay or cross-binding flaw caused by omitting the bank identifier and design the corrected hash input.",
+    "Determine whether the stated corruption tolerance is enough for reconstruction and specify what happens on disconnect.",
+    "Assess whether the daily public total leaks individual contributions and propose a concrete release control.",
+    "Write a five-step acceptance test covering a valid proof, a substituted statement, a malicious share, a dropout and a restored participant."
+  ]}
+  hints={[
+    "A commitment to a number is not a commitment to whose number it is.",
+    "Reconstruct only from authenticated shares supplied by enough distinct, authorised parties.",
+    "Security against abort is different from guaranteed output delivery.",
+    "Compare consecutive totals and ask what a single nonzero contributor would reveal."
+  ]}
+  solution={[
+    "The public statement should bind a loan-cycle identifier, the bank identity, the published exposure root and the internal cap. The witness contains the balances and opening values whose committed sum is the bank's exposure. The adversary may alter public inputs, replay another bank's proof, corrupt one MPC participant and inspect every protocol message. It should not learn any bank's balances or individual exposure.",
+    "The corrected challenge input includes a domain tag, protocol version, all public inputs and the prover commitment. If the original proof omitted the bank identity, an attacker could submit the same proof under another authorised bank's identifier. The verifier must hash the exact canonical public-input encoding and reject any alternate encoding. A proof then certifies the relation for one identified bank in one cycle.",
+    "With five parties and at most one malicious participant, reconstruction from any three authenticated parties is safe if the protocol's sharing threshold is three and its security assumptions hold. The disconnect must trigger the documented abort or recovery path; it must not cause the remaining four to reveal all shares to the dropout. Log the last completed round and distinguish a network timeout from evidence of malicious behaviour.",
+    "MPC protects inputs during evaluation but not necessarily the released total. A total equal to one bank's maximum internal cap, repeated single-contributor days, or small changes between consecutive releases can disclose information. Require a minimum reporting cohort, suppress unsafe cells, limit differencing queries and consider a calibrated privacy mechanism. These controls change the released statistic and must be agreed before computation.",
+    "The acceptance test starts with a valid statement and proof, then substitutes a different bank identity while keeping the proof fixed and expects rejection. It corrupts one share and expects no output or a safe abort, drops one participant and checks the recovery rule, and restores a participant from backup without replaying an old session. Finally, it submits outputs that would reveal a sole contributor and confirms that the release policy suppresses or alters them."
+  ]}
+  takeaway="A sound proof and a private MPC protocol still need statement binding, authenticated recovery and a separate output-disclosure policy."
+/>
+
+## Common failure modes
+
+| Failure | Why it happens | Consequence | Prevention |
+| --- | --- | --- | --- |
+| Witness appears in logs | A generic request serializer includes the proof input object | Permanent secret disclosure | Use separate public and private request types |
+| Proof replay across statements | Challenge omits a public input or domain tag | Acceptance of a proof for the wrong claim | Canonicalise and hash every public input |
+| Setup parameters are unverified | Proving and verifier keys come from different builds | False rejection or unsound deployment | Pin hashes and verify the ceremony transcript |
+| Circuit disagrees with policy | Constraints implement a simplified predicate | Valid proof of a false business statement | Differential tests against policy examples |
+| One party learns a full secret during MPC recovery | Recovery requests shares without checking the threshold | Defeat of input privacy | Authenticate participants and reconstruct only at a quorum |
+| Output reveals a contributor | A protected computation releases a uniquely identifying result | Inference despite secure evaluation | Apply cohort, differencing and release controls |
+| Randomness is reused | Snapshot rollback or a faulty nonce service repeats coins | Secret recovery or broken simulation | Monotonic nonce policy and approved randomness |
+| Malicious party can abort freely | Protocol promises fairness but has no recovery or output commitment | Denial of service | Specify the abort model and add a recovery design |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Every proof fails after a compiler upgrade | Constraint ordering or public-input encoding changed | Reproduce with the pinned compiler and compare the public-input byte string |
+| Verification succeeds locally but fails in production | Proving and verifier parameter hashes differ | Distribute parameters as an authenticated bundle and verify both hashes |
+| MPC parties reconstruct different values | Inconsistent shares or a corrupted multiplication triple | Abort the session, check share commitments and regenerate preprocessing data |
+| A restored party rejoins an old session | Session identifiers or round state were not checkpointed | Bind recovery to a fresh session and reject stale rounds |
+| Proving memory grows under load | Concurrent witnesses and un-cleared worker buffers | Limit concurrency, reuse bounded workspaces and zeroise after each request |
+| Daily totals expose a small bank | Output policy ignores differencing and small cohorts | Enforce suppression and query budgets before release |
+
+## Design review checklist
+
+- [ ] The statement, witness, public inputs and auxiliary information are written precisely.
+- [ ] The adversary, corruption threshold, network model and abort guarantee are explicit.
+- [ ] The challenge binds the protocol domain, version, statement and commitment.
+- [ ] Circuit constraints are tested against independent policy examples and boundary values.
+- [ ] Setup parameters and compiler artifacts are authenticated and pinned by hash.
+- [ ] Witnesses and MPC shares are excluded from logs, crash dumps and telemetry.
+- [ ] Randomness generation, nonce uniqueness and backup behaviour are tested.
+- [ ] Malformed proofs, non-canonical encodings and inconsistent shares fail closed.
+- [ ] MPC recovery reconstructs only from an authorised quorum and never broadcasts shares.
+- [ ] Output privacy, differencing risk and release quotas have an independent review.
+- [ ] Proving memory, MPC round latency and worst-case queueing are measured under load.
 
 ## Key takeaways
 

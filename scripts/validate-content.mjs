@@ -58,6 +58,7 @@ const moduleSchema = z.object({
   difficulty: z.enum(DIFFICULTIES),
   readingTime: z.number().int().positive().max(180),
   summary: z.string().min(30),
+  outcomes: z.array(z.string().min(8)).min(3),
   citations: z.array(z.string()).min(1),
   tags: z.array(z.string()).default([]),
   prerequisites: z.array(z.string()).default([]),
@@ -227,14 +228,26 @@ for (const file of moduleFiles) {
   const wordCount = parsedFile.content.trim().split(/\s+/).filter(Boolean).length;
   const figureCount = (parsedFile.content.match(/<Figure\b/g) ?? []).length;
   const checkCount = (parsedFile.content.match(/<KnowledgeCheck\b/g) ?? []).length;
-  if (wordCount < 1800) {
-    errors.push(`${relative}: only ${wordCount} words; modules require at least 1800 words of detailed learning content`);
+  if (wordCount < 3800) {
+    errors.push(`${relative}: only ${wordCount} words; modules require at least 3800 words of detailed learning content`);
   }
   if (figureCount < 1) {
     errors.push(`${relative}: no <Figure> illustration found`);
   }
   if (checkCount < 1) {
     errors.push(`${relative}: no <KnowledgeCheck> interaction found`);
+  }
+  const workedExampleCount = (parsedFile.content.match(/<WorkedExample\b/g) ?? []).length;
+  const processFlowCount = (parsedFile.content.match(/<ProcessFlow\b/g) ?? []).length;
+  const workshopCount = (parsedFile.content.match(/<GuidedWorkshop\b/g) ?? []).length;
+  if (workedExampleCount < 2) {
+    errors.push(`${relative}: expected at least two <WorkedExample> components, found ${workedExampleCount}`);
+  }
+  if (processFlowCount < 1) {
+    errors.push(`${relative}: no <ProcessFlow> diagram found`);
+  }
+  if (workshopCount < 1) {
+    errors.push(`${relative}: no <GuidedWorkshop> applied exercise found`);
   }
   if (!parsedFile.content.includes("## Key takeaways")) {
     errors.push(`${relative}: missing a Key takeaways recap section`);

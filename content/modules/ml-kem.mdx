@@ -5,8 +5,9 @@ subtitle: "From noisy linear algebra to the 1,088-byte ciphertext that protects 
 track: "Post-Quantum Cryptography"
 order: 12
 difficulty: "Advanced"
-readingTime: 28
+readingTime: 100
 summary: "A complete pass over FIPS 203: Module-LWE, K-PKE, compression, the FO transform, decapsulation correctness, constant-time implementation and hybrid deployment."
+outcomes: ["Trace ML-KEM KeyGen, Encaps and Decaps with concrete byte sizes.", "Explain Module-LWE, K-PKE encryption and ciphertext compression.", "Derive correctness bounds and interpret decapsulation failure probabilities.", "Trace the FO re-encryption check and implicit rejection.", "Review constant-time implementation, Keccak/NTT performance and protocol deployment."]
 citations: ["fips203", "kyber-spec", "regev2009", "lpr2010", "langlois-stehle2015", "fujisaki-okamoto2013", "hofheinz2017", "rfc8446", "hybrid-design", "longa2016", "liboqs", "montgomery1985", "fips202"]
 tags: ["pqc", "kem", "lattice", "ml-kem", "fips-203"]
 prerequisites: ["ntt-polynomials", "asymmetric-primitives"]
@@ -64,6 +65,18 @@ That is larger than an X25519 public key (32 bytes) but small enough for TLS and
 A browser opens a TLS 1.3 connection to a server that supports X25519MLKEM768. The client sends an X25519 share and an ML-KEM-768 encapsulation key; the server returns its X25519 share and an ML-KEM ciphertext. Both derive a hybrid secret and use it to key the record layer.
 
 The attacker records the ciphertext. Today, deriving the key requires solving Module-LWE. After a cryptographically relevant quantum computer exists, Shor's algorithm does not apply to Module-LWE; the recorded ciphertext remains hard under the best known attacks. That is the migration argument in one paragraph.
+
+## Threat model and deployment scenario
+
+ML-KEM targets an IND-CCA-secure key encapsulation mechanism. The adversary sees the public key, may obtain many encapsulations, and may submit chosen ciphertexts to a decapsulation oracle. It must not distinguish the shared secret from random or recover information about the decapsulation key. The defender must return the same key on honest ciphertexts and make every rejected ciphertext produce an output that looks like an independent secret to the attacker.
+
+A TLS terminator is a realistic implementation boundary. It receives an ML-KEM-768 encapsulation key in a client hello, encapsulates with fresh randomness, and later decapsulates a ciphertext under its long-lived key. The network attacker can truncate, duplicate and modify handshake messages. A local tenant may be able to trigger repeated decapsulations and observe response time. The endpoint must authenticate the peer through the surrounding protocol, but the KEM itself must not become a ciphertext-validity oracle before that authentication completes.
+
+Defender goals include canonical parsing, strict length checks, constant-time re-encryption and secret-key protection. A 1,088-byte ciphertext is not valid merely because a buffer is that long; every component must decode according to its compression depth. The decapsulation key contains a cached hash of the encapsulation key and a secret rejection value. Either value must remain bound to the correct key during import, backup and rollback.
+
+Misconceptions obscure the security boundary. Compression is not encryption and does not add security; it reduces bandwidth while consuming correctness margin. The FO transform does not repair a broken random-number generator, a leaked secret key or a ciphertext comparison that exits early. Hybrid deployment does not make an unsafe ML-KEM implementation safe; both components must be implemented correctly. Finally, the tabulated decapsulation failure rate is a correctness bound, not an estimate of an attacker's success probability.
+
+Availability is also worth stating. A decapsulation call should always produce a 32-byte value for a ciphertext of the expected length under the standard interface. The surrounding protocol may later fail authentication, but that is different from exposing a KEM error. Buffer allocation failure or an internal key-format error can stop the process; ordinary ciphertext rejection cannot. This distinction prevents a chosen-ciphertext oracle and gives the protocol a clean interface.
 </Lens>
 
 <Lens level={2} title="K-PKE, compression and the encapsulation flow">
@@ -149,6 +162,52 @@ and decompression reverses the rounding. With $q=3329$ and $d=10$, the compresse
 <Callout variant="warning" title="Compression is part of correctness">
 Coarser compression saves bytes but increases the chance that noise crosses a reconciliation boundary. Parameter choice is a joint optimisation of size, failure probability and security.
 </Callout>
+
+## Byte layout and an implementation walkthrough
+
+For rank $k$, the encapsulation key is $384k+32$ bytes, the ciphertext is $32kd_u+32d_v$ bytes, and the expanded decapsulation key is $768k+96$ bytes. The extra 32 bytes in the public key encode the matrix seed; the decapsulation key includes the encoded private key, public key, public-key hash and rejection seed. These sizes explain why a seemingly simple KEM interface still needs careful buffer ownership.
+
+Key generation samples a 32-byte seed $d$ and derives $\rho$ and $\sigma$ through the specified hash. Matrix entries are sampled and rejected until canonical coefficients in $[0,q)$ are obtained. The secret and error vectors are sampled from centered binomial distributions, transformed to the NTT domain, and combined as $\hat t=\hat A\hat s+\hat e$. The expanded key must be checked for internal consistency on import rather than trusting an arbitrary byte string of the correct length.
+
+Encapsulation uses a fresh 32-byte message, not a caller-chosen nonce. The hash $G(m\|H(ek))$ binds the random message to the public key. K-PKE then samples short $r,e_1,e_2$, computes $u$ and $v$, compresses both vectors, and packs the coefficients into the exact ciphertext layout. The returned shared secret is the $K$ value from $G$. There is no separate authentication tag: integrity checking during decapsulation comes from deterministic re-encryption under the FO transform.
+
+Decapsulation first decompresses the received components. It computes $m'=\mathsf{Decode}_1(v-s^Tu)$, hashes $m'$ with the cached public-key hash, re-encrypts deterministically with the derived $r'$, and compares the entire result with $c$. Only after the comparison mask is known should the caller select between $K'$ and $J(z\|c)$. Implementations commonly compute both candidates before selection so that failure does not shorten the observable path.
+
+<WorkedExample
+  title="Compression and decompression of one ML-KEM coefficient"
+  steps={[
+    "Use q = 3329 and d = 10 for a coefficient v = 1000. Compute 2^d times v divided by q: 1024 times 1000 divided by 3329 is approximately 307.60.",
+    "Round to the nearest integer with the standard's tie rule, giving Compress_10(1000) = 308.",
+    "Decompress the 10-bit value: round(3329 times 308 divided by 1024) = round(1001.30) = 1001.",
+    "The reconstruction error is 1001 - 1000 = +1, within the per-coefficient bound q divided by 2^(d+1) = 1.625.",
+    "Packing 308 uses ten bits, not two bytes; a real vector packs adjacent coefficients according to the standard's bit order."
+  ]}
+  result="Ten bits reconstruct this coefficient with error one. Across a vector, these errors combine with LWE noise, so a one-coefficient check does not establish decapsulation correctness."
+/>
+
+<WorkedExample
+  title="Binomial noise and a message decision boundary"
+  steps={[
+    "For eta = 2, one random byte produces two coefficients. The byte 0xB4 has low nibble 0100, giving 1 + 0 - 0 - 0 = 1; its high nibble 1011 gives 1 + 0 - 1 - 1 = -1.",
+    "Suppose subtraction of the secret contribution leaves coefficient 900 before message decoding. Compress_1(900) rounds 1800 divided by 3329 to 1, so the recovered message bit is 1.",
+    "Decompress_1(1) is round(3329 divided by 2) = 1665. The difference between 900 and the intended reconstruction is -765.",
+    "The magnitude 765 is below q divided by 4 = 832.25, so this coefficient is inside the decoding region for bit 1. A larger disturbance crossing the decision boundary could flip the bit."
+  ]}
+  result="Small centered noise preserves the bit because the two message codewords are separated by roughly half the modulus. Compression error and LWE noise both consume this margin."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Sample", detail: "Generate a fresh message and derive K and r from the message and public-key hash.", tone: "brand"},
+    {title: "Encrypt", detail: "Sample short vectors and compute u and v in the polynomial ring.", tone: "brand"},
+    {title: "Compress", detail: "Round and pack vector and message components at their specified depths.", tone: "brand"},
+    {title: "Decrypt", detail: "Decompress the ciphertext and decode the noisy message coefficient-wise.", tone: "brand"},
+    {title: "Re-encrypt", detail: "Derive fresh K and r from the recovered message and rebuild every ciphertext byte.", tone: "brand"},
+    {title: "Select", detail: "Compare without early exit and return K or the implicit rejection key by mask.", tone: "brand"}
+  ]}
+/>
+
+Parser tests should mutate each bit of a valid ciphertext and record whether decapsulation returns the normal 32-byte interface without crashing or varying observably. Most mutations should take the rejection path, but a few may produce another valid ciphertext after re-encryption. The test is not that every mutation changes the output; it is that all malformed lengths fail deterministically and every accepted ciphertext is the exact deterministic re-encryption of its decoded message.
 </Lens>
 
 <Lens level={3} title="Module-LWE, correctness bounds and the FO argument">
@@ -234,6 +293,34 @@ These are not cryptographic security levels; they are correctness probabilities.
 The re-encryption check binds the ciphertext to the message and randomness. If an attacker modifies $c$, decryption produces an unrelated $m'$, re-encryption produces $c'' \ne c$, and the output is the rejection key. The attacker cannot tell whether the ciphertext was valid without solving the underlying problem or breaking the hash/KDF assumptions. <Cite id="hofheinz2017" locator="pp. 341–371" />
 
 The proof is in the random-oracle model and requires domain separation between $G$, $H$ and $J$. Using the same hash inputs for different purposes can break the argument.
+
+## Correctness as a norm inequality
+
+Write the uncompressed K-PKE equations in the coefficient domain as
+
+$$
+u=A^Tr+e_1,\qquad v=t^Tr+e_2+\mathsf{Decompress}_1(m),\qquad t=As+e.
+$$
+
+An honest decryption therefore forms
+
+$$
+v-s^Tu=e_2+s^Te_1-e^Tr+\mathsf{Decompress}_1(m).
+$$
+
+This identity exposes every source of disturbance: encryption error, secret times ephemeral error, public-key error times ephemeral secret, and the encoded message. If decompression reconstructs $u+\delta_u$ and $v+\delta_v$, the decoded value contains the additional term $\delta_v-s^T\delta_u$. The subtraction is exact in the field; the error analysis is over centered integer representatives before reduction.
+
+For each coefficient, decoding succeeds when the total disturbance stays inside the region closer to the intended codeword than to the competing codeword. A sufficient per-coefficient condition is an absolute error below $q/4$. The proof must bound the maximum over all message coefficients, not merely an average. It uses componentwise bounds for binomial samples, products and sums, then combines them with compression-error bounds and a union argument over the coefficient positions. <Cite id="fips203" locator="Table 1" />
+
+Compression error is bounded by $q/2^{d_u+1}$ per coefficient of $\delta_u$ and $q/2^{d_v+1}$ for $\delta_v$. Multiplying $\delta_u$ by the secret amplifies it by secret coefficients, which is why reducing $d_u$ is not a free bandwidth optimisation. The standard's failure bounds already account for the selected parameter sets. Changing a noise distribution, root representation, rounding rule or compression depth invalidates that bound even if a small sample of keys still decapsulates.
+
+The reduction to Module-LWE is an average-case argument. Public samples $(A,t)$ hide short secret and error vectors; the error distribution is what makes the noiseless linear system unhelpful. A reduction must transform a Module-LWE distinguisher into an IND-CPA attacker against K-PKE, with a loss determined by the error bounds and number of samples. Module-SIS hardness and lattice reductions support the surrounding parameter analysis. <Cite id="regev2009" locator="Vol. 56, Article 34" /> <Cite id="langlois-stehle2015" locator="Vol. 75, pp. 565–599" />
+
+The FO transform upgrades the passive setting to chosen-ciphertext security. In the random-oracle reduction, $G$ is programmed to derive coins consistently, $H$ binds the public key, and $J$ provides an independent rejection key. A decapsulation query either re-encrypts exactly, in which case it can be simulated, or yields an implicit rejection value. Domain separation is essential so that a hash query from encapsulation cannot silently answer a re-encryption query. <Cite id="hofheinz2017" locator="pp. 341–371" />
+
+Implicit rejection also handles the tiny correctness event where the recovered message is wrong. If a noisy decode changes $m$, the derived randomness changes, so the re-encrypted ciphertext almost certainly differs. Returning $J(z\|c)$ avoids revealing that correctness failure. An implementation that returned a distinct error, skipped re-encryption, or compared only a prefix would destroy this argument.
+
+Edge cases sharpen the model. The input must have exactly the expected length; allocation or internal key corruption may be fatal, but an ordinary wrong ciphertext must not be. Public-key coefficients must be canonical before use. The comparison must cover every ciphertext byte, including unused padding bits if the encoding defines them. Secret-key rollback must restore the matching rejection seed. If two operations share an output buffer, wipe or overwrite the previous key so a protocol layer cannot mistake a rejection key for an earlier success.
 </Lens>
 
 <Lens level={4} title="Making a lattice KEM survive real hardware">
@@ -312,7 +399,88 @@ An early-exit comparison leaks how many bytes matched. The rejection key must be
 6. Failure injection to confirm implicit rejection.
 7. Handshake size and fragmentation tests for hybrid deployment.
 8. HSM and firmware buffer checks.
+
+## From reference code to a hardened service
+
+Use a clear ownership model for buffers. The caller owns the encapsulation or decapsulation key; the implementation owns only bounded temporary workspaces. Allocate enough space for the largest parameter set if a library supports all three, or compile the rank into the API so a caller cannot pass a 1,088-byte ciphertext to a 768-byte decoder. Never infer the parameter set from untrusted length alone.
+
+Compute $H(ek)$ once when importing a key and store it in protected key state. During decapsulation, decompress, decode, derive, re-encrypt and compute $J(z\|c)$ without branching on recovered coefficients. A useful implementation pattern accumulates byte differences with bitwise OR and converts the final zero/nonzero value to a selection mask. Both candidate keys exist before the select. The surrounding protocol may perform ordinary branching after the KEM returns, because by then the observable choice no longer distinguishes acceptance from rejection.
+
+Sampling deserves the same scrutiny as multiplication. Rejection sampling of matrix entries has a public target range, but loop control must be fixed-work or otherwise independent of secret values. Centered binomial sampling should use byte loads and bit arithmetic rather than a table indexed by random or secret data. The random message and nonce expansion come from an approved random source; an HSM should attest to that capability rather than silently falling back to a deterministic counter.
+
+For performance, maintain separate counters for key generation, encapsulation, decapsulation, hashing, NTT, sampling and encoding. Decapsulation is usually more expensive because it repeats encryption. Benchmark with the exact compiler, CPU features and Keccak backend used in deployment. Disassembly review should cover modular reduction, ciphertext comparison and rejection selection. Static taint analysis should mark the secret key and rejection seed as tainted and flag any branch or address derived from them.
+
+Hardware brings buffer and lifecycle constraints. An HSM command that accepted a 32-byte classical public key may now truncate a 1,184-byte ML-KEM key. Firmware stacks need measured headroom for the expanded decapsulation key, ciphertext, public key, hash state and two candidate outputs. Import and export operations should be authenticated, and key deletion should wipe both the secret vector and rejection seed.
+
+Build a negative test corpus before deployment. Include every wrong length, non-canonical public coefficients, truncated final bytes, all-zero and all-one ciphertexts, and single-bit flips near both ends. Compare decapsulation against an independent implementation. Then inject internal failures, such as a corrupted recovered message, to confirm that the service returns only the rejection key and never an error observable to the remote party.
+
+Monitor aggregate decapsulation time and failure-related handshake outcomes without logging ciphertexts or keys. A latency change after a library update can indicate an early-exit regression even when functional tests pass. Re-run the full leakage assessment after changing compilers, CPU features, crypto providers or HSM firmware. Keep the constant-time reference result available for differential debugging, but do not ship a scalar fallback selected by secret data.
 </Lens>
+
+<GuidedWorkshop
+  id="ml-kem-workshop"
+  title="Close an implicit-rejection oracle in a TLS terminator"
+  scenario="A TLS terminator passes ML-KEM-768 known-answer tests, but its decapsulation wrapper returns immediately when the re-encrypted ciphertext differs. Valid handshakes re-encrypt and compare all 1,088 bytes; malformed handshakes often compare only a prefix. A remote tenant can send repeated ciphertexts and measure response time. The team proposes logging a rejection code to simplify support."
+  tasks={[
+    "Explain why an early-exit comparison is a chosen-ciphertext leakage channel even though the output key is pseudorandom.",
+    "Rewrite the decision so all 1,088 bytes are compared and both candidate keys are computed before selection.",
+    "Design tests that distinguish ordinary rejection from parser or internal key failures.",
+    "Specify what support telemetry may record without restoring the remote oracle.",
+    "Review the release gate for known-answer tests, differential tests, fault injection and constant-time validation."
+  ]}
+  hints={[
+    "The comparison reveals where the first incorrect byte occurs through time.",
+    "A mask can select between two already-computed 32-byte outputs.",
+    "Protocol authentication may fail later; that is not a KEM error.",
+    "Support needs aggregate health, not attacker-visible per-ciphertext verdicts."
+  ]}
+  solution={[
+    "An early-exit comparison performs work proportional to the length of the matching prefix. An attacker who modifies a byte near the front stops sooner than one modifying a byte near the end. Across many chosen ciphertexts, this creates a validity oracle independent of the returned key. The FO security argument assumes rejection is not observably different, so a pseudorandom J value alone does not fix timing.",
+    "Parse the exact ciphertext length, decompress, decode, derive K and r, re-encrypt and compute J unconditionally. Accumulate the bytewise OR of c XOR c-prime over all 1,088 bytes, form an all-zero or all-one mask from that result, and select the two 32-byte candidates without a branch. Verify the generated code because the compiler can transform a conditional expression back into a jump.",
+    "Wrong-length input should follow the API's deterministic parser policy, while a correctly sized malformed ciphertext should return the normal implicit rejection key. Internal key-format failure can be fatal locally because it is not attacker-selected through the ciphertext. Tests should mutate each byte position, inject a corrupted decoded message, and confirm identical observable control flow. Later TLS authentication failure may be recorded as a protocol failure rather than a KEM rejection.",
+    "Record aggregate operation counts, latency percentiles, buffer failures and internal integrity alarms. Do not expose a per-request rejection code, matching-prefix length, comparison time or recovered message to the tenant. If detailed debugging is necessary, reproduce with a synthetic key and ciphertext in an isolated environment, never by enabling production secret logging.",
+    "Require standard known-answer vectors, independent differential results, every-length and canonical-decoding negative tests, and fault injection on the re-encryption path. Run taint analysis and statistical timing tests on the exact release binary, then repeat after provider or compiler changes. A release that fails any of these gates is not made acceptable by a fast average handshake benchmark."
+  ]}
+  takeaway="Implicit rejection is an end-to-end control-flow property: parse, re-encrypt, compare and select without exposing which path occurred."
+/>
+
+## Common failure modes
+
+| Failure | Cause | Impact | Prevention |
+| --- | --- | --- | --- |
+| Rejection returns an error | Wrapper translates the KEM result | Chosen-ciphertext oracle | Keep the standard 32-byte interface |
+| Comparison exits early | `memcmp` or a manual early break | Timing reveals matching prefix | Compare every byte with bitwise accumulation |
+| Rejection key skipped | Rejection selected before $J$ is computed | Success path does more work | Compute both candidates unconditionally |
+| Wrong key hash or rejection seed | Imported key components are mismatched | Incorrect keys and broken rejection privacy | Validate expanded-key consistency on import |
+| Non-canonical coefficients accepted | Decoder reduces values instead of rejecting | Ambiguous public-key encoding | Check every coefficient is below 3329 |
+| Randomness failure is hidden | Fallback repeats a counter or message | Loss of encapsulation security | Fail closed and attest to the random source |
+| Ciphertext buffer is truncated | HSM or firmware still uses classical key sizes | Interoperability failure or memory fault | Measure and test maximum parameter-set buffers |
+| Compression depth is changed | Custom bandwidth optimisation | Correctness bound no longer applies | Use standard parameters and re-run KATs |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Valid peer ciphertext always rejects | Wrong public-key hash, key pair or parameter set | Compare imported key hashes and test a known vector |
+| Rejection is measurably faster | Early comparison or skipped re-encryption | Compute both paths and select by mask |
+| Only certain bit patterns fail | Rounding, NTT root or compression implementation differs | Compare stage outputs with an independent implementation |
+| Crashes occur only on short input | Length is checked after buffer access | Validate exact length before decoding |
+| HSM reports a command error | Public key or ciphertext exceeds its legacy buffer | Update command schema and test maximum sizes |
+| Handshake fails after KEM success | Hybrid secret ordering or transcript binding differs | Check protocol combinator and key-schedule inputs |
+
+## Design review checklist
+
+- [ ] The parameter set is fixed and exact key and ciphertext lengths are enforced.
+- [ ] Public-key coefficients are canonical and malformed encodings fail deterministically.
+- [ ] Encapsulation uses a fresh random message and the specified key-bound hash derivation.
+- [ ] Decapsulation computes re-encryption and the rejection key without early exits.
+- [ ] The comparison covers the complete ciphertext and selection is branch-free.
+- [ ] Secret key, public-key hash and rejection seed stay bound during import and rollback.
+- [ ] Centered-binomial and rejection sampling have bounded, reviewed control flow.
+- [ ] Compression, decompression and rounding match the standard at boundaries.
+- [ ] Known-answer, differential, malformed-length and bit-flip tests pass.
+- [ ] Exact binaries pass taint, assembly and statistical timing review.
+- [ ] Hybrid handshake sizes, HSM buffers and firmware memory have measured headroom.
 
 ## Key takeaways
 

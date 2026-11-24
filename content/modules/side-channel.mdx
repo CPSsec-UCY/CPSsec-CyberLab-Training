@@ -5,8 +5,9 @@ subtitle: "The maths can be perfect and the device can still tell the attacker e
 track: "Systems & Hardware"
 order: 15
 difficulty: "Advanced"
-readingTime: 27
+readingTime: 95
 summary: "Timing, cache, power and fault leakage; the constant-time discipline; masking; and the specific places where PQC implementations leak."
+outcomes: ["Model timing, cache, power/EM and fault leakage.", "Explain constant-time programming and why it is necessary but insufficient.", "Analyse DPA correlation and masking/probing security.", "Design a validation plan for PQC implementations and real hardware."]
 citations: ["kocher1996", "kocher1999", "boneh1997", "fips203", "fips204", "montgomery1985", "liboqs", "longa2016"]
 tags: ["side-channel", "constant-time", "implementation", "hardware"]
 prerequisites: ["asymmetric-primitives"]
@@ -59,6 +60,20 @@ Constant-time code defeats timing and cache-index attacks. It does not defeat po
 - **Faults:** a glitch skips a check or corrupts a computation. The attacker compares the faulty output with a correct one to recover a key.
 
 The algorithm can be provably secure and still lose to any of these. Security engineering must include the implementation, the compiler, the hardware and the operational environment.
+
+## Threat model: a device under observation
+
+Consider an ML-KEM decapsulation key inside a payment terminal. The attacker can submit chosen ciphertexts through the payment protocol, measure response time, share a CPU cache, and place a power probe near the secure element. In a stronger lab setting, the attacker can control voltage or clock glitches. The terminal's owner wants the key to remain secret and every decapsulation to return a normal 32-byte value regardless of ciphertext validity.
+
+The attacker's goal is to connect an observable to a secret-dependent intermediate. A timing trace may reveal the matching prefix of the re-encryption comparison. A cache trace may reveal a secret-indexed sampling table. A power trace may reveal Hamming weight in a multiplication. A fault may corrupt one computation so that comparing it with a correct result exposes key material. The defender's goal is to reduce each observable's dependence on secrets, bound the number of useful observations, and detect or contain faults before they affect an output.
+
+State the capabilities precisely. Remote timing requires many queries and low noise; a co-resident cache attacker has a different observation channel; power and electromagnetic probes require physical access; fault injection may require specialised equipment. The number of traces, chosen inputs, probe locations and fault types determines the assurance claim. A countermeasure useful against one model may be irrelevant against another.
+
+Defender goals also include reproducibility. The exact source, compiler, optimisation flags, CPU features and hardware revision must be pinned for evaluation. A constant-time audit of an x86 build says nothing about an Arm backend or a later HSM firmware release. Operations must detect when a provider or toolchain changes and trigger revalidation.
+
+Misconceptions weaken this model. Constant-time does not mean equal wall-clock nanoseconds, because interrupts, caches and frequency scaling create noise. It means that secret values do not choose instructions or memory addresses. It also does not mean power-independent. Masking does not make arbitrary code safe, and hiding a secret with noise does not help if the attacker can average unlimited traces. A single clean benchmark is not evidence against a statistical attack.
+
+Security and availability must be reviewed together. Redundant computation can double latency; full-table scans can increase cache pressure; fault detection can abort a payment. Define acceptable failure behaviour and recovery rather than silently removing countermeasures under load. The result should degrade into a documented safe state, not into a secret-dependent shortcut.
 </Lens>
 
 <Lens level={2} title="Timing, cache, power, faults — and the fixes">
@@ -131,6 +146,51 @@ The Bellcore attack on RSA signatures used one faulty signature to factor the mo
 <Callout variant="warning" title="Constant time is not side-channel freedom">
 Constant-time code hides instruction and address traces. It does not hide power, electromagnetic emanations or faults. Protection requires layered countermeasures and evaluation on real hardware.
 </Callout>
+
+## A measurement and correlation walkthrough
+
+Begin with a leakage hypothesis. Mark a secret byte, predict a candidate intermediate value under each key guess, and choose a time point or power window where that value should be processed. Fix message generation, clocking, warm-up and trigger alignment. Otherwise the experiment may measure workload variation rather than secret dependence.
+
+For correlation power analysis, collect traces $T_i$ and predicted leakage $P_i(k)$ for every guess $k$. Compute Pearson correlation over the same trace window. The correct guess should correlate if the leakage model is accurate. Wrong guesses will also show random peaks, so evaluate enough traces, control multiple comparisons and confirm that the peak persists on held-out measurements.
+
+<WorkedExample
+  title="Pearson correlation for two leakage guesses"
+  steps={[
+    "Use four toy traces T = (10, 12, 11, 15). Their mean is 12 and their sum of squared deviations is 4 + 0 + 1 + 9 = 14.",
+    "For guess A, predicted Hamming weights are P = (0, 1, 1, 2), with mean 1 and squared-deviation sum 2.",
+    "The covariance numerator is (-1)(-2) + 0 + 0 + (1)(3) = 5, so correlation is 5 divided by the square root of 2 times 14, approximately 0.945.",
+    "For guess B, predictions are (0, 0, 1, 1), with mean 0.5, squared-deviation sum 1 and covariance numerator 2.",
+    "Guess B's correlation is 2 divided by the square root of 14, approximately 0.535. Guess A is stronger in this illustration, but four traces are far too few for a real conclusion."
+  ]}
+  result="Correlation ranks hypotheses only within a stated leakage model and measurement setup. Production evaluation needs many traces, significance controls and independent confirmation."
+/>
+
+Masking changes the distribution rather than merely obscuring a trace. A first-order arithmetic mask splits $x$ into two shares modulo a field or ring. If one share is uniform and independent, observing only that share reveals nothing about $x$. Nonlinear operations require secure multiplication gadgets; naively multiplying unmasked reconstructed values recreates the leak.
+
+<WorkedExample
+  title="One share is uniform, two shares reconstruct"
+  steps={[
+    "Work modulo 16 and mask secret x = 11 with a fresh uniform random r = 5.",
+    "Set x0 = r = 5 and x1 = x - r modulo 16 = 6. The shares reconstruct 5 + 6 = 11 modulo 16.",
+    "Across all sixteen equally likely masks, x0 takes every value uniformly. Its distribution does not depend on x.",
+    "Conditioned on x0 = 5, x1 is fixed at 6 for this secret. Observing both shares therefore reconstructs x.",
+    "A multiplication gadget must process the shares without exposing their product or a correlated intermediate. Freshness and secure refresh are part of the gadget, not optional optimisations."
+  ]}
+  result="First-order masking hides each individual share under the probing model, but composition, nonlinear gadgets, glitches and multiple probes determine whether the full implementation remains secure."
+/>
+
+<ProcessFlow
+  steps={[
+    {title: "Model", detail: "Name secrets, observables, probe or fault capabilities and trace budget.", tone: "brand"},
+    {title: "Instrument", detail: "Align public inputs and collect traces from the exact release device.", tone: "brand"},
+    {title: "Analyse", detail: "Use timing, taint, TVLA or correlation tests matched to the leakage model.", tone: "brand"},
+    {title: "Mitigate", detail: "Remove control-flow leaks, add masking or hiding, and contain faults.", tone: "brand"},
+    {title: "Retest", detail: "Repeat on the remediated artifact and a held-out measurement set.", tone: "brand"},
+    {title: "Monitor", detail: "Revalidate after compiler, provider, CPU or hardware changes.", tone: "brand"}
+  ]}
+/>
+
+A timing experiment should randomise public inputs while keeping the secret fixed, then compare distributions rather than a single minimum. A cache experiment needs a controlled co-resident process and separate cold and warm cases. A power campaign needs a trigger tied to a public operation boundary, a stable sampling clock and enough traces to estimate variance. Fault injection should record whether the device detected, aborted or released an output; a crash is not automatically evidence of a secure design.
 </Lens>
 
 <Lens level={3} title="Leakage models, distinguishers and masking proofs">
@@ -219,6 +279,24 @@ The security proof is only as good as the model: probing security, strong non-in
 <Callout variant="lab" title="Fault and side-channel models compose">
 A combined attacker can use a fault to bypass a check and a power trace to learn the branch. Defences should be evaluated together, not as independent checkboxes.
 </Callout>
+
+## Formalising leakage and constant time
+
+A leakage model is a family of distributions $\{\mathcal L_s\}$, one for each secret $s$. A useful countermeasure makes the distributions for different secrets close under a stated metric, such as statistical distance or mutual information, after at most $Q$ observations. This is stronger and more precise than saying that two sample means look similar. The model must also state which intermediates the attacker can observe and whether observations can be chosen adaptively.
+
+Pearson correlation measures linear dependence between a prediction and a trace. It can miss nonlinear leakage, and a high value can arise from an inaccurate model that happens to track public workload. A statistically significant peak must survive trace randomisation, a held-out set and correction for the number of tested points and guesses. The four-trace example is arithmetic intuition, not a security test.
+
+Constant-time programming constrains the instruction and address trace. For every pair of secret inputs, execution follows the same sequence of public branches, loop bounds and memory addresses. Secret values may still determine register contents and arithmetic operations. This directly addresses branch and cache-index timing, but it says nothing by itself about power, electromagnetic emanations or fault behaviour. A full-table scan removes the secret index but still processes secret-selected data in registers.
+
+In the $d$-probing model, an adversary observes at most $d$ intermediate wires during one execution. With $d+1$ shares and at least one fresh uniform share, any set of $d$ shares can be independent of the secret. For Boolean sharing, $x=x_0\oplus\cdots\oplus x_d$; conditioning on any $d$ shares leaves the remaining share uniformly distributed. For arithmetic sharing, the same statement holds under addition modulo the relevant ring.
+
+The proof becomes harder for nonlinear operations. Boolean AND, modular multiplication, comparisons and decompression need gadgets whose every intermediate probe set is secure. Strong non-interference requires that extending the observed probe set does not reveal additional secret information. Composability requires that a secure gadget remains secure when placed in a larger circuit. Transition-based leakage models additionally treat glitches between clock cycles. A scheme that is secure against one static probe can fail against two probes at different times if shares are not refreshed.
+
+Masking also consumes randomness and verification effort. Fresh masks must be independent across operations and unpredictable to the attacker. A refresh that reuses a mask can correlate shares. Conversions between Boolean and arithmetic masking are frequent leakage points because they involve nonlinear operations. Hardware glitches can bypass a register boundary and expose multiple shares even when source-level probes were analysed separately.
+
+Fault models should name the fault primitive: a bit flip, a skipped instruction, a corrupted memory word or a repeated computation. A fault may directly break correctness, reveal a secret through differential comparison, or alter control flow so that masking shares become visible. Redundancy helps only if the duplicated computations have sufficiently independent failure modes. Verify-before-release catches many invalid outputs, but physical sensors and protected state machines may still be needed.
+
+The assurance claim is a conjunction. Constant-time source, a masked nonlinear gadget and redundant output checking protect different observables. If any one is absent, the system may remain secure under a narrower model but not under the stated attacker. Document the leakage metric, number of probes, trace budget, fault set and composition assumptions alongside the test results. Without these, a pass/fail label has no stable meaning.
 </Lens>
 
 <Lens level={4} title="Writing and validating code that does not tell">
@@ -314,7 +392,91 @@ The compiler can transform a conditional into a branch or a conditional move dep
 <Callout variant="danger" title="Validate the deployed artifact">
 A constant-time claim at the source level does not survive a different compiler, optimisation level or CPU. Re-run validation after toolchain or hardware changes.
 </Callout>
+
+## Patterns that survive optimisation
+
+Use explicit-width unsigned arithmetic and documented masks. Equality can be accumulated with XOR and OR, then converted to a selection mask. Selection uses bitwise operations, not a conditional expression that a compiler may lower to a branch. Avoid calling general-purpose `memcmp` on secret-dependent data. For a full-table scan, keep the loop bound public and select the matching entry in a register after touching every line.
+
+Modular reduction needs the same discipline. A conditional subtraction based on a secret coefficient should become a comparison mask and a bitwise add or subtract. Avoid variable-time division on secret operands. Montgomery and Barrett methods replace division but still require bounded intermediates and branch-free correction. Vector lanes do not change this rule; a conditional lane operation can still be lowered to a branch or create data-dependent timing.
+
+Static analysis should start with taint labels on the secret key, shares, nonce and rejection seed. Flag any branch condition, memory address, loop bound or variable-latency call derived from those labels. Then inspect the generated assembly for the release flags. Source-level tools can miss compiler-introduced checks or library calls. Keep a list of approved primitives and investigate any new intrinsic or provider call in the cryptographic path.
+
+Timing validation needs controlled experiments. Use `dudect` or an equivalent statistical test with fixed secret values, randomised public inputs and enough samples to estimate the distribution. Run on an isolated, frequency-stable target and repeat under realistic load. A nonsignificant result is evidence only for the tested artifact and sensitivity; it is not a universal proof.
+
+Power and electromagnetic validation should use a leakage-assessment process such as TVLA or a task-specific correlation campaign. Fix the trigger, trace window and device configuration. Test first-order and, where relevant, higher-order leakage across probe locations. Include fresh-mask and repeated-mask test modes so the evaluator can confirm that the setup detects a deliberately weakened implementation.
+
+Fault campaigns should vary voltage, clock and electromagnetic disturbance while recording output and detection behaviour. Inject faults into comparison, sampling, norm checks and hash-address generation. A secure response may abort, return the standard rejection value or repeat a computation, depending on the interface. It must not expose a secret-dependent error or release an unchecked signature.
+
+Operationally, record a cryptographic bill of materials: source revision, compiler, flags, target CPU, provider and hardware revision. Gate deployment on all required reports. Re-run affected tests after any change, including a seemingly harmless library update. Keep a reproducible build so a field report can be matched to the evaluated binary.
+
+Zeroisation is a supporting control, not a side-channel proof. Clear secret buffers on every exit, avoid uninitialised padding in exported structures, and prevent crash dumps from capturing key material. Locked memory pages can reduce swapping but do not hide register or power leakage. Review logs and support tooling with the same suspicion as the cryptographic code.
 </Lens>
+
+<GuidedWorkshop
+  id="side-channel-workshop"
+  title="Validate and repair a leaky ML-KEM decapsulation path"
+  scenario="A secure element passes functional ML-KEM-768 tests. The laboratory finds that rejected ciphertexts execute a prefix comparison before the rejection key is derived. Source review also finds a secret-indexed sampling table in an older build, although the current build replaced it with a full scan. The team has timing equipment, a power probe and one week before release."
+  tasks={[
+    "Map each finding to timing, cache, power and fault models and state what evidence is still missing.",
+    "Design a constant-time comparison and rejection-selection sequence for all 1,088 ciphertext bytes.",
+    "Plan a regression test that catches the secret-indexed table in future builds.",
+    "Specify a small but meaningful power and fault campaign for the repaired artifact.",
+    "Set the release gate and the changes that trigger full revalidation."
+  ]}
+  hints={[
+    "The old cache flaw is historical, but its fix still needs a regression guard.",
+    "Derive both output candidates before selecting one with a mask.",
+    "Static taint analysis can fail a build before hardware testing starts.",
+    "A weakened reference implementation helps validate that the lab setup detects leakage."
+  ]}
+  solution={[
+    "The prefix comparison is a timing leak because work depends on the matching prefix and, indirectly, ciphertext structure. The secret-indexed sampling table is a cache leak in the old artifact. Power leakage remains an open question because constant-time control flow does not remove data-dependent consumption. Fault leakage is also untested. Each claim needs its own observation model and evidence; passing functional vectors answers none of them.",
+    "Parse the exact length, then perform decompression, decode, derivation, re-encryption and J computation without an early rejection. Accumulate the OR of all 1,088 byte differences and convert the final result to a mask. Compute both 32-byte candidates and select with bitwise operations. Inspect the generated code to ensure that no library comparison, conditional move or cleanup branch restores a secret-dependent path.",
+    "Add a static taint rule that marks secret and rejection-seed state and rejects any dependent address or branch. Include a deliberately vulnerable lookup routine in a test-only fixture and require the scanner to fail it. Keep differential timing tests with fixed secrets and randomised ciphertexts. This combination catches reintroduction of the table even if the current build no longer contains it.",
+    "Use a stable trigger and aligned trace window, collect enough traces for a leakage assessment, and test a deliberately weakened build as a positive control. Cover representative operations and multiple probe points, not only the final comparison. Inject faults into comparison and sampling, recording whether the device aborts or returns the normal rejection interface. Repeat on held-out traces and more than one device sample where possible.",
+    "Release requires clean functional vectors, successful taint and assembly review, no detected timing leakage under the stated sensitivity, acceptable power-assessment results and safe fault behaviour. Any compiler, provider, CPU-feature or hardware-revision change invalidates the affected reports. Document residual risk and trace budget so the result is an assurance claim rather than an absolute promise."
+  ]}
+  takeaway="Side-channel assurance is layered evidence for a specific artifact: control-flow review, statistical timing tests, power evaluation and fault campaigns answer different questions."
+/>
+
+## Common failure modes
+
+| Failure | Cause | Impact | Prevention |
+| --- | --- | --- | --- |
+| Early-exit secret comparison | General-purpose comparison or manual break | Timing oracle | Full-length bitwise accumulation |
+| Secret-indexed table | Sampling or decompression lookup | Cache and timing leakage | Full scan or audited register selection |
+| Conditional modular correction | Branch on a secret coefficient | Timing and control-flow leakage | Comparison mask and branch-free arithmetic |
+| Variable-time division | Hardware divider latency depends on operands | Timing leakage | Barrett or Montgomery reduction |
+| Mask is reused | Refresh logic is skipped for speed | Shares become correlated | Fresh randomness and refresh tests |
+| Masking gadget lacks composability | Individual operations pass, composition leaks | Higher-order probing leakage | Review full circuit and transition effects |
+| Fault path returns a distinct error | Error handling exposes detection | Fault and validity oracle | Safe abort or standard rejection interface |
+| Validation covers only source | Compiler or provider changes the binary | Unseen branch or library call | Pin and inspect the release artifact |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Timing distributions differ only under load | Secret-dependent path amplified by contention | Isolate the test, inspect control flow and repeat |
+| Taint tool flags a library call | Hidden comparison, division or address derivation | Replace with an audited constant-time primitive |
+| TVLA detects leakage after masking | Stale mask, leaky conversion or insufficient order | Review refresh, gadgets and probe model |
+| Power result changes between boards | Probe placement, clock or device variation | Standardise setup and increase sample coverage |
+| Fault produces a signature or key output | Detection is bypassed or output is unchecked | Add redundancy and verify before release |
+| New build fails leakage regression | Compiler or provider transformation | Diff assembly and re-run the full affected test set |
+
+## Design review checklist
+
+- [ ] Secrets, observables, probe counts, trace budget and fault capabilities are explicit.
+- [ ] No branch, loop bound, address or variable-latency call depends on a secret.
+- [ ] Comparisons process the complete public or secret-dependent input without early exit.
+- [ ] Sampling, decompression and table access use reviewed constant-time patterns.
+- [ ] Modular reduction has proved bounds and branch-free correction.
+- [ ] Masking uses fresh randomness and reviewed nonlinear gadgets and refreshes.
+- [ ] Static taint and generated-assembly checks cover the exact release artifact.
+- [ ] Timing, power/EM and fault tests each have a stated method and sensitivity.
+- [ ] Weakened positive controls confirm that the test setup can detect leakage.
+- [ ] Faults cannot expose secret-dependent errors or unchecked signatures.
+- [ ] Compiler, provider, CPU and hardware changes trigger revalidation.
+- [ ] Secret wiping, logs and crash dumps are included in the operational review.
 
 ## Key takeaways
 

@@ -1,17 +1,21 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { LensLevel } from "@/lib/types";
 import { getLens } from "@/lib/lenses";
 
+type DepthMode = "guide" | "lens";
+
 interface DepthLensContextValue {
   lens: LensLevel;
+  mode: DepthMode;
   setLens: (level: LensLevel) => void;
+  showGuide: () => void;
 }
 
 const DepthLensContext = createContext<DepthLensContextValue | null>(null);
-
-const STORAGE_KEY = "cyberlab:depth-lens";
+const LENS_KEY = "cyberlab:depth-lens";
+const MODE_KEY = "cyberlab:depth-mode";
 
 export function useDepthLens(): DepthLensContextValue {
   const value = useContext(DepthLensContext);
@@ -21,40 +25,51 @@ export function useDepthLens(): DepthLensContextValue {
 
 export function DepthLensProvider({ children }: { children: React.ReactNode }) {
   const [lens, setLensState] = useState<LensLevel>(1);
-  const mounted = useRef(false);
+  const [mode, setMode] = useState<DepthMode>("guide");
 
   useEffect(() => {
-    mounted.current = true;
     try {
-      const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-      if (stored === 1 || stored === 2 || stored === 3 || stored === 4) {
-        setLensState(stored);
-      }
+      const stored = Number(window.localStorage.getItem(LENS_KEY));
+      if (stored === 1 || stored === 2 || stored === 3 || stored === 4) setLensState(stored);
+      const storedMode = window.localStorage.getItem(MODE_KEY);
+      if (storedMode === "guide" || storedMode === "lens") setMode(storedMode);
     } catch {
-      // Storage can be unavailable in private browsing; keep L1.
+      // Storage may be unavailable; the full guide remains the default.
     }
+  }, []);
+
+  const preserveScroll = useCallback((announcement: string) => {
+    const scrollY = window.scrollY;
+    const announcer = document.getElementById("depth-lens-announcer");
+    if (announcer) announcer.textContent = announcement;
+    window.requestAnimationFrame(() => window.scrollTo({ top: scrollY, behavior: "auto" }));
   }, []);
 
   const setLens = useCallback((next: LensLevel) => {
-    const scrollY = window.scrollY;
     setLensState(next);
+    setMode("lens");
     try {
-      window.localStorage.setItem(STORAGE_KEY, String(next));
+      window.localStorage.setItem(LENS_KEY, String(next));
+      window.localStorage.setItem(MODE_KEY, "lens");
     } catch {
       // Ignore storage failures.
     }
-    const announce = document.getElementById("depth-lens-announcer");
-    if (announce) {
-      announce.textContent = `Depth lens ${next}: ${getLens(next).name}. Scroll position preserved.`;
+    preserveScroll(`Depth lens ${next}: ${getLens(next).name}. Scroll position preserved.`);
+  }, [preserveScroll]);
+
+  const showGuide = useCallback(() => {
+    setMode("guide");
+    try {
+      window.localStorage.setItem(MODE_KEY, "guide");
+    } catch {
+      // Ignore storage failures.
     }
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: scrollY, behavior: "auto" });
-    });
-  }, []);
+    preserveScroll("Full guide: all four depth chapters are visible. Scroll position preserved.");
+  }, [preserveScroll]);
 
   return (
-    <DepthLensContext.Provider value={{ lens, setLens }}>
-      <div data-depth-root data-active-lens={lens}>
+    <DepthLensContext.Provider value={{ lens, mode, setLens, showGuide }}>
+      <div data-depth-root data-depth-mode={mode} data-active-lens={lens}>
         {children}
         <p id="depth-lens-announcer" className="sr-only" aria-live="polite" />
       </div>

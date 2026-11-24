@@ -5,8 +5,9 @@ subtitle: "The workhorse of secure systems: fast encryption, authenticated integ
 track: "Foundations"
 order: 3
 difficulty: "Intermediate"
-readingTime: 22
+readingTime: 80
 summary: "Understand AES, ChaCha20, GCM, AEAD interfaces, nonces, key rotation and the failure modes that turn strong primitives into broken systems."
+outcomes: ["Explain block ciphers, stream ciphers and AEAD without conflating them.", "Trace AES-GCM and ChaCha20-Poly1305 through nonce, ciphertext and tag.", "Calculate nonce collision risk and design safe key/nonce lifecycles.", "Implement key hierarchy, rotation, constant-time verification and tamper tests."]
 citations: ["fips197", "sp800-38d", "rfc8439", "rfc5116", "sp800-57pt1r5", "kocher1999"]
 tags: ["symmetric", "aes", "aead", "key-management"]
 prerequisites: ["asymmetric-primitives"]
@@ -61,6 +62,22 @@ A cipher is only as strong as the key lifecycle around it: generation, distribut
 3. **Key confusion.** Using the same key for two purposes, directions or algorithms can let an attacker reinterpret a value from one context in another. Key separation is a security control.
 
 Each failure is an interface and lifecycle failure more than a cipher failure.
+
+## Model a multi-tenant telemetry archive
+
+Suppose a service backs up encrypted sensor readings for hospitals. Each tenant has a key, backups span regions, and authorised queries request decryption. A passive attacker steals object-store ciphertext; an active tenant splices records or replays readings; an insider probes whether a tag is valid. The defender wants cheap storage, fast restores and few root keys.
+
+Those incentives shape the design. Per-tenant or per-object keys limit blast radius; envelope encryption keeps root keys away from the object store; AEAD binds metadata; and KMS audit separates unwrap from bulk access. NIST treats protection, ownership and lifecycle as part of the cryptosystem. <Cite id="sp800-57pt1r5" locator="§5–6" />
+
+The prerequisites are XOR, fixed-size block ciphers and elementary probability. A nonce is security-critical state, not a convenience label. A valid tag authenticates within a shared-key domain, not a particular person. Associated data is authenticated but visible.
+
+<WorkedExample
+  title="See exactly what GCM nonce reuse leaks"
+  steps={["Assume one stream segment XORs two four-byte plaintexts with the same keystream.", "Let P1 = 00 01 02 03 and P2 = 00 ff fe fd, written in hexadecimal bytes.", "Then P1 XOR P2 = 00 fe fc fe.", "The corresponding ciphertexts satisfy C1 XOR C2 = 00 fe fc fe regardless of the secret keystream.", "If an attacker learns P1, they recover the four keystream bytes as Ks = C1 XOR P1 and then compute P2 = C2 XOR Ks."]}
+  result="Nonce reuse leaks plaintext relationships without any attack on AES. GCM is worse: reuse under the same key can also expose its authentication key and enable forgery, so the affected key must be retired."
+/>
+
+The XOR relationship holds for any repeated stream segment. GCM adds a specific authentication failure because its GHASH polynomial is masked by a value derived from the same key and nonce; NIST explicitly requires nonce uniqueness and limits invocation counts for this reason. <Cite id="sp800-38d" locator="§8" />
 </Lens>
 
 <Lens level={2} title="AES, ChaCha20 and the AEAD contract">
@@ -121,6 +138,41 @@ For data at rest, a common design is:
 4. Store the wrapped DEK and ciphertext together.
 
 Rotation can re-wrap DEKs without re-encrypting the objects. Access control and audit focus on the KMS, while the object store sees only ciphertext.
+
+## Walk one AES-GCM record at the byte level
+
+Choose a 96-bit IV, for example the twelve bytes `00 01 02 03 04 05 06 07 08 09 0a 0b`. GCM forms $J_0$ by appending `00 00 00 01`. The first counter block encrypts the plaintext; later counters encrypt subsequent 16-byte blocks. For the two-byte plaintext `68 69`, the ciphertext is conceptually
+
+$$
+C = E_K(J_0) \oplus \mathtt{68\,69}.
+$$
+
+That expression shows the structure, not a calculable result without the secret key. Let AAD be the four-byte sequence number `00 00 00 01`. GHASH processes AAD, ciphertext and their encoded lengths in $GF(2^{128})$. The 128-bit tag is $E_K(J_0) \oplus \mathrm{GHASH}$. Decryption recomputes the tag and releases plaintext only after a constant-time comparison. These are the GCM steps specified by NIST. <Cite id="sp800-38d" locator="§5–7" />
+
+<ProcessFlow
+  steps={[
+    {title: "Validate", detail: "Check key, IV, AAD and length constraints before allocation.", tone: "brand"},
+    {title: "Counter", detail: "Construct J0 from the 96-bit IV and start the 32-bit counter.", tone: "brand"},
+    {title: "Encrypt", detail: "XOR plaintext blocks with AES output under successive counters.", tone: "brand"},
+    {title: "Authenticate", detail: "GHASH binds AAD, ciphertext and encoded lengths.", tone: "brand"},
+    {title: "Mask tag", detail: "XOR GHASH with E_K(J0) to produce the authentication tag.", tone: "brand"},
+    {title: "Release", detail: "Decryptor verifies the full tag before exposing any plaintext.", tone: "brand"}
+  ]}
+/>
+
+Configuration starts with nonce discipline. Random 96-bit nonces avoid durable counters but consume birthday budget. Deterministic counters need atomic persistence and must never rewind. A per-message derived key confines a fixed nonce, at the cost of another KDF call. Choose tag length only from the protocol’s allowed set: shorter tags reduce forgery cost, and longer tags cannot repair nonce reuse. <Cite id="sp800-38d" locator="§8" />
+
+AAD carries immutable protocol context: version, tenant, sequence and object identifier. Do not include mutable routing hops. Empty plaintext and AAD are valid but still need explicit length encoding. For IVs other than 96 bits, GCM derives $J_0$ through additional GHASH; do not assume zero-padding is equivalent. <Cite id="sp800-38d" locator="§7" />
+
+Failures include resetting counters, restoring snapshots, coarse timestamps, object IDs unique only per tenant, and authenticating a header after encryption. Reject impossible lengths before allocation and never return partial plaintext before tag verification.
+
+<WorkedExample
+  title="Quantify a random 96-bit nonce collision budget"
+  steps={["For q random nonces in a 2^96 space, model the collision probability as approximately q^2 / 2^97.", "At q = 2^32 messages, the probability is 2^64 / 2^97 = 2^-33, about 1.16 × 10^-10.", "At q = 2^40 messages, it is 2^80 / 2^97 = 2^-17, about 7.63 × 10^-6.", "If the accepted risk threshold is 10^-12, solve q ≤ square root of (10^-12 × 2^97), giving roughly 3.98 × 10^8 messages."]}
+  result="A per-key policy should stop well before the analytical bound and rotate at a documented count. The birthday estimate does not capture every GCM attack bound, so protocol limits and the standard’s security considerations remain authoritative."
+/>
+
+The approximation follows the birthday calculation; NIST’s security considerations also bound authenticated-encryption usage and warn about nonce uniqueness. <Cite id="sp800-38d" locator="§8" />
 </Lens>
 
 <Lens level={3} title="IND-CPA, INT-CTXT and what the tag actually proves">
@@ -171,6 +223,27 @@ A robust design limits the damage of a mistake:
 - use counters with persistent state or random nonces with enforced message limits;
 - authenticate protocol context as associated data;
 - reject unknown algorithm identifiers rather than guessing.
+
+## State the authenticated-encryption game precisely
+
+An AEAD security experiment gives the adversary encryption and decryption oracles. The adversary may encrypt chosen nonce, message and AAD triples. It may submit arbitrary ciphertexts to the decryption oracle, which returns a failure symbol unless the ciphertext was previously produced under the same key and inputs. The adversary wins either by distinguishing challenge ciphertexts or by returning a new ciphertext that verifies. Confidentiality and ciphertext integrity are therefore tested together, not inferred from the name AES. <Cite id="rfc5116" locator="§2" />
+
+For INT-CTXT, let $\mathcal A$ query an encryption oracle and then output $(n^*, c^*)$ that was not among the returned ciphertexts. Its advantage is
+
+$$
+\mathrm{Adv}^{\mathrm{int\mbox{-}ctxt}}(\mathcal A)
+= \Pr[\mathsf{Decrypt}(K,n^*,c^*,a^*) \ne \bot].
+$$
+
+A secure scheme makes that probability negligible, subject to nonce, message and key-use limits. Correctness is separate: for a genuine encryption, decryption returns the original plaintext except for an explicitly modelled transmission or implementation failure. Security does not follow from correctness; a scheme can decrypt perfectly and still be malleable.
+
+The GCM proof has two branches. Counter-mode confidentiality follows from a pseudorandom permutation on distinct counter blocks; authentication follows from the difficulty of forging GHASH under a fresh mask. A distinguisher or forger yields an attack on one assumption, with query and tag-length losses. Nonce repetition removes the distinct-block premise: the same counter produces the same keystream and tag mask. <Cite id="sp800-38d" locator="§8" />
+
+Encode edge cases deliberately. Empty plaintext still produces a tag; empty AAD contributes only a length block. Repeating a nonce violates the model even with identical plaintext. Truncating a tag to $t$ bits changes forgery cost to roughly $2^{-t}$ per attempt. Non-96-bit IVs must use the specified derivation. <Cite id="sp800-38d" locator="§7–8" />
+
+Do not infer key commitment. Standard AEAD does not guarantee validity under at most one key. If a protocol presents ciphertext under multiple candidate keys, use a committing construction or authenticate an explicit key identifier. This is an application goal, not a property conferred by GCM. <Cite id="sp800-38d" locator="§8" />
+
+
 </Lens>
 
 <Lens level={4} title="AES-NI, constant-time code and the operational key lifecycle">
@@ -242,7 +315,78 @@ AES is a block cipher, not an encryption scheme. Compose it with a standard AEAD
 4. Fuzz decoders and length checks.
 5. Measure tag comparison constant-time behaviour.
 6. Rotate keys during a live workload and verify old ciphertexts remain decryptable where intended.
+
+## Package encryption as a stateful service
+
+A safe adapter exposes a versioned record identifying algorithm, key version, nonce strategy and AAD schema. It enforces per-key nonce and message limits. Keep nonce allocation in the encryption trust boundary; across processes or machines, reserve ranges atomically or use a construction designed for that concurrency.
+
+Select backends explicitly. Hardware AES can outperform software tables, but containers may lack the extension. Test fallback and record the production backend. Crypto engines add queueing, DMA and key-isolation boundaries; retries must not duplicate state. Benchmark bytes per second and p99 latency at realistic sizes, including short records dominated by setup and tag verification. <Cite id="fips197" locator="§4–6" />
+
+Side-channel review covers the whole record path: secret-dependent AES lookups, early plaintext release, cache effects and hardware power variation. Differential power analysis can reveal keys despite sound algorithms. <Cite id="kocher1999" locator="pp. 388–397" /> Review compiler and backend choices, then measure timing and, when warranted, power traces.
+
+Test state transitions: kill before or after committing a nonce range, restore snapshots, clone containers, lose the KMS and rotate during reads. Assert no nonce repeats and old records remain readable as intended. Fuzz lengths, collapse authentication failures, alert before limits, and treat suspected reuse as a key-rotation incident.
+
+Operational metadata records key identifier, owner, purpose, timestamps, allowed algorithms, invocation limits, storage, backups, deactivation and destruction. NIST makes these lifecycle states explicit. <Cite id="sp800-57pt1r5" locator="§5–6" /> This turns a cipher into a recoverable system.
 </Lens>
+
+
+## Common failure modes
+
+| Failure mode | Root cause | Consequence |
+| --- | --- | --- |
+| GCM nonce repeats after restart | Counter was held only in process memory | Plaintext relationships leak and forgery becomes possible |
+| Random nonce budget is uncounted | Team treats a 96-bit space as unlimited | Birthday collisions become likely at high volume |
+| AAD omits record context | Only ciphertext is authenticated | Records can be replayed or moved between tenants |
+| Partial plaintext is released early | Streaming API writes before tag verification | Padding- or tag-style oracle and unauthenticated data exposure |
+| Counter ranges overlap between workers | Allocation is not atomic or globally scoped | Same key and nonce encrypt different records |
+| Snapshot restore rewinds state | Backup includes an active encryption worker | Previously used nonces return to service |
+| Tag comparison exits early | Generic string or memory comparison is used | Matching-prefix timing leaks the expected tag |
+| One key serves all purposes | Convenience overrides domain separation | Cross-protocol and direction-confusion attacks |
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Tag failures rise after a deployment | AAD schema, byte order or key version changed | Compare a captured transcript field by field and version the schema |
+| Duplicate nonce alert appears on two workers | Counter ranges overlap or cache state diverged | Centralise allocation or reserve disjoint durable ranges |
+| VM restore causes immediate nonce exhaustion | Snapshot restored the old allocator state | Generate a new key epoch on restore and preserve old keys read-only |
+| GCM is slow for tiny records | Per-call setup and hardware-engine queue dominate | Batch records or benchmark an alternative AEAD on the target path |
+| HSM decrypt works but application rejects output | Key handle, context or length metadata is mismatched | Verify the unwrap response against a known DEK and record format |
+| Longer tags do not stop an attack | Nonce reuse or unauthenticated context is the real fault | Rotate the key, fix nonce discipline and bind the missing context |
+
+## Design review checklist
+
+- [ ] Every key has an owner, purpose, version and maximum invocation count.
+- [ ] Nonce uniqueness is guaranteed by construction, not assumed from randomness.
+- [ ] Counter allocation is atomic, durable and safe across workers and restarts.
+- [ ] Snapshot restore, cloning and backup recovery have explicit nonce-reset handling.
+- [ ] AAD binds version, tenant, direction, sequence and object identity.
+- [ ] No plaintext is released before the complete tag is verified.
+- [ ] Tag verification uses a constant-time routine over the full expected tag.
+- [ ] Randomness comes from an approved source and failure is fatal.
+- [ ] Encryption, MAC, IV and direction keys are domain-separated.
+- [ ] Key wrapping, rotation and destruction are auditable and rehearsed.
+- [ ] Vectors, tamper tests, fuzzing and cross-backend tests are in CI.
+- [ ] Telemetry alerts before nonce or message limits are exhausted.
+
+<GuidedWorkshop
+  id="symmetric-crypto-workshop"
+  title="Fix nonce management for a high-volume telemetry backup"
+  scenario="A backup service handles about 500 million sensor records per tenant per day. Each tenant currently receives one daily AES-256-GCM key and a random 96-bit nonce per record. The accepted random-collision budget is 10^-12 per key. Workers run in cloned containers, and restoring a VM snapshot can rewind the in-memory counter proposed by the platform team."
+  tasks={["Calculate whether the random-nonce design meets the collision budget.", "Choose a nonce construction that survives concurrency and snapshot restore.", "Design the DEK and KEK hierarchy, including archive reads and rotation.", "Specify AAD and the wire format needed to prevent record splicing.", "Write an incident and test plan for suspected nonce reuse."]}
+  hints={["Approximate collision probability is q squared divided by 2 to the 97th power.", "A 96-bit nonce can be split into an allocated shard and a monotonically increasing counter.", "A new key epoch can safely reset nonce state if the allocator is also reset.", "The record must reveal its key version and nonce, but must authenticate tenant and sequence context.", "A longer tag cannot repair a repeated nonce."]}
+  solution={["For q = 5 × 10^8, the birthday estimate is q² / 2^97 ≈ 2.5 × 10^17 / 1.584 × 10^29 ≈ 1.58 × 10^-12. That exceeds the 10^-12 target. Solving q ≤ square root of (10^-12 × 2^97) gives about 3.98 × 10^8 records per key, below the daily volume. The design must reduce records per key, enforce a lower limit or replace random nonces with an allocator that guarantees uniqueness.", "Use a 96-bit nonce composed of a 32-bit shard identifier and a 64-bit counter. A durable allocator assigns each worker a disjoint shard for a specific key version, and each worker reserves counter ranges atomically. A shard is never reassigned under the same key. If state is lost or a snapshot is restored, the worker cannot continue the old epoch: it requests a new key epoch or a newly authorised shard, and old epochs become read-only.", "Generate a fresh 256-bit DEK per tenant per key epoch with a CSPRNG. Wrap it with a tenant KEK held in the KMS and store the wrapped key beside the ciphertext index. Limit the epoch by both time and invocation count. Rotation creates a new DEK and nonce space while old DEKs remain available for archive reads until their retention period ends. Audit every unwrap, and rehearse KEK rotation by rewrapping DEKs without re-encrypting sensor data.", "The record carries a version byte, key identifier, 96-bit nonce, ciphertext and 16-byte tag. AAD binds the version, tenant identifier, device identifier, sequence number and plaintext length. The receiver authenticates those fields before selecting a DEK and must reject unknown versions, duplicate sequence numbers and cross-tenant context. Lengths are parsed before allocation, and a failed tag produces one generic error with no partial plaintext.", "Exercise counters across process crashes, range commit failures, two workers starting together, snapshot restore and full-cluster recovery. Confirm that no key-nonce pair repeats and that counters never wrap. On suspected reuse, stop the affected epoch, rotate its key, preserve forensic logs and treat its records as potentially exposed. Reproduce the failure in a test cluster, fix the allocator and require a clean replay before reopening writes."]}
+  takeaway="At high volume, nonce management is a distributed-state problem; cryptographic strength cannot compensate for repeated state."
+/>
+
+The collision model and GCM usage limits come from NIST’s security considerations, while key states and protection requirements follow the key-management guidance. <Cite id="sp800-38d" locator="§8" /> <Cite id="sp800-57pt1r5" locator="§5–6" />
+
+<KnowledgeCheck
+  question="Which metadata should normally be authenticated as associated data?"
+  options={["Only fields that are already encrypted", "Version, tenant, sequence number and object identity", "Nothing, because the ciphertext hash covers it", "The secret key identifier only if it is public"]}
+  answer={1}
+  explanation="AAD should bind the protocol context that must not change. It remains visible, but tampering causes tag verification to fail."
+/>
 
 
 ## Key takeaways

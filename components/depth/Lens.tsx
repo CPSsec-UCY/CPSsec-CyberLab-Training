@@ -12,7 +12,7 @@ export function Lens({ level, title, children }: LensProps) {
   const headingId = `lens-${level}-heading`;
 
   return (
-    <section data-lens={level} aria-labelledby={headingId} className="pt-6">
+    <section id={`chapter-${level}`} data-lens={level} aria-labelledby={headingId} className="pt-6 scroll-mt-40">
       <div className={`mb-6 flex flex-col gap-3 rounded-2xl border ${lens.accentBorder} ${lens.accentBg} p-4 sm:flex-row sm:items-center sm:justify-between`}>
         <div className="flex items-center gap-3">
           <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${lens.accentBorder} bg-white/80 font-mono text-sm font-bold ${lens.accentText}`}>
