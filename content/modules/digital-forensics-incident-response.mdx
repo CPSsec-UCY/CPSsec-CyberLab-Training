@@ -173,8 +173,8 @@ In the toy case, the memory process began four seconds before the Sysmon process
 
 <Figure caption="Memory evidence supports several questions. Each artefact must be tied to the image, process context and a stated limitation.">
   <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-    <table className="w-full min-w-[760px] text-left text-[10px]">
-      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Artefact</th><th className="px-3 py-2">Useful question</th><th className="px-3 py-2">Corroborate with</th><th className="px-3 py-2">Do not conclude</th></tr></thead>
+    <table className="cyber-table w-full min-w-[760px] text-left text-[11px]">
+      <thead className="bg-mist-100 text-navy"><tr><th scope="col" className="px-3 py-2">Artefact</th><th scope="col" className="px-3 py-2">Useful question</th><th scope="col" className="px-3 py-2">Corroborate with</th><th scope="col" className="px-3 py-2">Do not conclude</th></tr></thead>
       <tbody>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Process command line</td><td className="px-3 py-2">What arguments did the running process receive?</td><td className="px-3 py-2">Sysmon or audit process-creation event</td><td className="px-3 py-2">That the user typed the command</td></tr>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Private executable region</td><td className="px-3 py-2">Was code present beyond the mapped file?</td><td className="px-3 py-2">Image path, module list and telemetry</td><td className="px-3 py-2">That all private executable memory is malicious</td></tr>

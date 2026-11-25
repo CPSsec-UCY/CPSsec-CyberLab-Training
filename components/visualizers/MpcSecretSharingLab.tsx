@@ -144,14 +144,14 @@ export function MpcSecretSharingLab() {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
-        <table className="w-full min-w-[560px] text-left text-xs">
+        <table className="cyber-table cyber-table--dense w-full min-w-[560px] text-left text-xs">
           <caption className="sr-only">Shamir polynomial points and distributed shares</caption>
           <thead className="bg-mist-100 text-[9px] uppercase tracking-[0.1em] text-muted">
             <tr>
-              <th className="px-3 py-2">Point x</th>
-              <th className="px-3 py-2">Polynomial f(x)</th>
-              <th className="px-3 py-2">Shared value</th>
-              <th className="px-3 py-2">Use in reconstruction</th>
+              <th scope="col" className="px-3 py-2">Point x</th>
+              <th scope="col" className="px-3 py-2">Polynomial f(x)</th>
+              <th scope="col" className="px-3 py-2">Shared value</th>
+              <th scope="col" className="px-3 py-2">Use in reconstruction</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line font-mono">

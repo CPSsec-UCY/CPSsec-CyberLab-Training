@@ -135,6 +135,9 @@ the validator warns if it is not.
 - Provide a static/experience-preserving fallback under `prefers-reduced-motion`.
 - Do not fetch external data from a module.
 - If a visualiser makes a quantitative claim, expose the assumptions and cite the source.
+- Prefer Markdown tables so `MdxTable` can add scoped headers and column-aware minimum widths.
+- Hand-authored JSX tables must use `cyber-table`, explicit `scope="col"` or `scope="row"` headers,
+  a minimum-width utility and a labelled keyboard-focusable overflow region. Avoid `<pre>` inside cells.
 
 Add new components to `components/mdx/index.tsx` so MDX can use them.
 

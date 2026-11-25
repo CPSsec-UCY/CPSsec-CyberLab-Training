@@ -528,8 +528,8 @@ export function CloudAttackPathLab() {
         <details className="mt-4 rounded-xl border border-line bg-white p-3">
           <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.08em] text-navy">Blocked edges and their compensating controls ({blockedEdges.length})</summary>
           <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full min-w-[620px] text-left text-[10px]">
-              <thead className="text-muted"><tr><th className="py-1.5 pr-3">Edge</th><th className="py-1.5 pr-3">Missing condition</th><th className="py-1.5">Control to retain</th></tr></thead>
+            <table className="cyber-table cyber-table--dense w-full min-w-[620px] text-left text-[11px]">
+              <thead className="text-muted"><tr><th scope="col" className="py-1.5 pr-3">Edge</th><th scope="col" className="py-1.5 pr-3">Missing condition</th><th scope="col" className="py-1.5">Control to retain</th></tr></thead>
               <tbody>
                 {blockedEdges.map((edge) => (
                   <tr key={edge.id} className="border-t border-line align-top">

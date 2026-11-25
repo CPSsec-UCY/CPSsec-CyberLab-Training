@@ -10,6 +10,8 @@ const htmlFiles = [];
 let tables = 0;
 let modulePages = 0;
 let moduleTables = 0;
+let scopedHeaders = 0;
+let wideTables = 0;
 
 function collect(directory) {
   if (!fs.existsSync(directory)) {
@@ -32,6 +34,16 @@ function hasHorizontalOverflow(node) {
     .some((className) => className === "overflow-x-auto" || className === "overflow-auto");
 }
 
+function directCells(row) {
+  return (row.childNodes ?? []).filter((node) => node.tagName === "td" || node.tagName === "th");
+}
+
+function descendants(node) {
+  const result = [];
+  for (const child of node.childNodes ?? []) result.push(child, ...descendants(child));
+  return result;
+}
+
 function inspect(filePath) {
   const document = parse(fs.readFileSync(filePath, "utf8"));
   const isModulePage = filePath.includes(`${path.sep}learn${path.sep}`);
@@ -42,6 +54,12 @@ function inspect(filePath) {
       tables += 1;
       if (isModulePage) moduleTables += 1;
       const scrollContainer = [...ancestors].reverse().find(hasHorizontalOverflow);
+      const tableClass = attr(node, "class");
+      const rows = descendants(node).filter((child) => child.tagName === "tr");
+      const columnCounts = rows.map(directCells).map((cells) => cells.length);
+      const headers = descendants(node).filter((child) => child.tagName === "th");
+      const hasMinimumWidth = /min-w-\[/.test(tableClass) || /min-width/.test(attr(node, "style"));
+
       if (!scrollContainer) {
         failures.push(`${path.relative(outDir, filePath)}: <table> has no horizontal-overflow ancestor`);
       } else if (
@@ -51,6 +69,30 @@ function inspect(filePath) {
       ) {
         failures.push(`${path.relative(outDir, filePath)}: table scroll region is not keyboard-accessible and labelled`);
       }
+      if (!tableClass.split(/\s+/).includes("cyber-table")) {
+        failures.push(`${path.relative(outDir, filePath)}: <table> is missing the shared cyber-table class`);
+      }
+      if (!hasMinimumWidth) {
+        failures.push(`${path.relative(outDir, filePath)}: <table> has no minimum width and may collapse on narrow screens`);
+      }
+      if (/text-\[(?:9|10)px\]/.test(tableClass)) {
+        failures.push(`${path.relative(outDir, filePath)}: <table> uses text smaller than the 11px readability floor`);
+      }
+      if (columnCounts.some((count) => count !== columnCounts[0])) {
+        failures.push(`${path.relative(outDir, filePath)}: table rows have inconsistent column counts (${columnCounts.join(", ")})`);
+      }
+      for (const header of headers) {
+        const scope = attr(header, "scope");
+        if (scope !== "col" && scope !== "row") {
+          failures.push(`${path.relative(outDir, filePath)}: <th> is missing scope=col or scope=row`);
+        } else {
+          scopedHeaders += 1;
+        }
+      }
+      if (descendants(node).some((child) => child.tagName === "pre")) {
+        failures.push(`${path.relative(outDir, filePath)}: <pre> inside a table cell prevents reliable wrapping`);
+      }
+      if (hasMinimumWidth) wideTables += 1;
     }
     for (const child of node.childNodes ?? []) visit(child, [...ancestors, node]);
   }
@@ -73,3 +115,5 @@ if (failures.length > 0) {
 console.log("Table rendering check passed.");
 console.log(`  html files: ${htmlFiles.length}`);
 console.log(`  tables:     ${tables} (${moduleTables} across ${modulePages} module pages)`);
+console.log(`  headers:    ${scopedHeaders} with explicit col/row scope`);
+console.log(`  widths:     ${wideTables} tables with a minimum-width contract`);

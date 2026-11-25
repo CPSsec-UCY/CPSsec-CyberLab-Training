@@ -416,9 +416,9 @@ export function BlueTeamHuntLab() {
           {hasRun ? (
             matched.length > 0 ? (
               <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-                <table className="w-full min-w-[720px] text-left text-[9px]">
+                <table className="cyber-table cyber-table--dense w-full min-w-[780px] text-left text-[11px]">
                   <caption className="sr-only">Toy events that match the selected hypothesis, sources and threshold</caption>
-                  <thead className="text-muted"><tr><th className="px-3 py-2 font-bold">Time</th><th className="px-3 py-2 font-bold">Source</th><th className="px-3 py-2 font-bold">Host / user</th><th className="px-3 py-2 font-bold">Observed event</th><th className="px-3 py-2 text-right font-bold">Score</th></tr></thead>
+                  <thead className="text-muted"><tr><th scope="col" className="px-3 py-2 font-bold">Time</th><th scope="col" className="px-3 py-2 font-bold">Source</th><th scope="col" className="px-3 py-2 font-bold">Host / user</th><th scope="col" className="px-3 py-2 font-bold">Observed event</th><th scope="col" className="px-3 py-2 text-right font-bold">Score</th></tr></thead>
                   <tbody>
                     {matched.map((event) => (
                       <tr key={event.id} className="border-t border-line bg-brand-50/40 align-top">
