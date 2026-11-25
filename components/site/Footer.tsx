@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Github } from "lucide-react";
+import { ArrowUpRight, GitFork } from "lucide-react";
 import { LogoMark } from "@/components/site/Logo";
 
 const REPO_URL = "https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training";
@@ -45,7 +45,7 @@ export function Footer() {
           <ul className="mt-4 space-y-2.5 text-sm text-white/70">
             <li>
               <a href={REPO_URL} className="inline-flex items-center gap-1.5 hover:text-white">
-                <Github className="h-4 w-4" /> GitHub <ArrowUpRight className="h-3 w-3" />
+                <GitFork className="h-4 w-4" /> GitHub <ArrowUpRight className="h-3 w-3" />
               </a>
             </li>
             <li><a href={`${REPO_URL}/issues/new/choose`} className="hover:text-white">Propose a module</a></li>

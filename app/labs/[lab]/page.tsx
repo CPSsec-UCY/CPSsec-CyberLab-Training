@@ -10,14 +10,16 @@ export function generateStaticParams() {
   return LABS.map((lab) => ({ lab: lab.slug }));
 }
 
-export function generateMetadata({ params }: { params: { lab: string } }): Metadata {
-  const lab = getLab(params.lab);
+export async function generateMetadata({ params }: { params: Promise<{ lab: string }> }): Promise<Metadata> {
+  const { lab: labSlug } = await params;
+  const lab = getLab(labSlug);
   if (!lab) return { title: "Lab not found" };
   return { title: lab.title, description: lab.description };
 }
 
-export default async function LabPage({ params }: { params: { lab: string } }) {
-  const lab = getLab(params.lab);
+export default async function LabPage({ params }: { params: Promise<{ lab: string }> }) {
+  const { lab: labSlug } = await params;
+  const lab = getLab(labSlug);
   if (!lab) notFound();
   const Lab = await lab.load();
   const courseSlug = lab.course.split("/").filter(Boolean)[1] ?? "";

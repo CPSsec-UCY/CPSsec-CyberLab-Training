@@ -515,7 +515,7 @@ function runBuiltin(state: ShellState, command: string, args: string[], stdin: s
 
   if (command === "find") {
     skills.add("search");
-    let start = args[0] && !args[0].startsWith("-") ? args[0] : ".";
+    const start = args[0] && !args[0].startsWith("-") ? args[0] : ".";
     const nameIndex = args.indexOf("-name");
     const pattern = nameIndex >= 0 ? args[nameIndex + 1] ?? "*" : "*";
     const typeIndex = args.indexOf("-type");

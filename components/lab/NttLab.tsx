@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { ArrowRight, Dices, Timer, Waypoints } from "lucide-react";
 import type { LabEngine } from "@/lib/wasm/pqcLab";
 import { CoefficientChart } from "@/components/lab/CoefficientChart";
@@ -37,9 +37,11 @@ export function NttLab({ engine }: { engine: LabEngine }) {
 
   useEffect(() => {
     engine.seed(seed);
-    setView(snapshot("input polynomials"));
-    setMatch(null);
-    setTimings(null);
+    startTransition(() => {
+      setView(snapshot("input polynomials"));
+      setMatch(null);
+      setTimings(null);
+    });
   }, [engine, seed, snapshot]);
 
   function forward() {

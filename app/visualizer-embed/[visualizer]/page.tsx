@@ -25,14 +25,16 @@ export function generateStaticParams() {
   return Object.keys(LABS).map((visualizer) => ({ visualizer }));
 }
 
-export function generateMetadata({ params }: { params: { visualizer: string } }): Metadata {
-  const lab = LABS[params.visualizer as VisualizerSlug];
+export async function generateMetadata({ params }: { params: Promise<{ visualizer: string }> }): Promise<Metadata> {
+  const { visualizer } = await params;
+  const lab = LABS[visualizer as VisualizerSlug];
   if (!lab) return { title: "Visualizer not found" };
   return { title: lab.title, description: lab.description };
 }
 
-export default function VisualizerEmbedPage({ params }: { params: { visualizer: string } }) {
-  const lab = LABS[params.visualizer as VisualizerSlug];
+export default async function VisualizerEmbedPage({ params }: { params: Promise<{ visualizer: string }> }) {
+  const { visualizer } = await params;
+  const lab = LABS[visualizer as VisualizerSlug];
   if (!lab) notFound();
   const Lab = lab.component;
 

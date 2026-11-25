@@ -18,8 +18,9 @@ export function generateStaticParams() {
   return getModuleSlugs().map((slug) => ({ slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const learningModule = getModule(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const learningModule = getModule(slug);
   if (!learningModule) return { title: "Module not found" };
   return {
     title: learningModule.title,
@@ -31,8 +32,9 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function ModulePage({ params }: { params: { slug: string } }) {
-  const learningModule = getModule(params.slug);
+export default async function ModulePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const learningModule = getModule(slug);
   if (!learningModule) notFound();
 
   const { prev, next } = getAdjacentModules(learningModule.slug);

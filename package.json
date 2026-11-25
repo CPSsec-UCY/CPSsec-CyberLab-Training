@@ -9,7 +9,7 @@
     "build": "npm run validate && npm run test:linux-shell && next build && npm run test:tables && npm run test:animations && npm run test:terminals",
     "build:wasm": "bash scripts/build-wasm.sh",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:animations": "node scripts/check-animated-diagrams.mjs",
     "test:linux-shell": "node scripts/test-linux-shell.mjs",
@@ -20,27 +20,27 @@
     "test:wasm": "bash scripts/test-wasm.sh"
   },
   "dependencies": {
-    "framer-motion": "11.18.2",
+    "framer-motion": "14.14.0",
     "gray-matter": "4.0.3",
     "katex": "0.19.1",
-    "lucide-react": "0.468.0",
-    "next": "14.2.35",
+    "lucide-react": "1.80.0",
+    "next": "16.4.6",
     "next-mdx-remote": "6.0.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "rehype-katex": "7.0.1",
     "remark-gfm": "4.0.1",
     "remark-math": "6.0.0",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/typography": "0.5.20",
     "@types/node": "20.19.43",
-    "@types/react": "18.3.18",
-    "@types/react-dom": "18.3.5",
+    "@types/react": "19.3.2",
+    "@types/react-dom": "19.3.0",
     "autoprefixer": "10.7.0",
-    "eslint": "8.57.1",
-    "eslint-config-next": "14.2.35",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.4.6",
     "parse5": "8.1.1",
     "postcss": "8.5.33",
     "remark-parse": "11.0.0",
@@ -50,5 +50,9 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "overrides": {
+    "katex": "0.19.1",
+    "postcss-selector-parser": "6.1.6"
   }
 }

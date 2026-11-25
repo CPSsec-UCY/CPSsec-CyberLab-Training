@@ -80,7 +80,7 @@ flowchart LR
   ACTIONS["GitHub Actions<br/>build · test · deploy"] --> PAGES
 ```
 
-- **Static hosting:** Next.js 14 static export to GitHub Pages. No backend, no accounts, no analytics.
+- **Static hosting:** Next.js 16 static export to GitHub Pages. No backend, no accounts, no analytics.
 - **Content:** MDX with structured frontmatter, four `<Lens>` sections and inline `<Cite>` locators.
 - **Citations:** `content/citations.json`; a Node validator enforces keys, types, URLs, locators,
   module coverage and inline/frontmatter consistency.

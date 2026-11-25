@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useState } from "react";
 import type { LensLevel } from "@/lib/types";
 import { getLens } from "@/lib/lenses";
 
@@ -30,9 +30,11 @@ export function DepthLensProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const stored = Number(window.localStorage.getItem(LENS_KEY));
-      if (stored === 1 || stored === 2 || stored === 3 || stored === 4) setLensState(stored);
       const storedMode = window.localStorage.getItem(MODE_KEY);
-      if (storedMode === "guide" || storedMode === "lens") setMode(storedMode);
+      startTransition(() => {
+        if (stored === 1 || stored === 2 || stored === 3 || stored === 4) setLensState(stored);
+        if (storedMode === "guide" || storedMode === "lens") setMode(storedMode);
+      });
     } catch {
       // Storage may be unavailable; the full guide remains the default.
     }
