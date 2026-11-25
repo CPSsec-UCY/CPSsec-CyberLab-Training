@@ -12,22 +12,17 @@ export function useSequencePlayer(length: number, intervalMs = 2200) {
   const reducedMotion = useReducedMotion();
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const maxStep = Math.max(0, length - 1);
+  const safeStep = Math.min(step, maxStep);
+  const isPlaying = playing && !reducedMotion;
 
   useEffect(() => {
-    if (reducedMotion) setPlaying(false);
-  }, [reducedMotion]);
-
-  useEffect(() => {
-    setStep((current) => Math.min(current, Math.max(0, length - 1)));
-  }, [length]);
-
-  useEffect(() => {
-    if (!playing || length < 2) return;
+    if (!isPlaying || length < 2) return;
     const timer = window.setInterval(() => {
-      setStep((current) => (current + 1) % length);
+      setStep((current) => (Math.min(current, maxStep) + 1) % length);
     }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [playing, length, intervalMs]);
+  }, [isPlaying, length, intervalMs, maxStep]);
 
   function select(next: number) {
     setPlaying(false);
@@ -40,9 +35,9 @@ export function useSequencePlayer(length: number, intervalMs = 2200) {
   }
 
   function toggle() {
-    if (step >= length - 1 && !playing) setStep(0);
+    if (safeStep >= maxStep && !isPlaying) setStep(0);
     setPlaying((current) => !current);
   }
 
-  return { step, playing, select, restart, toggle };
+  return { step: safeStep, playing: isPlaying, select, restart, toggle };
 }

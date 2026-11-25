@@ -19,13 +19,13 @@ function loadTypeScript(fileName, dependencies = {}) {
     },
     fileName: filePath,
   }).outputText;
-  const module = { exports: {} };
+  const loadedModule = { exports: {} };
   const localRequire = (specifier) => {
     if (specifier in dependencies) return dependencies[specifier];
     throw new Error(`Unexpected dependency "${specifier}" in ${fileName}`);
   };
-  new Function("require", "module", "exports", output)(localRequire, module, module.exports);
-  return module.exports;
+  new Function("require", "module", "exports", output)(localRequire, loadedModule, loadedModule.exports);
+  return loadedModule.exports;
 }
 
 const hash = loadTypeScript("hash.ts");

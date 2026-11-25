@@ -20,7 +20,9 @@ export function AeadDemo() {
   useEffect(() => {
     let active = true;
     if (!globalThis.crypto?.subtle) {
-      setStatus("unsupported");
+      queueMicrotask(() => {
+        if (active) setStatus("unsupported");
+      });
       return;
     }
     crypto.subtle

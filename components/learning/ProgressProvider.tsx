@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 interface ProgressContextValue {
   completed: string[];
@@ -26,7 +26,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       const parsed = raw ? (JSON.parse(raw) as unknown) : [];
       if (Array.isArray(parsed)) {
-        setCompleted(parsed.filter((entry): entry is string => typeof entry === "string"));
+        startTransition(() => {
+          setCompleted(parsed.filter((entry): entry is string => typeof entry === "string"));
+        });
       }
     } catch {
       // Keep empty progress when storage is unavailable.

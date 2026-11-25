@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, FlaskConical, Github, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, BookOpen, FlaskConical, GitFork, ShieldCheck } from "lucide-react";
 
 const REPO_URL = "https://github.com/CPSsec-UCY/CPSsec-CyberLab-Training";
 
@@ -23,7 +23,7 @@ export function TopBar() {
             <FlaskConical className="h-3.5 w-3.5" /> Labs
           </Link>
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-brand-600">
-            <Github className="h-3.5 w-3.5" /> GitHub <ArrowUpRight className="h-3 w-3" />
+            <GitFork className="h-3.5 w-3.5" /> GitHub <ArrowUpRight className="h-3 w-3" />
           </a>
         </div>
       </div>
