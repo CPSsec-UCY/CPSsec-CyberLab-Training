@@ -35,9 +35,9 @@ Kubernetes API servers, cloud IAM services, secret managers and image registries
 
 <Figure caption="A responsibility matrix for a typical container platform. Each row needs an owner on both sides of the provider-customer boundary.">
   <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-    <table className="w-full min-w-[640px] text-left text-[10px]">
-      <thead className="bg-mist-100 text-muted">
-        <tr><th className="px-3 py-2">Layer</th><th className="px-3 py-2">Typical provider duty</th><th className="px-3 py-2">Customer duty</th></tr>
+    <table className="cyber-table w-full min-w-[640px] text-left text-[11px]">
+      <thead className="bg-mist-100 text-navy">
+        <tr><th scope="col" className="px-3 py-2">Layer</th><th scope="col" className="px-3 py-2">Typical provider duty</th><th scope="col" className="px-3 py-2">Customer duty</th></tr>
       </thead>
       <tbody>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Facilities and hardware</td><td className="px-3 py-2">Physical security and managed hardware lifecycle</td><td className="px-3 py-2">Select regions, understand data-residency limits</td></tr>
@@ -374,8 +374,8 @@ Protect the evidence plane. Central logging accounts, audit buckets and SIEM ing
 
 <Figure caption="A minimum cloud incident evidence matrix. Each signal answers a different question and should be correlated without discarding the raw source event.">
   <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-    <table className="w-full min-w-[720px] text-left text-[10px]">
-      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Question</th><th className="px-3 py-2">Primary evidence</th><th className="px-3 py-2">High-value correlation</th></tr></thead>
+    <table className="cyber-table w-full min-w-[720px] text-left text-[11px]">
+      <thead className="bg-mist-100 text-navy"><tr><th scope="col" className="px-3 py-2">Question</th><th scope="col" className="px-3 py-2">Primary evidence</th><th scope="col" className="px-3 py-2">High-value correlation</th></tr></thead>
       <tbody>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Who acted?</td><td className="px-3 py-2">Cloud audit, identity provider, Kubernetes audit</td><td className="px-3 py-2">Human versus workload, assumed-role chain, source network</td></tr>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">What changed?</td><td className="px-3 py-2">Policy, admission and infrastructure-deployment events</td><td className="px-3 py-2">Change ticket, pipeline identity, before-and-after configuration</td></tr>

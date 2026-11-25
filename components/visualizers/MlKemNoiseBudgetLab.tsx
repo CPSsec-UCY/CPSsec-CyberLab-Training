@@ -221,14 +221,14 @@ export function MlKemNoiseBudgetLab() {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
-        <table className="w-full min-w-[600px] text-left text-xs">
+        <table className="cyber-table cyber-table--dense w-full min-w-[600px] text-left text-xs">
           <caption className="px-3 py-2 text-left text-[9px] font-bold uppercase tracking-[0.1em] text-muted">FIPS 203 decapsulation failure bounds</caption>
           <thead className="bg-mist-100 text-[9px] uppercase tracking-[0.1em] text-muted">
             <tr>
-              <th className="px-3 py-2">Parameter set</th>
-              <th className="px-3 py-2">Rank k</th>
-              <th className="px-3 py-2">d_u / d_v</th>
-              <th className="px-3 py-2">Failure bound</th>
+              <th scope="col" className="px-3 py-2">Parameter set</th>
+              <th scope="col" className="px-3 py-2">Rank k</th>
+              <th scope="col" className="px-3 py-2">d_u / d_v</th>
+              <th scope="col" className="px-3 py-2">Failure bound</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line font-mono">

@@ -292,9 +292,9 @@ export function IdentityFlowLab() {
           <span className="text-[9px] text-muted">Reference time {REFERENCE_TIME} · signature verified with toy JWKS</span>
         </div>
         <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-          <table className="w-full min-w-[520px] text-left text-[10px]">
+          <table className="cyber-table cyber-table--dense w-full min-w-[600px] text-left text-[11px]">
             <thead className="text-muted">
-              <tr><th className="py-1.5 pr-3">Claim</th><th className="py-1.5 pr-3">Expected</th><th className="py-1.5 pr-3">Received</th><th className="py-1.5">Result</th></tr>
+              <tr><th scope="col" className="py-1.5 pr-3">Claim</th><th scope="col" className="py-1.5 pr-3">Expected</th><th scope="col" className="py-1.5 pr-3">Received</th><th scope="col" className="py-1.5">Result</th></tr>
             </thead>
             <tbody>
               <tr className="border-t border-line"><td className="py-2 pr-3 font-mono font-bold">iss</td><td className="py-2 pr-3 font-mono">{ISSUER}</td><td className="py-2 pr-3 font-mono">{ISSUER}</td><td className="py-2 font-semibold text-emerald-700">Match</td></tr>

@@ -53,8 +53,8 @@ For assessment, annotate the platform's chain with the owner of each reference a
 
 <Figure caption="Conceptual boot-chain trust map. Moving the persistence point downward changes the evidence and recovery requirements even when the visible session symptom looks identical.">
   <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-    <table className="w-full min-w-[760px] text-left text-[10px]">
-      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Trust claim</th><th className="px-3 py-2">Possible evidence</th><th className="px-3 py-2">Recovery implication</th></tr></thead>
+    <table className="cyber-table w-full min-w-[760px] text-left text-[11px]">
+      <thead className="bg-mist-100 text-navy"><tr><th scope="col" className="px-3 py-2">Stage</th><th scope="col" className="px-3 py-2">Trust claim</th><th scope="col" className="px-3 py-2">Possible evidence</th><th scope="col" className="px-3 py-2">Recovery implication</th></tr></thead>
       <tbody>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Reset and firmware</td><td className="px-3 py-2">Platform initialises from trusted state</td><td className="px-3 py-2">Supported firmware inventory and measurements</td><td className="px-3 py-2">Vendor-supported reflash or platform replacement may be required</td></tr>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">UEFI driver dispatch</td><td className="px-3 py-2">Only authorised early components run</td><td className="px-3 py-2">Driver inventory, policy decision and measured paths</td><td className="px-3 py-2">Restore firmware trust and provisioning keys</td></tr>
@@ -167,8 +167,8 @@ The UEFI discussion also changes recovery. Restoring a partition, reinstalling t
 
 <Figure caption="Visibility matrix for conceptual persistence layers. “Visible” means a vantage can contribute evidence, not that its output is automatically trustworthy.">
   <div className="not-prose overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-    <table className="w-full min-w-[760px] text-left text-[10px]">
-      <thead className="bg-mist-100 text-muted"><tr><th className="px-3 py-2">Layer</th><th className="px-3 py-2">User-mode evidence</th><th className="px-3 py-2">Kernel evidence</th><th className="px-3 py-2">Firmware evidence</th><th className="px-3 py-2">Key limitation</th></tr></thead>
+    <table className="cyber-table w-full min-w-[760px] text-left text-[11px]">
+      <thead className="bg-mist-100 text-navy"><tr><th scope="col" className="px-3 py-2">Layer</th><th scope="col" className="px-3 py-2">User-mode evidence</th><th scope="col" className="px-3 py-2">Kernel evidence</th><th scope="col" className="px-3 py-2">Firmware evidence</th><th scope="col" className="px-3 py-2">Key limitation</th></tr></thead>
       <tbody>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">User-mode hook</td><td className="px-3 py-2">Application or service disagreement</td><td className="px-3 py-2">Process, image-load and object activity</td><td className="px-3 py-2">Boot trust only</td><td className="px-3 py-2">The reporting service may be filtered</td></tr>
         <tr className="border-t border-line"><td className="px-3 py-2 font-bold text-navy">Kernel callback</td><td className="px-3 py-2">Missing or contradictory alerts</td><td className="px-3 py-2">Independent state comparison</td><td className="px-3 py-2">Boot measurements</td><td className="px-3 py-2">Acquisition may share the suspect kernel</td></tr>

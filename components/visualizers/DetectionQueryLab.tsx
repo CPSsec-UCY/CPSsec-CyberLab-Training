@@ -187,18 +187,18 @@ export function DetectionQueryLab() {
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="overflow-hidden rounded-xl border border-line">
           <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full min-w-[760px] text-left text-[10px]">
+            <table className="cyber-table cyber-table--dense w-full min-w-[920px] text-left text-[11px]">
               <caption className="sr-only">Ten deterministic process creation events and whether the generated detection matches</caption>
-              <thead className="bg-mist-100 text-muted">
+              <thead className="bg-mist-100 text-navy">
                 <tr>
-                  <th className="px-2 py-2 font-bold">Match</th>
-                  <th className="px-2 py-2 font-bold">Time</th>
-                  <th className="px-2 py-2 font-bold">Host</th>
-                  <th className="px-2 py-2 font-bold">User</th>
-                  <th className="px-2 py-2 font-bold">Process</th>
-                  <th className="px-2 py-2 font-bold">Parent</th>
-                  <th className="px-2 py-2 font-bold">Command line</th>
-                  <th className="px-2 py-2 text-right font-bold">Score</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Match</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Time</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Host</th>
+                  <th scope="col" className="px-2 py-2 font-bold">User</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Process</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Parent</th>
+                  <th scope="col" className="px-2 py-2 font-bold">Command line</th>
+                  <th scope="col" className="px-2 py-2 text-right font-bold">Score</th>
                 </tr>
               </thead>
               <tbody>

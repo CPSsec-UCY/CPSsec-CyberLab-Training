@@ -156,16 +156,56 @@ a {
   @apply rounded-2xl border border-brand-900/10 bg-navy shadow-panel;
 }
 
-.prose-cyber :where(table) {
-  @apply m-0 w-full min-w-full table-auto border-collapse text-left text-sm;
+.cyber-table {
+  @apply m-0 table-auto border-collapse text-left text-sm;
 }
 
-.prose-cyber :where(thead) {
+.cyber-table thead {
   @apply bg-mist-100;
 }
 
-.prose-cyber :where(th, td) {
+.cyber-table th {
+  @apply border-b border-line-strong px-4 py-3 align-bottom text-[10px] font-bold uppercase leading-4 tracking-[0.06em] text-navy;
+  white-space: nowrap;
+}
+
+.cyber-table td {
+  @apply border-b border-line px-4 py-3 align-top text-xs leading-5 text-body;
   overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.cyber-table tbody tr:nth-child(even) {
+  @apply bg-mist-50/70;
+}
+
+.cyber-table tbody tr:hover {
+  @apply bg-brand-50/60;
+}
+
+.cyber-table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.cyber-table--dense th {
+  @apply px-3 py-2 text-[10px];
+}
+
+.cyber-table--dense td {
+  @apply px-3 py-2 text-[11px] leading-4;
+}
+
+.cyber-table code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cyber-table .katex-display {
+  @apply my-0 overflow-visible py-0;
+}
+
+.prose-cyber :where(table) {
+  @apply m-0 table-auto border-collapse text-left text-sm;
 }
 
 .prose-cyber :where(blockquote) {

@@ -190,15 +190,15 @@ export function PolynomialConvolutionLab() {
         </div>
         {step >= 2 ? (
           <div className="mt-3 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full min-w-[520px] text-center font-mono text-xs">
+            <table className="cyber-table cyber-table--dense w-full min-w-[520px] text-center font-mono text-xs">
               <caption className="sr-only">Four-point transform values and point-wise products</caption>
               <thead className="text-[9px] uppercase tracking-[0.1em] text-muted">
                 <tr>
-                  <th className="px-2 py-2">k</th>
-                  <th className="px-2 py-2">root</th>
-                  <th className="px-2 py-2">Â[k]</th>
-                  <th className="px-2 py-2">B̂[k]</th>
-                  <th className="px-2 py-2">Ĉ[k] = Â·B̂</th>
+                  <th scope="col" className="px-2 py-2">k</th>
+                  <th scope="col" className="px-2 py-2">root</th>
+                  <th scope="col" className="px-2 py-2">Â[k]</th>
+                  <th scope="col" className="px-2 py-2">B̂[k]</th>
+                  <th scope="col" className="px-2 py-2">Ĉ[k] = Â·B̂</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">

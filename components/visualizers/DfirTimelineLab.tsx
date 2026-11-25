@@ -314,10 +314,10 @@ export function DfirTimelineLab() {
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-navy">Evidence sources and availability</p>
           </div>
           <div className="overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full min-w-[690px] text-left text-[9px]">
+            <table className="cyber-table cyber-table--dense w-full min-w-[690px] text-left text-[11px]">
               <caption className="sr-only">Four toy evidence sources, their availability and their acquisition method</caption>
               <thead className="text-muted">
-                <tr><th className="px-3 py-2 font-bold">Source</th><th className="px-3 py-2 font-bold">Status</th><th className="px-3 py-2 font-bold">Method</th><th className="px-3 py-2 font-bold">Size</th></tr>
+                <tr><th scope="col" className="px-3 py-2 font-bold">Source</th><th scope="col" className="px-3 py-2 font-bold">Status</th><th scope="col" className="px-3 py-2 font-bold">Method</th><th scope="col" className="px-3 py-2 font-bold">Size</th></tr>
               </thead>
               <tbody>
                 {SOURCES.map((source) => {

@@ -114,14 +114,14 @@ export function CompressionLab({ engine }: { engine: LabEngine }) {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
-        <table className="w-full min-w-[560px] text-left font-mono text-[10px]">
+        <table className="cyber-table cyber-table--dense w-full min-w-[560px] text-left font-mono text-[11px]">
           <thead className="bg-mist-100 uppercase tracking-[0.1em] text-slate-500">
             <tr>
-              <th className="px-3 py-2">i</th>
-              <th className="px-3 py-2">original</th>
-              <th className="px-3 py-2">compress</th>
-              <th className="px-3 py-2">recovered</th>
-              <th className="px-3 py-2">centred error</th>
+              <th scope="col" className="px-3 py-2">i</th>
+              <th scope="col" className="px-3 py-2">original</th>
+              <th scope="col" className="px-3 py-2">compress</th>
+              <th scope="col" className="px-3 py-2">recovered</th>
+              <th scope="col" className="px-3 py-2">centred error</th>
             </tr>
           </thead>
           <tbody>

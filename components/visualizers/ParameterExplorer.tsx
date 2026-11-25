@@ -111,14 +111,14 @@ export function ParameterExplorer() {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-line" role="region" aria-label="Scrollable data table" tabIndex={0}>
-        <table className="w-full min-w-[640px] border-collapse text-left text-xs">
+        <table className="cyber-table cyber-table--dense w-full min-w-[640px] border-collapse text-left text-xs">
           <thead className="bg-mist-100 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
             <tr>
-              <th className="px-3 py-2.5">Parameter set</th>
-              <th className="px-3 py-2.5">NIST cat.</th>
-              <th className="px-3 py-2.5">Public key</th>
-              <th className="px-3 py-2.5">Secret key</th>
-              <th className="px-3 py-2.5">{family.payloadLabel}</th>
+              <th scope="col" className="px-3 py-2.5">Parameter set</th>
+              <th scope="col" className="px-3 py-2.5">NIST cat.</th>
+              <th scope="col" className="px-3 py-2.5">Public key</th>
+              <th scope="col" className="px-3 py-2.5">Secret key</th>
+              <th scope="col" className="px-3 py-2.5">{family.payloadLabel}</th>
             </tr>
           </thead>
           <tbody>

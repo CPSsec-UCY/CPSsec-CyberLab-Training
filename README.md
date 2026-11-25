@@ -87,8 +87,9 @@ flowchart LR
 - **Interactivity:** React + Framer Motion for protocol and maths visualisers; SVG is inspectable.
   Explanatory sequences have play/pause/step controls and respect reduced-motion preferences;
   the production build checks their accessible controls in the exported HTML.
-- **Tables:** Markdown and JSX tables render inside labelled, keyboard-focusable horizontal scroll regions;
-  the production build checks every exported table for overflow handling.
+- **Tables:** all lesson and lab tables use shared `cyber-table` styling, explicit header scopes,
+  column-aware minimum widths, wrapping code/math and a mobile scroll hint. The production build checks
+  every exported table for overflow handling, readable sizing, consistent columns and accessible headers.
 - **Labs:** Rust compiled to `wasm32-unknown-unknown` with a hand-written C ABI plus browser-native labs
   for AEAD, hashing, federated learning, DPI, SOC triage and zero-knowledge proofs. A TypeScript
   fallback runs when Wasm is unavailable.
@@ -159,7 +160,7 @@ NEXT_PUBLIC_BASE_PATH=/CPSsec-CyberLab-Training npm run build
 | `npm run validate` | Validate citations, frontmatter, lens coverage, learner-visible prose depth and glossary links |
 | `npm run lint` | Next.js ESLint |
 | `npm run typecheck` | TypeScript, no emit |
-| `npm run test:tables` | Inspect the static export for wrapped, keyboard-accessible tables |
+| `npm run test:tables` | Inspect exported tables for wrapping, widths, readable sizing, consistent columns and scoped headers |
 | `npm run test:animations` | Verify exported process diagrams include accessible playback controls |
 | `npm run test:linux-shell` | Test SHA-256 known answers, pipes, redirection and virtual filesystem workflows |
 | `npm run test:terminals` | Verify every module exports its guided terminal and Linux practice shell |

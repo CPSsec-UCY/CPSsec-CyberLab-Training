@@ -127,14 +127,14 @@ export function DifferentialPrivacyLab() {
             <span className="font-mono text-[9px] text-muted">σ = {fixed(sigma)}</span>
           </div>
           <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full text-left text-[10px]">
+            <table className="cyber-table cyber-table--dense w-full min-w-[420px] text-left text-[11px]">
               <caption className="sr-only">Gradient coordinates before clipping, after clipping and after deterministic illustrative noise</caption>
               <thead className="text-muted">
                 <tr>
-                  <th className="py-1 pr-2 font-semibold">Coordinate</th>
-                  <th className="py-1 pr-2 font-semibold">Raw</th>
-                  <th className="py-1 pr-2 font-semibold">Clipped</th>
-                  <th className="py-1 font-semibold">Noisy</th>
+                  <th scope="col" className="py-1 pr-2 font-semibold">Coordinate</th>
+                  <th scope="col" className="py-1 pr-2 font-semibold">Raw</th>
+                  <th scope="col" className="py-1 pr-2 font-semibold">Clipped</th>
+                  <th scope="col" className="py-1 font-semibold">Noisy</th>
                 </tr>
               </thead>
               <tbody className="font-mono text-navy">

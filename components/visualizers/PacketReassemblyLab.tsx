@@ -175,10 +175,10 @@ export function PacketReassemblyLab() {
         <div className="rounded-xl border border-line bg-mist-50 p-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">Arrival order</p>
           <div className="mt-2 overflow-x-auto" role="region" aria-label="Scrollable data table" tabIndex={0}>
-            <table className="w-full text-left text-[10px]">
+            <table className="cyber-table cyber-table--dense w-full min-w-[420px] text-left text-[11px]">
               <caption className="sr-only">TCP fragment arrival order, sequence ranges and arrival times</caption>
               <thead className="text-muted">
-                <tr><th className="py-1 pr-2">#</th><th className="py-1 pr-2">Fragment</th><th className="py-1 pr-2">TCP range</th><th className="py-1">Arrival</th></tr>
+                <tr><th scope="col" className="py-1 pr-2">#</th><th scope="col" className="py-1 pr-2">Fragment</th><th scope="col" className="py-1 pr-2">TCP range</th><th scope="col" className="py-1">Arrival</th></tr>
               </thead>
               <tbody className="font-mono text-navy">
                 {order.map((id, index) => {
