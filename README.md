@@ -129,7 +129,7 @@ guided terminal and can create placeholder artifacts in the virtual lab.
 
 Requirements:
 
-- Node.js **20** (Node 18.18+ may work locally; CI uses 20)
+- Node.js **20.19+** (CI uses the latest Node 20 release)
 - Rust with the `wasm32-unknown-unknown` target (optional; a prebuilt Wasm artifact is checked in)
 
 ```bash
