@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 
 const Q = 3329;
 const HALF = Math.floor(Q / 2);
-const QUARTER = Q / 4;
 
 function modQ(value: number): number {
   return ((value % Q) + Q) % Q;

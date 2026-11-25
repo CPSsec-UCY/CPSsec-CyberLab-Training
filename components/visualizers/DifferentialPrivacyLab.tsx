@@ -8,7 +8,6 @@ const RAW_GRADIENT = [2.4, -1.8, 0.9, 3.2];
 const NOISE_DIRECTION = [0.42, -0.31, 0.18, 0.36];
 const RAW_NORM = Math.sqrt(RAW_GRADIENT.reduce((sum, value) => sum + value * value, 0));
 const BUDGET = 3;
-const DELTA = 0.00001;
 const STEPS = ["Clip", "Add Gaussian noise", "Compose rounds"];
 
 function fixed(value: number) {

@@ -321,7 +321,7 @@ function walk(state: ShellState, start: string, visit: (path: string, node: Shel
   if (!node) return;
   visit(start, node);
   if (node.type !== "dir") return;
-  for (const [name, child] of Object.entries(node.children).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const name of Object.keys(node.children).sort((a, b) => a.localeCompare(b))) {
     walk(state, normaliseAbsolute(`${start}/${name}`), visit);
   }
 }

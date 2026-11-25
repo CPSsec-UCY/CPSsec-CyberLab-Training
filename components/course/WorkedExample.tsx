@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Sigma } from "lucide-react";
+import { CheckCircle2, Sigma } from "lucide-react";
 
 export function WorkedExample({ title, steps, result }: { title: string; steps: string[]; result: string }) {
   return (

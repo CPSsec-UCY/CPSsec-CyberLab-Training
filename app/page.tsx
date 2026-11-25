@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BookOpen,
   CheckCircle2,
   FileCheck2,
   GraduationCap,
