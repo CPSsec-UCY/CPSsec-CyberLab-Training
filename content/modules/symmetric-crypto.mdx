@@ -473,6 +473,9 @@ Encrypt a record, flip a ciphertext byte and add a separate MAC. The simulated O
 
 ## Practice
 
+<LinuxTerminal slug="symmetric-crypto" />
+
+
 1. Design a nonce strategy for 10 billion messages under one key. What changes if the device can restore from backups?
 2. Write a tamper test for every field in an AEAD record: ciphertext, nonce, associated data and tag.
 3. Explain why `AES-CBC + HMAC` requires independent keys and Encrypt-then-MAC.

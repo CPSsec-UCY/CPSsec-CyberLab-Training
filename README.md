@@ -63,7 +63,7 @@ lenses; CI fails if one is missing.
 | 25 | [SLH-DSA: signatures from hash functions alone](content/modules/slh-dsa.mdx) | Post-Quantum Cryptography |
 | 26 | [Side channels and constant-time implementation](content/modules/side-channel.mdx) | Systems & Hardware |
 
-The platform also includes a searchable glossary, a citation registry with BibTeX export, 32 standalone workbenches spanning red team, web exploitation, malware reverse engineering, rootkits, DFIR, threat hunting, cloud, supply chain, privacy, protocols and PQC, and 26 guided command terminals that let learners practise the real tool workflows inside each course.
+The platform also includes a searchable glossary, a citation registry with BibTeX export, 32 standalone workbenches spanning red team, web exploitation, malware reverse engineering, rootkits, DFIR, threat hunting, cloud, supply chain, privacy, protocols and PQC, 26 guided command terminals and 26 free Linux practice shells that let learners test the workflows inside each course.
 
 ## Architecture
 
@@ -95,6 +95,10 @@ flowchart LR
 - **Command labs:** every module embeds `<TerminalLab>` with a module-specific command deck, task
   checklist, hints and simulated output. Commands mirror real tools but nothing executes and no network
   request is made. Scripts live in `lib/terminals/`; the validator fails if a module or script is missing.
+- **Linux practice shells:** every Practice section embeds `<LinuxTerminal>`, an inert shell with a
+  virtual filesystem, working-directory state, pipes, redirection, history, tab completion, grep, find,
+  file inspection and a dependency-free SHA-256 implementation. Course tools replay their guided output;
+  shell builtins mutate only the in-memory lab. Fixtures live in `lib/linuxTerminal/`.
 - **Progress:** localStorage only. Nothing is transmitted.
 
 ## Command labs
@@ -114,6 +118,12 @@ Examples of what the terminals cover:
 | DFIR | `dc3dd`, `vol.py`, `log2timeline.py` | acquisition hashes, memory context, UTC timelines |
 | SOC | `sigma convert`, `jq`, precision/recall | conversion limits, alert quality, suppressions |
 | Side channels | `perf stat`, `taskset`, `valgrind` | timing distributions, cache attribution |
+
+The **Practice** section of every course also contains a free Linux shell. Start with `pwd`, `ls -la`,
+`cat`, `grep`, `find`, `sha256sum`, `head` or `wc`; create files with `echo ... > file`, use `|` pipes and
+`&&` chains, and complete shell-skill badges. The shell has no process, network or host-filesystem access.
+Course tools such as `openssl`, `nmap`, `tshark` and `kubectl` replay the exact simulated output from the
+guided terminal and can create placeholder artifacts in the virtual lab.
 
 ## Quick start
 
@@ -151,7 +161,8 @@ NEXT_PUBLIC_BASE_PATH=/CPSsec-CyberLab-Training npm run build
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run test:tables` | Inspect the static export for wrapped, keyboard-accessible tables |
 | `npm run test:animations` | Verify exported process diagrams include accessible playback controls |
-| `npm run test:terminals` | Verify every module exports a terminal with a rendered command deck |
+| `npm run test:linux-shell` | Test SHA-256 known answers, pipes, redirection and virtual filesystem workflows |
+| `npm run test:terminals` | Verify every module exports its guided terminal and Linux practice shell |
 | `npm run build` | Validate, statically export, then run rendering and animation regression checks |
 | `npm run build:wasm` | Compile the Rust lab to `public/wasm/pqc_lab.wasm` |
 | `npm run test:wasm` | Rust unit tests (NTT round-trip and multiplication) |
@@ -175,6 +186,7 @@ content/
   modules/*.mdx         the curriculum
 lib/                    module/citation/glossary loaders and Wasm engine wrapper
   terminals/            per-course command scripts for <TerminalLab>
+  linuxTerminal/        inert shell engine, SHA-256 and per-course lab filesystems
 wasm/pqc-lab/           Rust crate and tests
 scripts/                content validation, link checking, Wasm build
 .github/workflows/      CI, Pages deploy, scheduled link check

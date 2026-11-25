@@ -13,6 +13,7 @@ instead of opening a public issue.
 - **Citation:** add a primary source or repair a broken/incorrect reference.
 - **Visualiser:** improve an existing animation or add a new one with an accessible fallback.
 - **Terminal lab:** extend a course's command deck with a realistic workflow, task or failure path.
+- **Linux shell:** improve the inert builtins or add a safe virtual lab fixture to a course's Practice section.
 - **Wasm lab:** extend the Rust engine, add tests, or improve the TypeScript fallback.
 - **Site/accessibility:** keyboard navigation, screen-reader labels, reduced-motion behaviour, layout.
 
@@ -170,7 +171,38 @@ Rules for terminal content:
 - `npm run validate` fails when a module has no `<TerminalLab>`, when the slug is wrong, when the
   script is missing or when a track file has fewer than five commands.
 
-### 6. Knowledge checks
+### 6. Linux practice shells
+
+Every `## Practice` section must include one inert shell:
+
+```mdx
+## Practice
+
+<LinuxTerminal slug="example-module" />
+```
+
+The shell is not a remote container or a host shell. It is a small in-memory Bash-like simulator. It
+supports `pwd`, `ls`, `cd`, `cat`, `head`, `tail`, `wc`, `grep`, `find`, `file`, `sha256sum`, `stat`,
+`echo`, `printf`, `mkdir`, `touch`, `rm`, `cp`, `mv`, `whoami`, `id`, `uname`, `date`, `env`, `export`,
+`which`, `man`, history, Tab completion, `|` pipelines, `>`/`>>` redirection, `;` and `&&`.
+
+Add a fixture in `lib/linuxTerminal/fixtures.ts` with the same slug as the module. Fixtures are plain
+text files under `~/lab`; binary artefacts should be represented by an inert text description. The
+engine is in `lib/linuxTerminal/engine.ts` and the SHA-256 implementation is isolated in `hash.ts`.
+
+Rules:
+
+- Never imply that a process ran or a network request was sent. The footer states the boundary.
+- Keep fixtures small, deterministic and relevant to the module's exercises.
+- Course tool commands still come from `lib/terminals/`. When run in the practice shell they replay the
+  same output and may create clearly labelled placeholder artefacts.
+- Builtins may mutate only the virtual filesystem. Do not add host filesystem, child-process, fetch,
+  WebSocket or external-service access.
+- `npm run test:linux-shell` checks SHA-256 known answers, pipes, redirection and file operations.
+- `npm run validate` fails when a Practice section has no `<LinuxTerminal>`, when the slug is wrong or
+  when the fixture is missing. `npm run test:terminals` verifies the exported shell and safety footer.
+
+### 7. Knowledge checks
 
 Use the existing component:
 
@@ -241,7 +273,9 @@ A change is ready when:
 4. The interaction is usable without a mouse and does not trap focus.
 5. The terminal commands are realistic for the stated tools, safe to teach, and paired with
    interpretable output and failure paths.
-6. CI is green and the preview build renders the module.
+6. The Linux practice shell remains inert: no process, network or host filesystem access, and every
+   generated artefact is clearly simulated.
+7. CI is green and the preview build renders the module.
 
 Cryptographic claims should be reviewed by someone with domain expertise. Note the reviewer in the PR
 description if the change affects security statements.

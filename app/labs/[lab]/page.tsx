@@ -44,12 +44,20 @@ export default async function LabPage({ params }: { params: { lab: string } }) {
             Read the supporting course →
           </Link>
           {courseSlug ? (
-            <Link
-              href={`${lab.course}#terminal-${courseSlug}`}
-              className="ml-4 mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 hover:underline"
-            >
-              <TerminalSquare className="h-3.5 w-3.5" /> Practise the commands in the course terminal →
-            </Link>
+            <>
+              <Link
+                href={`${lab.course}#terminal-${courseSlug}`}
+                className="ml-4 mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 hover:underline"
+              >
+                <TerminalSquare className="h-3.5 w-3.5" /> Practise the commands in the course terminal →
+              </Link>
+              <Link
+                href={`${lab.course}#linux-terminal-${courseSlug}`}
+                className="mt-2 block text-[11px] font-semibold text-emerald-700 hover:underline"
+              >
+                Open the Linux practice shell →
+              </Link>
+            </>
           ) : null}
         </header>
         <Lab />

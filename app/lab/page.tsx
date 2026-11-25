@@ -26,7 +26,8 @@ export default function LabPage() {
             deterministic self-test on load, and exposes every intermediate array. The catalogue below
             adds safe simulations for red-team ranges, web exploitation, cloud attack paths, malware
             reverse engineering, rootkits, DFIR timelines, threat hunting, identity flows and more.
-            Every course also includes a guided terminal that practises the real tool invocations.
+            Every course also includes a guided terminal that practises the real tool invocations, plus a
+            free Linux practice shell in its exercises.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

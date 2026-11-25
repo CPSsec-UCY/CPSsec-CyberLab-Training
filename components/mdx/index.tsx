@@ -65,6 +65,7 @@ import { RootkitBootkitLab } from "@/components/visualizers/RootkitBootkitLab";
 import { DfirTimelineLab } from "@/components/visualizers/DfirTimelineLab";
 import { BlueTeamHuntLab } from "@/components/visualizers/BlueTeamHuntLab";
 import { TerminalLab } from "@/components/lab/TerminalLab";
+import { LinuxTerminal } from "@/components/lab/LinuxTerminal";
 import { MdxTable } from "@/components/mdx/Table";
 
 function MdxLink({ href = "", children, ...props }: ComponentPropsWithoutRef<"a">) {
@@ -145,6 +146,7 @@ export const mdxComponents = {
   DfirTimelineLab,
   BlueTeamHuntLab,
   TerminalLab,
+  LinuxTerminal,
   table: MdxTable,
   a: MdxLink,
 };

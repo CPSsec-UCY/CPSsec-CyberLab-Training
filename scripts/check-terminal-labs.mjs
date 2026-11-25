@@ -8,6 +8,7 @@ const outDir = path.resolve(process.argv[2] ?? "out");
 const modulesDir = path.resolve(process.argv[3] ?? "content/modules");
 const failures = [];
 let terminals = 0;
+let linuxTerminals = 0;
 let commands = 0;
 
 function attr(node, name) {
@@ -52,28 +53,45 @@ for (const slug of expected) {
 
   if (sections.length !== 1) {
     failures.push(`learn/${slug}: expected exactly one interactive terminal lab, found ${sections.length}`);
-    continue;
+  } else {
+    const section = sections[0];
+    const nodes = descendants(section);
+    const copyButtons = nodes.filter(
+      (node) => node.tagName === "button" && attr(node, "aria-label").startsWith("Copy command:"),
+    );
+    const input = nodes.find((node) => node.tagName === "input" && attr(node, "id") === `terminal-input-${slug}`);
+    const log = nodes.find((node) => attr(node, "role") === "log");
+    const content = textContent(section);
+
+    if (!input) failures.push(`learn/${slug}: terminal input is missing`);
+    if (!log) failures.push(`learn/${slug}: terminal log region is missing`);
+    if (!content.includes("Command deck")) failures.push(`learn/${slug}: command deck did not render`);
+    if (!content.includes("Simulated shell ready")) failures.push(`learn/${slug}: terminal welcome state did not render`);
+    if (copyButtons.length < 5) {
+      failures.push(`learn/${slug}: expected at least five command-deck entries, found ${copyButtons.length}`);
+    }
+    terminals += 1;
+    commands += copyButtons.length;
   }
 
-  const section = sections[0];
-  const nodes = descendants(section);
-  const copyButtons = nodes.filter(
-    (node) => node.tagName === "button" && attr(node, "aria-label").startsWith("Copy command:"),
+  const linuxSections = descendants(document).filter(
+    (node) => node.tagName === "section" && attr(node, "aria-label") === "Interactive Linux terminal",
   );
-  const input = nodes.find((node) => node.tagName === "input" && attr(node, "id") === `terminal-input-${slug}`);
-  const log = nodes.find((node) => attr(node, "role") === "log");
-  const content = textContent(section);
-
-  if (!input) failures.push(`learn/${slug}: terminal input is missing`);
-  if (!log) failures.push(`learn/${slug}: terminal log region is missing`);
-  if (!content.includes("Command deck")) failures.push(`learn/${slug}: command deck did not render`);
-  if (!content.includes("Simulated shell ready")) failures.push(`learn/${slug}: terminal welcome state did not render`);
-  if (copyButtons.length < 5) {
-    failures.push(`learn/${slug}: expected at least five command-deck entries, found ${copyButtons.length}`);
+  if (linuxSections.length !== 1) {
+    failures.push(`learn/${slug}: expected exactly one Linux practice shell, found ${linuxSections.length}`);
+  } else {
+    const shell = linuxSections[0];
+    const nodes = descendants(shell);
+    const input = nodes.find((node) => node.tagName === "input" && attr(node, "id") === `linux-terminal-input-${slug}`);
+    const log = nodes.find((node) => attr(node, "role") === "log");
+    const content = textContent(shell);
+    if (!input) failures.push(`learn/${slug}: Linux shell input is missing`);
+    if (!log) failures.push(`learn/${slug}: Linux shell log region is missing`);
+    if (!content.includes("Virtual files")) failures.push(`learn/${slug}: Linux fixture file list did not render`);
+    if (!content.includes("Inert simulation.")) failures.push(`learn/${slug}: Linux shell safety footer did not render`);
+    if (!content.includes("Shell skills")) failures.push(`learn/${slug}: Linux shell skill checklist did not render`);
+    linuxTerminals += 1;
   }
-
-  terminals += 1;
-  commands += copyButtons.length;
 }
 
 if (expected.length === 0) failures.push("No modules were found to check.");
@@ -87,3 +105,4 @@ if (failures.length > 0) {
 console.log("Terminal lab check passed.");
 console.log(`  modules:   ${expected.length}`);
 console.log(`  terminals: ${terminals} (${commands} commands in rendered decks)`);
+console.log(`  linux shells: ${linuxTerminals} (virtual files, skills and safety footer rendered)`);

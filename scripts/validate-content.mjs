@@ -198,6 +198,20 @@ for (const file of terminalFiles) {
   }
 }
 
+const linuxFixturesFile = path.join(root, "lib", "linuxTerminal", "fixtures.ts");
+const linuxLabSlugs = new Set();
+if (!fs.existsSync(linuxFixturesFile)) {
+  errors.push("lib/linuxTerminal/fixtures.ts is missing");
+} else {
+  const source = fs.readFileSync(linuxFixturesFile, "utf8");
+  const slugs = [...source.matchAll(/\bfixture\(\s*["']([a-z0-9-]+)["']/g)].map((match) => match[1]);
+  if (slugs.length === 0) errors.push("lib/linuxTerminal/fixtures.ts: no Linux lab fixtures found");
+  for (const id of slugs) {
+    if (linuxLabSlugs.has(id)) errors.push(`lib/linuxTerminal/fixtures.ts: duplicate Linux lab fixture "${id}"`);
+    linuxLabSlugs.add(id);
+  }
+}
+
 const glossary = readJson(glossaryFile);
 const glossaryIds = new Set();
 if (Array.isArray(glossary)) {
@@ -394,6 +408,21 @@ for (const file of moduleFiles) {
   if (terminalTags.length > 1) {
     warnings.push(`${relative}: ${terminalTags.length} <TerminalLab> instances found; one per module is the convention`);
   }
+  const linuxTags = [...parsedFile.content.matchAll(/<LinuxTerminal\s+[^>]*\bslug=["']([^"']+)["']/g)].map((match) => match[1]);
+  if (linuxTags.length === 0) {
+    errors.push(`${relative}: no <LinuxTerminal> practice shell found in the Practice section`);
+  }
+  for (const id of linuxTags) {
+    if (id !== data.slug) {
+      errors.push(`${relative}: <LinuxTerminal slug="${id}"> must match the module slug "${data.slug}"`);
+    }
+    if (!linuxLabSlugs.has(id)) {
+      errors.push(`${relative}: no Linux lab fixture registered for "${id}" in lib/linuxTerminal/fixtures.ts`);
+    }
+  }
+  if (linuxTags.length > 1) {
+    warnings.push(`${relative}: ${linuxTags.length} <LinuxTerminal> instances found; one per module is the convention`);
+  }
   if (!parsedFile.content.includes("## Key takeaways")) {
     errors.push(`${relative}: missing a Key takeaways recap section`);
   }
@@ -426,6 +455,12 @@ for (const id of terminalSlugs) {
   }
 }
 
+for (const id of linuxLabSlugs) {
+  if (!moduleSlugs.has(id)) {
+    errors.push(`lib/linuxTerminal: Linux lab fixture "${id}" has no matching module`);
+  }
+}
+
 if (Array.isArray(glossary)) {
   for (const entry of glossary) {
     for (const slug of entry.modules ?? []) {
@@ -455,6 +490,7 @@ console.log(`Content validation passed.`);
 console.log(`  modules:   ${total}`);
 console.log(`  citations: ${citationIds.size} (${usedCitations.size} cited inline)`);
 console.log(`  terminals: ${terminalSlugs.size}`);
+console.log(`  shells:    ${linuxLabSlugs.size}`);
 console.log(`  glossary:  ${glossaryIds.size}`);
 if (warnings.length > 0) {
   console.log(`  warnings:  ${warnings.length}`);

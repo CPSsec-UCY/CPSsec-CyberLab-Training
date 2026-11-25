@@ -27,6 +27,9 @@ export function CourseOverview({ module }: { module: Module }) {
               <Link href={`#terminal-${module.slug}`} className="chip border-brand-200 bg-brand-50 text-brand-700 hover:border-brand-300">
                 <TerminalSquare className="h-3.5 w-3.5" /> guided terminal
               </Link>
+              <Link href={`#linux-terminal-${module.slug}`} className="chip border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300">
+                <TerminalSquare className="h-3.5 w-3.5" /> linux practice shell
+              </Link>
             </div>
           </div>
 
